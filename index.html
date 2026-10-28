@@ -470,12 +470,75 @@ table.trk tr:hover td{background:#eef4ff}
 #mtList td:first-child{background:#e6f7fd;font-variant-numeric:tabular-nums}
 #mtList .rowact .btn.sm{padding:1px 8px;font-size:12px;border-radius:4px;height:22px}
 #mtList .rowact{gap:4px}
+#specList table{font-size:13px}
+#specList th{background:#3fa7d6;color:#fff;padding:4px 8px;font-size:12.5px}
+#specList td{padding:2px 8px;border-bottom:1px solid #eef1f5;line-height:1.35}
+#specList tbody tr:nth-child(even) td{background:#f8fbfd}
+#specList tbody tr:hover td{background:#dff3fb}
+#specList td:first-child{background:#e6f7fd;text-align:center;color:#475569}
+#specList .rowact .btn.sm{padding:1px 8px;font-size:12px;border-radius:4px;height:22px}
+#specList .rowact{gap:4px}
+.spec-cat{padding:5px 10px;font-size:13px}
+/* ---------- หน้าเมนูหลัก ---------- */
+.home{display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start}
+.home-side{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;position:sticky;top:70px}
+.hs-h{background:#1f3a68;color:#fff;font-weight:700;padding:6px 10px;border-radius:6px;font-size:14px;margin-bottom:6px}
+.home-side .field{padding:5px 9px;font-size:13.5px;margin-bottom:6px}
+.hs-g{margin-bottom:4px}
+.hs-gt{font-weight:700;font-size:13.5px;padding:4px 6px;color:#1f3a68}
+.hs-i{display:block;padding:3px 8px 3px 22px;font-size:13.5px;color:var(--ink);text-decoration:none;border-radius:5px}
+.hs-i:hover{background:var(--prod-soft);color:var(--prod)}
+.home-main{min-width:0}
+.home-hello{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(90deg,#1f3a68,#0f6cbd);color:#fff;border-radius:12px;padding:14px 20px;margin-bottom:12px}
+.home-hello b{font-size:20px;display:block}.home-hello span{font-size:13px;opacity:.85}
+.home-date{font-size:15px;font-weight:700}
+.home-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.home-stats .st{background:#fff;border:1px solid var(--line);border-left:5px solid var(--prod);border-radius:10px;padding:10px 14px;cursor:pointer}
+.home-stats .st.warn{border-left-color:#c25a00}.home-stats .st.ok{border-left-color:#2e7d32}
+.home-stats .st:nth-child(1){border-left-color:#b3261e}
+.home-stats .st span{font-size:13px;color:var(--muted);display:block}
+.home-stats .st b{font-size:26px}
+.home-g{margin-bottom:14px}
+.home-g h4{margin:0 0 8px;font-size:14px;color:#1f3a68;border-bottom:2px solid #dbe3ef;padding-bottom:4px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tile{position:relative;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 8px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font:inherit;transition:.12s}
+.tile:hover{border-color:var(--tc);box-shadow:0 6px 18px #1b23331a;transform:translateY(-2px)}
+.tile .ti{width:54px;height:54px;border-radius:14px;background:var(--tc);display:grid;place-items:center;font-size:28px;box-shadow:inset 0 -3px 0 #0002}
+.tile .tt{font-size:13.5px;font-weight:700;color:var(--tc);text-align:center;line-height:1.3}
+.tile .tb{position:absolute;top:8px;right:10px;background:var(--bad);color:#fff;border-radius:999px;font-size:12px;padding:1px 8px;font-weight:700}
+@media (max-width:900px){ .home{grid-template-columns:1fr} .home-side{display:none} .home-stats{grid-template-columns:repeat(2,1fr)} }
+/* ---------- รายงานสต็อก ---------- */
+#printArea{display:none}
+.rp-cols{display:flex;flex-wrap:wrap;gap:6px}
+#dlg:has(.rp-cols){max-width:620px}
+.rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}
+.rpt-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:3mm}
+.rpt-h b{color:#1f3a68}.rpt-h h2{margin:0;font-size:15pt;color:#1f3a68}
+.rpt-meta{text-align:right;font-size:9pt;color:#334155}
+.rpt table{width:100%;border-collapse:collapse}
+.rpt th{background:#1f3a68;color:#fff;padding:1.5mm 2mm;font-size:9.5pt;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rpt td{padding:1.2mm 2mm;border-bottom:.5px solid #cbd5e1;vertical-align:top}
+.rpt .num{text-align:right;white-space:nowrap}
+.rpt .no{width:10mm;text-align:center;color:#64748b}
+.rpt td.stock_qty{font-weight:700;color:#c8102e}
+.rpt td.stock_jobs{font-size:8.5pt;color:#334155}
+.rpt tr.grp td{background:#e8eef8;font-weight:700;color:#1f3a68;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rpt tr.sub td{text-align:right;font-size:9pt;border-bottom:1px solid #1f3a68}
+.rpt thead{display:table-header-group}
+.rpt tr{page-break-inside:avoid}
+.rpt-note{margin-top:3mm;font-size:9pt}
+.rpt-sign{display:flex;justify-content:space-around;margin-top:12mm;font-size:9.5pt}
+@media print{
+  body.print-rpt > *:not(#printArea){display:none!important}
+  body.print-rpt #printArea{display:block}
+}
 </style>
 </head>
 <body>
 <div id="demoBar" class="demo hidden">โหมดทดลอง — ยังไม่ได้เชื่อม Supabase ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น <button onclick="Demo.reset()">ล้างข้อมูลทดลอง</button></div>
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
+<div id="printArea"></div>
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 <dialog id="lk" class="lk-dlg"></dialog>
@@ -1606,10 +1669,11 @@ const MasterPage = {
     document.querySelectorAll('.spec-cat').forEach(b => b.onclick = () => { this.cat = b.dataset.k; this.drawSpec(); });
     let vals; try { vals = await API.specList(this.cat); } catch (e) { $('#specList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     const label = SPEC_CATS.find(c => c[0] === this.cat)[1];
-    $('#specList').innerHTML = `<div style="padding:14px;display:flex;gap:8px;border-bottom:1px solid var(--line)">
-        <input id="specNew" class="field" style="padding:9px 12px" placeholder="เพิ่มรายการใหม่ใน ${esc(label)}"><button class="btn sm" id="specAdd">+ เพิ่ม</button></div>
-      ${vals.length ? vals.map((v,i) => `<div class="emp-row"><span>${esc(v.value)}</span><span class="rowact">
-        <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''}>↑</button><button class="btn ghost sm" data-rn="${i}">แก้</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></div>`).join('')
+    $('#specList').innerHTML = `<div style="padding:8px 10px;display:flex;gap:8px;border-bottom:1px solid var(--line)">
+        <input id="specNew" class="field" style="padding:5px 10px;font-size:14px" placeholder="เพิ่มรายการใหม่ใน ${esc(label)}"><button class="btn sm" id="specAdd">+ เพิ่ม</button></div>
+      ${vals.length ? `<table><thead><tr><th style="width:60px">ลำดับ</th><th>${esc(label)}</th><th style="width:150px"></th></tr></thead><tbody>
+        ${vals.map((v,i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(v.value)}</td><td><span class="rowact">
+        <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''} title="เลื่อนขึ้น">↑</button><button class="btn ghost sm" data-rn="${i}">แก้ไข</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">ยังไม่มีรายการ</div>'}
       <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบแล้วใบสั่งผลิตเดิมไม่เปลี่ยน</div>`;
     const add = async () => { const v = $('#specNew').value.trim(); if (!v) return;
@@ -1618,6 +1682,7 @@ const MasterPage = {
     document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.del];
       if (!(await Office.confirm(`ลบ "${v.value}" ออกจาก ${label}?`))) return;
       await API.specDelete(this.cat, v.value); WOForm.L = null; this.drawSpec(); });
+    document.querySelectorAll('#specList tr[data-i]').forEach(tr => tr.ondblclick = () => tr.querySelector('[data-rn]').click());
     document.querySelectorAll('[data-rn]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.rn];
       const nv = await this.ask(`แก้ไขรายการใน ${label}`, v.value); if (!nv || nv === v.value) return;
       try { await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; this.drawSpec(); } catch (e) { toast(e.message); } });
@@ -1705,6 +1770,154 @@ const Lookup = {
   }
 };
 
+/* ================== หน้าเมนูหลัก (Main Menu) ================== */
+const HomePage = {
+  menu: [
+    { g:'ใบสั่งผลิต', items:[
+      { k:'wo_new',  ic:'📝', c:'#0f6cbd', t:'เปิดใบสั่งผลิตใหม่', go:() => { WOForm.wo = null; store.set('vp_open_job', null); Office.go('wo'); } },
+      { k:'wo_open', ic:'📂', c:'#1f3a68', t:'เปิด / แก้ไขใบสั่งผลิต', go:() => { Office.go('wo'); setTimeout(() => $('#woOpen')?.focus(), 200); } },
+      { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') } ]},
+    { g:'การผลิต / QC', items:[
+      { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
+      { k:'track',   ic:'📊', c:'#0f7b6c', t:'ติดตามงาน (รายJOB)', go:() => { Office.pview = 'job'; store.set('vp_pview','job'); Office.go('progress'); } },
+      { k:'stock',   ic:'📦', c:'#2e7d32', t:'สต็อกตามสินค้า', go:() => { Office.pview = 'stock'; store.set('vp_pview','stock'); Office.go('progress'); } } ]},
+    { g:'ฐานข้อมูล', items:[
+      { k:'m_cus',   ic:'🏢', c:'#7a3db8', t:'ลูกค้า', go:() => HomePage.master('customers') },
+      { k:'m_prod',  ic:'🏷️', c:'#7a3db8', t:'สินค้า / รหัสงาน', go:() => HomePage.master('products') },
+      { k:'m_raw',   ic:'🧻', c:'#7a3db8', t:'วัตถุดิบ (กระดาษ)', go:() => HomePage.master('raw_materials') },
+      { k:'m_sup',   ic:'🚚', c:'#7a3db8', t:'ซัพพลายเออร์', go:() => HomePage.master('suppliers') },
+      { k:'m_spec',  ic:'⚙️', c:'#7a3db8', t:'Spec อื่นๆ (DATA_SPEC)', go:() => HomePage.master('lookups') } ]},
+    { g:'ตั้งค่า', items:[
+      { k:'emp',     ic:'👷', c:'#b3261e', t:'พนักงาน ผลิต / QC', go:() => Office.go('emp') },
+      { k:'scan',    ic:'📱', c:'#5b4fc4', t:'ทดลองหน้าสแกน (ฝ่ายผลิต)', go:() => window.open(location.origin + location.pathname + '?scan=prod', '_blank') } ]}
+  ],
+  master(t){ MasterPage.t = t; store.set('vp_mt', t); Office.go('master'); },
+  async page(){
+    const all = this.menu.flatMap(g => g.items);
+    $('#page').innerHTML = `<div class="home">
+      <aside class="home-side">
+        <div class="hs-h">เมนูหลัก</div>
+        <input id="hmQ" class="field" placeholder="🔍 ค้นหาเมนู" autocomplete="off">
+        <div id="hmTree">${this.menu.map(g => `<div class="hs-g"><div class="hs-gt">📁 ${g.g}</div>${g.items.map(i => `<a href="#" class="hs-i" data-k="${i.k}">${i.ic} ${i.t}</a>`).join('')}</div>`).join('')}</div>
+      </aside>
+      <section class="home-main">
+        <div class="home-hello"><div><b>V-PACK Job Tracking</b><span>ระบบใบสั่งผลิต · ติดตามการผลิต · QC · สต็อก</span></div><div class="home-date">${fmtD(new Date(Date.now() + 7*3600e3).toISOString())}</div></div>
+        <div class="home-stats" id="hmStats">
+          <div class="st" data-k="inbox"><span>ข้อมูลสแกนรอตรวจ</span><b id="s1">…</b></div>
+          <div class="st" data-k="track"><span>JOB ที่ยังไม่ปิด</span><b id="s2">…</b></div>
+          <div class="st warn" data-k="track"><span>ใกล้ / เลยกำหนดส่ง (7 วัน)</span><b id="s3">…</b></div>
+          <div class="st ok" data-k="stock"><span>สินค้าที่มีสต็อก</span><b id="s4">…</b></div>
+        </div>
+        ${this.menu.map(g => `<div class="home-g"><h4>${g.g}</h4><div class="tiles">${g.items.map(i => `
+          <button class="tile" data-k="${i.k}" style="--tc:${i.c}"><span class="ti">${i.ic}</span><span class="tt">${i.t}</span>${i.badge ? `<span class="tb hidden" id="tb_${i.k}"></span>` : ''}</button>`).join('')}</div></div>`).join('')}
+        <div class="home-g"><h4>งานใกล้ครบกำหนดส่ง / เลยกำหนด (ยังไม่ปิดจ๊อบ)</h4><div class="card tbl-wrap" id="hmDue"><div class="empty">กำลังโหลด…</div></div></div>
+      </section></div>`;
+    const go = k => all.find(i => i.k === k)?.go();
+    document.querySelectorAll('.home [data-k]').forEach(el => el.onclick = e => { e.preventDefault(); go(el.dataset.k); });
+    $('#hmQ').oninput = e => { const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.hs-i, .tile').forEach(el => el.classList.toggle('hidden', !!q && !el.textContent.toLowerCase().includes(q))); };
+    $('#hmQ').onkeydown = e => { if (e.key === 'Enter') { const f = document.querySelector('.tile:not(.hidden)'); if (f) go(f.dataset.k); } };
+    this.stats();
+  },
+  async stats(){
+    try {
+      const [inbox, rows, stock] = await Promise.all([API.listInbox('pending'), API.progress('', true, false), API.stockView('')]);
+      const today = new Date(Date.now() + 7*3600e3).toISOString().slice(0,10), lim = new Date(Date.now() + 7*3600e3 + 7*864e5).toISOString().slice(0,10);
+      const open = rows.filter(r => !r.closed), due = open.filter(r => r.due_date && r.due_date <= lim).sort((a,b) => a.due_date.localeCompare(b.due_date));
+      $('#s1').textContent = fmtN(inbox.length); $('#s2').textContent = fmtN(open.length); $('#s3').textContent = fmtN(due.length);
+      $('#s4').textContent = fmtN(stock.filter(s => +s.stock_qty > 0).length);
+      const tb = $('#tb_inbox'); if (tb && inbox.length) { tb.textContent = inbox.length; tb.classList.remove('hidden'); }
+      $('#hmDue').innerHTML = due.length ? `<table class="trk"><thead><tr><th>JOB</th><th>กำหนดส่ง</th><th>ลูกค้า</th><th>สินค้า</th><th class="num">ยอดสั่ง</th><th class="num">พร้อมส่ง</th><th>สถานะผลิต</th><th>QC</th></tr></thead><tbody>
+        ${due.slice(0, 12).map(r => `<tr><td class="stk"><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td>
+          <td class="${r.due_date < today ? 'stock-neg' : ''}"><b>${fmtD(r.due_date)}</b>${r.due_date < today ? ' (เลยกำหนด)' : ''}</td>
+          <td class="cu">${esc(r.customer_name)}</td><td class="pn">${esc(r.product_name)}</td><td class="num">${fmtN(r.order_qty)}</td><td class="num">${fmtN(r.ready_qty)}</td>
+          <td>${esc(r.print_status||'')}</td><td>${esc(r.qc_status||'')}</td></tr>`).join('')}</tbody></table>`
+        : `<div class="empty">ไม่มีงานที่ครบกำหนดส่งใน 7 วันนี้ 🎉</div>`;
+      $('#hmDue').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+    } catch (e) { $('#hmDue').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  }
+};
+
+/* ================== รายงานสต็อกคงเหลือ (เลือกคอลัมน์ได้) ================== */
+const StockReport = {
+  COLS: [
+    ['customer_name','ชื่อลูกค้า',1], ['product_name','ชื่อสินค้า',1], ['stock_qty','สต็อกคงเหลือ (ดวง)',1], ['stock_jobs','อยู่ที่ JOB',1],
+    ['prod_total','ยอดผลิตสะสม',0], ['qc_total','ยอด QC สะสม',0], ['waste_total','ยอดเสียสะสม',0],
+    ['order_total','ยอดสั่งผลิตรวม',0], ['open_order_qty','ยอดสั่งคงค้าง',0], ['last_status','สถานะล่าสุด',0], ['job_count','จำนวน JOB',0]],
+  NUM: new Set(['stock_qty','prod_total','qc_total','waste_total','order_total','open_order_qty','job_count']),
+  opts(){ const d = { cols: this.COLS.filter(c => c[2]).map(c => c[0]), onlyPos: true, group: false, sort: 'customer', title: 'รายงานสต็อกสินค้าคงเหลือ', note: '' };
+    return { ...d, ...store.get('vp_rpt', {}) }; },
+  open(search){
+    const o = this.opts();
+    $('#dlgBody').innerHTML = `<h3>🖨 พิมพ์รายงานสต็อก</h3>
+      <label>ชื่อรายงาน</label><input id="rp_t" class="field" value="${esc(o.title)}">
+      <label>เลือกข้อมูลที่จะแสดงในรายงาน</label>
+      <div class="rp-cols">${this.COLS.map(([k,l]) => `<label class="wc ${o.cols.includes(k) ? 'on' : ''}"><input type="checkbox" data-col="${k}" ${o.cols.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <label>ตัวเลือก</label>
+      <div class="rp-cols">
+        <label class="wc ${o.onlyPos ? 'on' : ''}"><input type="checkbox" id="rp_pos" ${o.onlyPos ? 'checked' : ''}> เฉพาะสินค้าที่มีสต็อก</label>
+        <label class="wc ${o.group ? 'on' : ''}"><input type="checkbox" id="rp_grp" ${o.group ? 'checked' : ''}> จัดกลุ่มตามลูกค้า + รวมย่อย</label>
+        <select id="rp_sort" class="field" style="width:auto;padding:4px 8px"><option value="customer" ${o.sort==='customer'?'selected':''}>เรียงตามชื่อลูกค้า</option><option value="stock" ${o.sort==='stock'?'selected':''}>เรียงตามสต็อก มาก → น้อย</option><option value="product" ${o.sort==='product'?'selected':''}>เรียงตามชื่อสินค้า</option></select>
+      </div>
+      <label>หมายเหตุท้ายรายงาน (ถ้ามี)</label><input id="rp_note" class="field" value="${esc(o.note)}" placeholder="เช่น ข้อมูล ณ สิ้นวัน">
+      ${search ? `<div class="hint" style="margin-top:8px">ใช้คำค้นหา "${esc(search)}" ตามที่ค้นไว้ในหน้าจอ</div>` : ''}
+      <div class="acts"><button class="btn ghost" id="rp_c">ยกเลิก</button><button class="btn ghost" id="rp_csv">⬇ Excel (CSV)</button><button class="btn" id="rp_p">🖨 พิมพ์</button></div>`;
+    const d = $('#dlg'); d.showModal();
+    d.querySelectorAll('.rp-cols input[type=checkbox]').forEach(x => x.onchange = () => x.parentElement.classList.toggle('on', x.checked));
+    const read = () => { const n = { cols: [...d.querySelectorAll('[data-col]')].filter(x => x.checked).map(x => x.dataset.col),
+      onlyPos: $('#rp_pos').checked, group: $('#rp_grp').checked, sort: $('#rp_sort').value, title: $('#rp_t').value.trim() || 'รายงานสต็อกสินค้าคงเหลือ', note: $('#rp_note').value.trim() };
+      store.set('vp_rpt', n); return n; };
+    $('#rp_c').onclick = () => d.close();
+    $('#rp_p').onclick = async () => { const n = read(); if (!n.cols.length) return toast('เลือกอย่างน้อย 1 คอลัมน์'); d.close(); this.print(n, await this.data(n, search)); };
+    $('#rp_csv').onclick = async () => { const n = read(); if (!n.cols.length) return toast('เลือกอย่างน้อย 1 คอลัมน์'); d.close(); this.csv(n, await this.data(n, search)); };
+  },
+  async data(o, search){
+    let rows = await API.stockView(search || '');
+    const q = (search || '').toLowerCase();
+    rows = rows.filter(r => (!q || ((r.customer_name||'') + (r.product_name||'')).toLowerCase().includes(q)) && (!o.onlyPos || +r.stock_qty > 0));
+    const by = { customer: (a,b) => (a.customer_name||'').localeCompare(b.customer_name||'') || (a.product_name||'').localeCompare(b.product_name||''),
+      stock: (a,b) => (+b.stock_qty) - (+a.stock_qty), product: (a,b) => (a.product_name||'').localeCompare(b.product_name||'') }[o.sort];
+    if (o.group) rows.sort((a,b) => (a.customer_name||'').localeCompare(b.customer_name||'') || by(a,b)); else rows.sort(by);
+    return rows;
+  },
+  cell(k, r){ const v = r[k]; return this.NUM.has(k) ? fmtN(v || 0) : esc(v ?? ''); },
+  print(o, rows){
+    const cols = this.COLS.filter(c => o.cols.includes(c[0]));
+    const sum = arr => arr.reduce((s,r) => s + (+r.stock_qty || 0), 0);
+    const head = `<tr><th class="no">ลำดับ</th>${cols.map(([k,l]) => `<th class="${this.NUM.has(k) ? 'num' : ''}">${l}</th>`).join('')}</tr>`;
+    let i = 0, body = '';
+    const line = r => `<tr><td class="no">${++i}</td>${cols.map(([k]) => `<td class="${this.NUM.has(k) ? 'num' : ''} ${k}">${this.cell(k, r)}</td>`).join('')}</tr>`;
+    if (o.group) {
+      const groups = {}; rows.forEach(r => (groups[r.customer_name || '-'] ||= []).push(r));
+      Object.entries(groups).forEach(([c, rs]) => {
+        body += `<tr class="grp"><td colspan="${cols.length + 1}">${esc(c)} <small>(${rs.length} รายการ)</small></td></tr>` + rs.map(line).join('');
+        if (o.cols.includes('stock_qty')) body += `<tr class="sub"><td colspan="${cols.length + 1}">รวมสต็อก ${esc(c)} : <b>${fmtN(sum(rs))}</b> ดวง</td></tr>`;
+      });
+    } else body = rows.map(line).join('');
+    const now = new Date(Date.now() + 7*3600e3);
+    $('#printArea').innerHTML = `<div class="rpt">
+      <div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(o.title)}</h2></div>
+        <div class="rpt-meta">พิมพ์เมื่อ ${fmtT(new Date().toISOString())}<br>จำนวน ${fmtN(rows.length)} รายการ${o.cols.includes('stock_qty') ? ` · สต็อกรวม <b>${fmtN(sum(rows))}</b> ดวง` : ''}</div></div>
+      <table>${'<thead>' + head + '</thead>'}<tbody>${body || `<tr><td colspan="${cols.length + 1}" style="text-align:center;padding:20px">ไม่มีข้อมูล</td></tr>`}</tbody></table>
+      ${o.note ? `<div class="rpt-note">หมายเหตุ: ${esc(o.note)}</div>` : ''}
+      <div class="rpt-sign"><div>ผู้จัดทำ ................................................</div><div>ผู้ตรวจสอบ ................................................</div></div>
+    </div>`;
+    document.body.classList.add('print-rpt');
+    const done = () => { document.body.classList.remove('print-rpt'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => window.print(), 100);
+  },
+  csv(o, rows){
+    const cols = this.COLS.filter(c => o.cols.includes(c[0]));
+    const q = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const lines = [cols.map(c => q(c[1])).join(','), ...rows.map(r => cols.map(([k]) => this.NUM.has(k) ? (+r[k] || 0) : q(r[k])).join(','))];
+    const blob = new Blob(['﻿' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `stock-report-${isoToTh(new Date(Date.now()+7*3600e3).toISOString().slice(0,10)).replace(/\//g,'-')}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+};
+
 /* ================== หน้าออฟฟิศ ================== */
 const Office = {
   tab: store.get('vp_tab', 'wo'),
@@ -1715,8 +1928,9 @@ const Office = {
     this.user = s;
     $('#app').innerHTML = `
       <div class="top"><div class="in">
-        <div class="logo">V-PACK <span>Job Tracking</span></div>
+        <div class="logo" id="logoHome" style="cursor:pointer" title="กลับหน้าเมนูหลัก">V-PACK <span>Job Tracking</span></div>
         <nav class="tabs">
+          <button class="tab" data-t="home">🏠 หน้าหลัก</button>
           <button class="tab" data-t="wo">ใบสั่งผลิต</button>
           <button class="tab" data-t="inbox">ตรวจข้อมูลสแกน <span class="badge hidden" id="badge"></span></button>
           <button class="tab" data-t="progress">ติดตามงาน</button>
@@ -1728,7 +1942,8 @@ const Office = {
       </div></div><div class="page" id="page"></div>`;
     document.querySelectorAll('.tab').forEach(b => b.onclick = () => this.go(b.dataset.t));
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
-    this.go(this.tab);
+    $('#logoHome').onclick = () => this.go('home');
+    this.go('home');   // login แล้วเข้าหน้าเมนูหลักก่อนเสมอ
     setInterval(() => { if (this.tab === 'inbox' && this.view === 'pending' && !document.querySelector('dialog[open]') && !this.sel.size) this.loadInbox(true); }, 30000);
   },
   loginPage(){
@@ -1743,7 +1958,7 @@ const Office = {
   go(t){
     this.tab = t; store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-    ({wo:()=>WOForm.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page()})[t]();
+    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page()})[t]();
   },
 
   /* ----- รอตรวจ ----- */
@@ -1870,6 +2085,7 @@ const Office = {
         <input id="ps" class="field" style="max-width:300px;padding:6px 10px;font-size:14px" placeholder="ค้นหา JOB / ลูกค้า / สินค้า" value="${esc(this.search)}">
         <label class="wc ${this.hideClosed?'on':''}" id="hcL"><input type="checkbox" id="hc" ${this.hideClosed?'checked':''}> ซ่อนที่ปิดจ๊อบ</label>
         <label class="wc ${this.onlyStock?'on':''}" id="osL"><input type="checkbox" id="os" ${this.onlyStock?'checked':''}> เฉพาะที่มีสต็อก</label>
+        ${this.pview === 'stock' ? '<button class="btn sm" id="rptBtn">🖨 พิมพ์รายงาน</button>' : ''}
         <div class="sp"></div><span class="hint">ช่องสีส้ม = กรอก/แก้ได้ · นับเฉพาะยอดสแกนที่อนุมัติแล้ว</span></div>
       <div class="card tbl-wrap trk-wrap" id="pg"><div class="empty">กำลังโหลด…</div></div>`;
     document.querySelectorAll('#pvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.pview); b.onclick = () => { this.pview = b.dataset.v; store.set('vp_pview', this.pview); this.progressPage(); }; });
@@ -1877,6 +2093,7 @@ const Office = {
     $('#hc').onchange = e => { this.hideClosed = e.target.checked; $('#hcL').classList.toggle('on', this.hideClosed); this.loadProgress(); };
     $('#os').onchange = e => { this.onlyStock = e.target.checked; $('#osL').classList.toggle('on', this.onlyStock); this.loadProgress(); };
     $('#hcL').classList.toggle('hidden', this.pview === 'stock');
+    $('#rptBtn')?.addEventListener('click', () => StockReport.open(this.search));
     this.loadProgress();
   },
   async loadProgress(){
