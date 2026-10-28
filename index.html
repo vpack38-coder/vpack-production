@@ -151,7 +151,11 @@ dialog::backdrop{background:#1b233366}
 .wo-sec.s6{--sc:#b3261e;--sc-soft:#fcebea}
 .wo-sec h3{margin:0;padding:5px 12px;background:var(--sc);color:#fff;font-size:14px;font-weight:700;display:flex;gap:8px;align-items:center}
 .wo-sec h3 span{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:var(--sc);font-size:12px}
-.wo-sec > .wo-grid,.wo-sec > .wo-two,.wo-sec > .wc-row{margin:8px 12px 10px}
+.sec-body > .wo-grid,.sec-body > .wo-two,.sec-body > .wc-row{margin:8px 12px 10px}
+.wo-sec h3{cursor:pointer;user-select:none}
+.wo-sec h3 .chev{margin-left:auto;font-size:12px;font-weight:400;opacity:.9}
+.wo-sec.shut .sec-body{display:none}
+.wo-fold{display:flex;gap:6px}
 .wo-sec h4{margin:2px 0 6px;font-size:13px;color:var(--sc);font-weight:700;border-bottom:1px solid var(--sc-soft);padding-bottom:3px}
 .wo-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px 12px}
 .wo-two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -230,6 +234,25 @@ dialog::backdrop{background:#1b233366}
   .tk-scroll{overflow:visible;padding:0}
   .tk{box-shadow:none;margin:0;min-height:279mm}
   .tk,.tk *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media (max-width:600px){
+  body{font-size:14px}
+  .top .in{padding:6px 10px;gap:6px}
+  .top .logo{font-size:15px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;-webkit-overflow-scrolling:touch}
+  .tab{white-space:nowrap;padding:6px 10px;font-size:14px}
+  .top .who{margin-left:0;font-size:12px}
+  .page{padding:10px 8px 60px}
+  .wo-bar{gap:6px}
+  .wo-id{font-size:14px} .wo-id b{font-size:16px}
+  .wo-fold{width:100%} .wo-fold .btn{flex:1}
+  .sec-body > .wo-grid,.sec-body > .wo-two,.sec-body > .wc-row{margin:6px 8px 8px}
+  .wo-grid,.wo-two .wo-grid{gap:4px 8px}
+  .wf > span{font-size:11px}
+  .wf .field{font-size:16px;height:32px}
+  .wc{font-size:12.5px;padding:3px 7px}
+  .wo-actions .btn{flex:1 1 45%;padding:10px 8px;font-size:14px}
+  .dir img{width:82px}
 }
 </style>
 </head>
@@ -751,7 +774,7 @@ const todayISO = () => { const d = new Date(Date.now() + 7*3600e3); return d.toI
 function blankWO(){ const o = {}; WO_FIELDS.forEach(([c,t]) => o[c] = t === 'boolean' ? false : null); o.doc_date = todayISO(); o.mto = true; return o; }
 
 const WOForm = {
-  wo: null, mode: 'new', dirty: false, L: null,
+  wo: null, mode: 'new', dirty: false, L: null, closedSecs: new Set(store.get('vp_wo_closed', [])),
   async page(){
     if (!this.L) { try { this.L = await API.lookups(); } catch (e) { $('#page').innerHTML = `<div class="err">โหลดข้อมูลหลักไม่ได้: ${esc(e.message)}</div>`; return; } }
     const L = this.L;
@@ -765,6 +788,7 @@ const WOForm = {
       <datalist id="dl_jobs"></datalist>
       <div class="wo-bar">
         <div class="wo-id"><span id="woMode" class="pill"></span><b id="woJob"></b><span id="woDirty" class="hint"></span></div>
+        <div class="wo-fold"><button class="btn ghost sm" id="foldAll">ย่อทั้งหมด</button><button class="btn ghost sm" id="openAll">ขยายทั้งหมด</button></div>
         <div class="wo-open"><input id="woOpen" class="field" placeholder="เปิดใบเดิม: เลข JOB" list="dl_jobs" autocomplete="off"><button class="btn ghost sm" id="woOpenBtn">เปิด</button><button class="btn ghost sm" id="woNew">+ ใบใหม่</button></div>
       </div>
       <div id="woForm"></div>
@@ -772,6 +796,8 @@ const WOForm = {
     let t; $('#woOpen').oninput = e => { clearTimeout(t); t = setTimeout(async () => {
       const list = await API.searchJobs(e.target.value); $('#dl_jobs').innerHTML = list.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name)} · ${esc(j.product_name)}</option>`).join(''); }, 250); };
     $('#woOpenBtn').onclick = () => this.open($('#woOpen').value.trim());
+    $('#foldAll').onclick = () => ['s0','s1','s2','s3','s4','s5','s6'].forEach(k => this.toggleSec(k, true));
+    $('#openAll').onclick = () => ['s0','s1','s2','s3','s4','s5','s6'].forEach(k => this.toggleSec(k, false));
     $('#woOpen').onkeydown = e => { if (e.key === 'Enter') this.open($('#woOpen').value.trim()); };
     $('#woNew').onclick = async () => { if (this.dirty && !(await Office.confirm('ล้างฟอร์มเพื่อเริ่มใบใหม่? ข้อมูลที่ยังไม่บันทึกจะหาย'))) return; this.load(blankWO(), 'new'); };
     if (pending) { store.set('vp_open_job', null); await this.open(pending); }
@@ -810,7 +836,12 @@ const WOForm = {
     return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}${o.unit ? ` <small>(${o.unit})</small>` : ''}${o.calc ? ' <small class="auto">คำนวณอัตโนมัติ</small>' : ''}</span>${ctl}</label>`;
   },
   c(c, label){ return `<label class="wc ${this.wo[c] ? 'on' : ''}"><input type="checkbox" data-c="${c}" ${this.wo[c] ? 'checked' : ''}> ${label}</label>`; },
-  sec(n, title, body, cls=''){ return `<section class="wo-sec s${n || 0} ${cls}"><h3>${n ? `<span>${n}</span>` : ''}${title}</h3>${body}</section>`; },
+  sec(n, title, body, cls=''){ const k = 's' + (n || 0), shut = this.closedSecs.has(k);
+    return `<section class="wo-sec ${k} ${cls} ${shut ? 'shut' : ''}" data-sec="${k}"><h3 data-toggle="${k}">${n ? `<span>${n}</span>` : ''}${title}<b class="chev">${shut ? '▸ ขยาย' : '▾'}</b></h3><div class="sec-body">${body}</div></section>`; },
+  toggleSec(k, force){ const el = $(`#woForm [data-sec="${k}"]`); if (!el) return;
+    const shut = force ?? !el.classList.contains('shut'); el.classList.toggle('shut', shut);
+    el.querySelector('.chev').textContent = shut ? '▸ ขยาย' : '▾';
+    shut ? this.closedSecs.add(k) : this.closedSecs.delete(k); store.set('vp_wo_closed', [...this.closedSecs]); },
   render(){
     const g = (...x) => `<div class="wo-grid">${x.join('')}</div>`;
     const row = (...x) => `<div class="wc-row">${x.join('')}</div>`;
@@ -881,8 +912,8 @@ const WOForm = {
     </fieldset>`;
     // actions
     const A = this.mode === 'new'
-      ? `<button class="btn" id="aSave">บันทึกใบสั่งผลิต</button>`
-      : `${this.wo.closed ? '' : '<button class="btn" id="aUpdate">บันทึกการแก้ไข</button>'}
+      ? `<button class="btn" id="aSavePrint">🖨 บันทึก + พิมพ์</button><button class="btn ghost" id="aSave">บันทึกอย่างเดียว</button>`
+      : `${this.wo.closed ? '' : '<button class="btn" id="aUpdatePrint">🖨 บันทึกการแก้ไข + พิมพ์</button><button class="btn ghost" id="aUpdate">บันทึกการแก้ไข</button>'}
          <button class="btn ghost" id="aRevise">บันทึกเป็น Revised</button>
          <button class="btn ghost" id="aCopy">สร้าง JOB ใหม่จากใบนี้</button>
          <button class="btn ghost" id="aPrint">พิมพ์ใบสั่งผลิต</button>
@@ -892,6 +923,7 @@ const WOForm = {
   },
   bind(){
     const form = $('#woForm');
+    form.querySelectorAll('[data-toggle]').forEach(h => h.onclick = () => this.toggleSec(h.dataset.toggle));
     form.querySelectorAll('[data-d]').forEach(el => {
       const c = el.dataset.d;
       el.addEventListener('input', () => {
@@ -921,7 +953,9 @@ const WOForm = {
       this.setDirty(true); this.render();
     });
     $('#aSave')?.addEventListener('click', () => this.save('new'));
+    $('#aSavePrint')?.addEventListener('click', () => this.save('new', true));
     $('#aUpdate')?.addEventListener('click', () => this.save('update'));
+    $('#aUpdatePrint')?.addEventListener('click', () => this.save('update', true));
     $('#aRevise')?.addEventListener('click', () => this.save('revise'));
     $('#aCopy')?.addEventListener('click', () => this.save('copy'));
     $('#aPrint')?.addEventListener('click', async () => {
@@ -968,12 +1002,12 @@ const WOForm = {
     delete o.job_ticket;
     return o;
   },
-  async save(kind){
+  async save(kind, andPrint){
     const p = this.payload();
     const miss = [['customer_name','ชื่อลูกค้า'],['product_name','ชื่อสินค้าที่ผลิต'],['order_qty','จำนวนที่สั่งผลิต']].filter(([c]) => p[c] === null).map(x => x[1]);
     if (miss.length) return toast('กรุณากรอก: ' + miss.join(', '));
     const msgs = { new: 'บันทึกใบสั่งผลิตใหม่?', update: `บันทึกการแก้ไข JOB ${this.wo.job_ticket}?`, revise: `บันทึกเป็นงาน Revised ของ ${this.wo.job_ticket}?`, copy: 'สร้าง JOB ใหม่ โดยใช้ข้อมูลจากใบนี้?' };
-    if (!(await Office.confirm(msgs[kind]))) return;
+    if ((kind === 'revise' || kind === 'copy') && !(await Office.confirm(msgs[kind]))) return;
     try {
       let job;
       if (kind === 'update') { await API.updateWorkOrder(this.wo.job_ticket, p); job = this.wo.job_ticket; }
@@ -983,7 +1017,7 @@ const WOForm = {
       toast(kind === 'update' ? `บันทึก ${job} แล้ว` : `บันทึกแล้ว ได้เลข JOB ${job}`);
       const wo = await API.getWorkOrder(job);
       this.load(wo, 'edit');
-      if (kind !== 'update' && await Office.confirm(`JOB ${job} — พิมพ์ใบสั่งผลิตพร้อม QR เลยไหม?`)) { store.set('vp_lastjob', job); Office.go('qr'); }
+      if (andPrint) { store.set('vp_lastjob', job); Office.autoPrint = job; Office.go('qr'); }
     } catch (e) { toast('บันทึกไม่สำเร็จ: ' + e.message); }
   }
 };
@@ -1317,6 +1351,12 @@ const Office = {
       $('#qout').innerHTML = jobTicketHTML(wo, $('#qby').value.trim());
       ['prod','qc'].forEach(d => new QRCode($('#tkq_' + d), {text: url(d), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M}));
       $('#qprint').disabled = false;
+      if (Office.autoPrint === wo.job_ticket) {   // มาจากปุ่ม "บันทึก + พิมพ์"
+        Office.autoPrint = null;
+        const back = () => { window.removeEventListener('afterprint', back); store.set('vp_open_job', wo.job_ticket); Office.go('wo'); };
+        window.addEventListener('afterprint', back);
+        setTimeout(() => window.print(), 400);
+      }
     };
     $('#qgo').onclick = gen; $('#qj').onkeydown = e => { if (e.key === 'Enter') gen(); };
     if ($('#qj').value) gen();
