@@ -133,6 +133,28 @@ dialog::backdrop{background:#1b233366}
 .spec-cat.on{background:var(--prod-soft);color:var(--prod);font-weight:600}
 @media (max-width:820px){ .spec-wrap{grid-template-columns:1fr} .spec-cats{flex-direction:row;flex-wrap:wrap} }
 #mtSeg{flex-wrap:wrap}
+/* ---------- ติดตามงาน ---------- */
+.trk-wrap{max-height:calc(100vh - 170px)}
+table.trk{font-size:12px;border-collapse:separate;border-spacing:0}
+table.trk th{font-size:11.5px;padding:6px 6px;background:#3b2f63;color:#fff;font-weight:700;white-space:nowrap;z-index:2}
+table.trk th.inp{background:#a0522d}
+table.trk td{padding:4px 6px;white-space:nowrap;vertical-align:middle}
+table.trk td.cu{min-width:190px;max-width:230px;white-space:normal;font-size:11.5px;line-height:1.3}
+table.trk td.pn{min-width:250px;max-width:320px;white-space:normal;font-size:11.5px;line-height:1.3;color:#334155}
+table.trk td.inp{background:#fdf1e6}
+table.trk .stk{position:sticky;left:0;background:#fff;z-index:1;font-weight:700}
+table.trk th.stk{background:#3b2f63;z-index:3}
+table.trk tr.is-closed td{background:#f6f7f9;color:#6b7280}
+table.trk tr.is-closed td.inp{background:#f3ece6}
+table.trk tr:hover td{background:#eef4ff}
+.ed{width:84px;border:1px solid #e5c9b0;border-radius:4px;padding:2px 5px;font:inherit;text-align:right;background:#fff}
+.ed[data-f="track_note"]{width:150px;text-align:left}
+.jl{color:var(--prod);text-decoration:none}
+.st{display:inline-block;border-radius:4px;padding:1px 6px;font-size:11px;background:#eef1f6}
+.st-ok{background:#dff3e6;color:#17663b}.st-run{background:#fff1d6;color:#8a5300}.st-no{background:#fde8e8;color:#b42318}
+.stock-pos{color:#17663b;background:#e9f7ee}.stock-neg{color:#b42318}
+.carry{border:1px dashed #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;background:#f8fafc;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.ok-t{color:#17663b}.muted-t{color:var(--muted)}
 /* ---------- ฟอร์มใบสั่งผลิต ---------- */
 .wo-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .wo-id{display:flex;gap:10px;align-items:center;font-size:16px}
@@ -290,7 +312,7 @@ const USE_DEMO = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
 /* ================== Demo backend (เลียนแบบฟังก์ชันใน Supabase) ================== */
 const Demo = {
-  KEY: 'vp_demo_v6',
+  KEY: 'vp_demo_v7',
   seed(){
     const now = Date.now(), m = 60000;
     const wo = [
@@ -366,30 +388,57 @@ const Demo = {
     d.inbox.filter(r => ids.includes(r.id) && r.review_status === 'pending').forEach(r => { r.review_status='rejected'; r.review_note=note; r.reviewed_at=new Date().toISOString(); r.reviewed_by='ทดลอง'; n++; });
     this.save(); return n;
   },
-  async progress(){
-    const d = this.db();
-    return d.wo.map(w => {
-      const pl = d.prod_logs.filter(l => l.job_ticket === w.job_ticket).sort((a,b)=>b.logged_at.localeCompare(a.logged_at));
-      const ql = d.qc_logs.filter(l => l.job_ticket === w.job_ticket).sort((a,b)=>b.logged_at.localeCompare(a.logged_at));
-      const sum = (arr, f) => arr.filter(f).reduce((s,l) => s + (+l.qty||0), 0);
-      return {...w,
-        print_qty: sum(pl, l => l.step==='พิมพ์' && l.status!=='กำลังทำ'),
-        diecut_qty: sum(pl, l => l.step==='ไดคัท' && l.status!=='กำลังทำ'),
-        last_prod_status: pl[0] ? `${pl[0].step} · ${pl[0].status}` : null, last_prod_at: pl[0]?.logged_at,
-        qc_qty: sum(ql, l => l.status!=='กำลังทำ'), last_qc_status: ql[0]?.status, last_qc_at: ql[0]?.logged_at,
-        pending_scans: d.inbox.filter(r => r.job_ticket===w.job_ticket && r.review_status==='pending').length};
-    }).sort((a,b) => b.job_ticket.localeCompare(a.job_ticket));
+  calc(){   // เลียนแบบ v_job_progress ใน Supabase
+    const d = this.db(), N = x => +x || 0, last = arr => arr[arr.length - 1];
+    const rows = d.wo.map(w => {
+      const pl = d.prod_logs.filter(l => l.job_ticket === w.job_ticket), ql = d.qc_logs.filter(l => l.job_ticket === w.job_ticket);
+      const pr = pl.filter(l => l.step === 'พิมพ์'), dc = pl.filter(l => l.step === 'ไดคัท');
+      const sum = a => a.reduce((s,l) => s + N(l.qty), 0);
+      const qcs = last(ql)?.status;
+      const prod = sum(pl), qc = sum(ql), carry = N(w.carry_forward_qty);
+      const effP = N(w.adj_prod_qty) > 0 ? N(w.adj_prod_qty) : prod, effQ = N(w.adj_qc_qty) > 0 ? N(w.adj_qc_qty) : qc;
+      const ready = effQ + carry;
+      return {...w, prod_qty: prod, print_qty: sum(pr), diecut_qty: sum(dc), qc_qty: qc,
+        print_status: last(pr)?.status || (dc.length ? '(ปั๊มเปล่า)' : 'ยังไม่เริ่ม'),
+        diecut_status: qcs === 'ส่งยอดสุดท้าย (จบ JOB)' ? 'เสร็จแล้ว' : last(dc)?.status || (['กำลังทำ','ทยอยส่ง'].includes(qcs) ? '(ส่ง QC/สลีต)' : 'ยังไม่เริ่ม'),
+        qc_status: qcs || '-', printer: last(pr)?.employee_name || '-', diecutter: last(dc)?.employee_name || '-',
+        last_prod_at: last(pl)?.logged_at, last_qc_at: last(ql)?.logged_at,
+        pending_scans: d.inbox.filter(r => r.job_ticket === w.job_ticket && r.review_status === 'pending').length,
+        eff_prod: effP, eff_qc: effQ, waste_qty: effP - effQ, waste_pct: (effP - carry) ? (effP - effQ) / (effP - carry) : 0,
+        ready_qty: ready, backlog_qty: Math.max(0, N(w.order_qty) - ready),
+        stock_qty: ready - (w.closed ? N(w.order_qty) : 0) - N(w.reduce_qty) - N(w.stock_cut_qty) };
+    });
+    const tot = {}; rows.forEach(r => { const k = r.customer_name + '|' + r.product_name; tot[k] = (tot[k] || 0) + r.stock_qty; });
+    rows.forEach(r => r.stock_total = tot[r.customer_name + '|' + r.product_name]);
+    return rows.sort((a,b) => b.job_ticket.localeCompare(a.job_ticket));
   },
+  async progress(){ return this.calc(); },
+  async stockView(){
+    const g = {}; this.calc().forEach(r => { const k = r.customer_name + '|' + r.product_name;
+      const x = g[k] ||= {customer_name: r.customer_name, product_name: r.product_name, prod_total:0, qc_total:0, waste_total:0, order_total:0, open_order_qty:0, stock_qty:0, jobs:[], job_count:0, last_status: r.qc_status};
+      x.prod_total += r.eff_prod; x.qc_total += r.eff_qc; x.waste_total += r.waste_qty; x.order_total += +r.order_qty || 0;
+      if (!r.closed) x.open_order_qty += +r.order_qty || 0; x.stock_qty += r.stock_qty; x.job_count++;
+      if (r.stock_qty) x.jobs.push(`${r.job_ticket}:${r.stock_qty}`); });
+    return Object.values(g).map(x => ({...x, stock_jobs: x.jobs.sort().join(', ')}));
+  },
+  async stockFor(cust, prod){ return this.calc().filter(r => (r.customer_name||'').trim() === (cust||'').trim() && (r.product_name||'').trim() === (prod||'').trim() && r.stock_qty > 0).map(r => ({job_ticket: r.job_ticket, stock_qty: r.stock_qty})); },
   async nextJobTicket(){
     const d = new Date(Date.now()+7*3600e3), pfx = String((d.getUTCFullYear()+543)%100).padStart(2,'0') + String(d.getUTCMonth()+1).padStart(2,'0') + '/';
     const n = Math.max(0, ...this.db().wo.map(w => w.job_ticket).filter(j => new RegExp('^' + pfx.replace('/','\\/') + '\\d+$').test(j)).map(j => +j.split('/')[1])) + 1;
     return pfx + String(n).padStart(2,'0');
   },
-  async createWorkOrder(p, mode, base){
+  async createWorkOrder(p, mode, base, pull){
     const d = this.db(); let j;
     if (mode === 'revise') { const b = base.replace(/-R\d+$/,''); let n = 1; while (d.wo.some(w => w.job_ticket === `${b}-R${n}`)) n++; j = `${b}-R${n}`; }
     else j = await this.nextJobTicket();
-    d.wo.push({...p, job_ticket:j, closed:false, created_at:new Date().toISOString()}); this.save(); return j;
+    d.wo.push({...p, job_ticket:j, closed:false, created_at:new Date().toISOString(), stock_cut_qty:null, adj_prod_qty:null, adj_qc_qty:null, reduce_qty:null});
+    let carry = {total:0, from:[]};
+    if (pull && mode !== 'revise') { const w = d.wo.find(x => x.job_ticket === j);
+      (await this.stockFor(w.customer_name, w.product_name)).filter(r => r.job_ticket !== j).forEach(r => {
+        const src = d.wo.find(x => x.job_ticket === r.job_ticket); src.stock_cut_qty = (+src.stock_cut_qty || 0) + r.stock_qty;
+        carry.total += r.stock_qty; carry.from.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); });
+      if (carry.total) w.carry_forward_qty = (+w.carry_forward_qty || 0) + carry.total; }
+    this.save(); return {job_ticket: j, carry};
   },
   async updateWorkOrder(job, p){ const w = this.db().wo.find(x => x.job_ticket === job); Object.assign(w, p); this.save(); },
   async rememberMasters(p, L){ const m = this.m();
@@ -448,9 +497,10 @@ const Live = {
   async updateInbox(id, f){ this.chk(await this.sb.from('scan_inbox').update(f).eq('id', id).eq('review_status','pending')); },
   async approve(ids){ return this.chk(await this.sb.rpc('approve_scans', {p_ids: ids})); },
   async reject(ids, note){ return this.chk(await this.sb.rpc('reject_scans', {p_ids: ids, p_note: note})); },
-  async progress(s, hideClosed){
+  async progress(s, hideClosed, onlyStock){
     let q = this.sb.from('v_job_progress').select('*').order('job_ticket', {ascending:false}).limit(300);
     if (hideClosed) q = q.eq('closed', false);
+    if (onlyStock) q = q.neq('stock_qty', 0);
     s = (s||'').replace(/[,()%]/g, ' ').trim();
     if (s) q = q.or(`job_ticket.ilike.%${s}%,customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
     return this.chk(await q);
@@ -485,7 +535,16 @@ const Live = {
   },
   async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
   async nextJobTicket(){ return this.chk(await this.sb.rpc('next_job_ticket')); },
-  async createWorkOrder(p, mode, base){ return this.chk(await this.sb.rpc('create_work_order', {p, p_mode: mode, p_base: base || null})); },
+  async createWorkOrder(p, mode, base, pull){ return this.chk(await this.sb.rpc('create_work_order', {p, p_mode: mode, p_base: base || null, p_pull: !!pull})); },
+  async stockView(s){
+    let q = this.sb.from('v_stock').select('*').order('customer_name').limit(500);
+    s = (s||'').replace(/[,()%]/g, ' ').trim();
+    if (s) q = q.or(`customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
+    return this.chk(await q);
+  },
+  async stockFor(cust, prod){
+    return this.chk(await this.sb.from('v_job_progress').select('job_ticket,stock_qty').eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0));
+  },
   async updateWorkOrder(job, p){ this.chk(await this.sb.from('work_orders').update(p).eq('job_ticket', job)); },
   async rememberMasters(p, L){   // รหัสงาน/ลูกค้า/กระดาษใหม่ที่ยังไม่มีในข้อมูลหลัก → เพิ่มให้อัตโนมัติ
     try {
@@ -748,7 +807,7 @@ function jobTicketHTML(wo, orderBy){
     <div class="tkbar">6.บันทึกเพิ่มเติม / QC (บันทึกเพิ่มเติม QC / The Daily Tracker)</div>
     <div class="tksec" style="display:grid;grid-template-columns:52mm 1fr 34mm 32mm;gap:3mm;flex:1">
       <div class="g" style="grid-template-columns:auto 1fr auto;row-gap:3.2mm;align-content:start">
-        <span class="lbl">ยอดคงเหลือยกมา :</span>${ln(n(v('carry_forward_qty')), '100%')}<span>ดวง</span>
+        <span class="lbl">ยอดคงเหลือยกมา :</span>${ln(+v('carry_forward_qty') > 0 ? n(v('carry_forward_qty')) : 'ไม่มีสต็อก', '100%')}<span>ดวง</span>
         <span class="lbl">ยอดผลิตจริง :</span>${ln(n(v('actual_qty')), '100%')}<span>ดวง</span>
         <span class="lbl">ยอดหลังจาก QC</span>${ln(n(v('after_qc_qty')), '100%')}<span>ดวง</span>
         <span class="lbl">LOT Number :</span>${ln(esc(v('lot_no')), '100%')}<span></span>
@@ -817,7 +876,9 @@ const WOForm = {
     $('#woMode').textContent = mode === 'new' ? 'ใบใหม่' : (wo.closed ? 'ปิดจ๊อบแล้ว' : 'แก้ไข');
     $('#woJob').textContent = mode === 'new' ? 'เลข JOB จะออกตอนบันทึก' : wo.job_ticket;
     if (mode === 'new') { try { const nx = await API.nextJobTicket(); $('#woJob').textContent = `JOB ถัดไป: ${nx}`; } catch {} }
+    this.pull = undefined; this.carry = null;
     this.render(); this.setDirty(this.dirty);
+    if (mode === 'new') this.checkStock();
   },
   setDirty(v){ this.dirty = v; const d = $('#woDirty'); if (d) d.textContent = v ? '● ยังไม่ได้บันทึก' : ''; },
 
@@ -903,7 +964,9 @@ const WOForm = {
             this.f('sheet_perf_mm','ปรุกี่ (มม.) งานแผ่น'))}</div>
         </div>`)}
       ${this.sec(6, 'บันทึกเพิ่มเติม / QC', g(
-        this.f('carry_forward_qty','ยอดคงเหลือยกมา',{unit:'ดวง'}), this.f('actual_qty','ยอดผลิตจริง',{unit:'ดวง'}),
+        this.mode === 'new'
+          ? `<div class="wf span2"><span>ยอดคงเหลือยกมา <small>(ดึงจากสต็อกอัตโนมัติ)</small></span><div class="carry" id="carryBox">เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้</div></div>`
+          : this.f('carry_forward_qty','ยอดคงเหลือยกมา',{unit:'ดวง'}), this.f('actual_qty','ยอดผลิตจริง',{unit:'ดวง'}),
         this.f('after_qc_qty','ยอดหลังจาก QC',{unit:'ดวง'}), this.f('lot_no','LOT Number'),
         `<div class="wf span2"><span>กระดาษ</span>${row(this.c('has_paper','มีกระดาษแล้ว'), this.c('paper_ordered','สั่งกระดาษแล้ว'))}</div>`,
         this.f('remark','หมายเหตุ',{area:1, rows:4, span:2}),
@@ -968,7 +1031,21 @@ const WOForm = {
     });
   },
   setVal(c, v){ this.wo[c] = v; const el = $(`#woForm [data-c="${c}"]`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } },
+  async checkStock(){
+    const box = $('#carryBox'); if (!box) return;
+    const cu = (this.wo.customer_name||'').trim(), pr = (this.wo.product_name||'').trim();
+    if (!cu || !pr) { this.carry = null; box.innerHTML = 'เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้'; return; }
+    let rows = []; try { rows = await API.stockFor(cu, pr); } catch {}
+    const total = rows.reduce((s,r) => s + (+r.stock_qty||0), 0); this.carry = {total, rows};
+    if (this.pull === undefined) this.pull = true;
+    box.innerHTML = total > 0
+      ? `<b class="ok-t">มีสต็อก ${fmtN(total)} ดวง</b> <small>จาก ${rows.map(r => `${esc(r.job_ticket)} (${fmtN(r.stock_qty)})`).join(', ')}</small>
+         <label class="wc ${this.pull ? 'on' : ''}" style="margin-top:4px"><input type="checkbox" id="pullChk" ${this.pull ? 'checked' : ''}> ดึงเป็นยอดยกมาอัตโนมัติเมื่อบันทึก</label>`
+      : `<span class="muted-t">ไม่มีสต็อก</span>`;
+    $('#pullChk')?.addEventListener('change', e => { this.pull = e.target.checked; e.target.parentElement.classList.toggle('on', this.pull); });
+  },
   onChange(c){
+    if (['customer_name','product_name','product_code'].includes(c)) { clearTimeout(this._st); this._st = setTimeout(() => this.checkStock(), 400); }
     const w = this.wo, N = x => { const n = parseFloat(String(x ?? '').replace(/,/g,'')); return isNaN(n) ? null : n; };
     if (['order_qty','across','die_rows','repeat_mm','setup_waste_m'].includes(c)) {
       const q = N(w.order_qty), a = N(w.across), r = N(w.die_rows), rp = N(w.repeat_mm), sw = N(w.setup_waste_m) || 0;
@@ -1011,10 +1088,17 @@ const WOForm = {
     try {
       let job;
       if (kind === 'update') { await API.updateWorkOrder(this.wo.job_ticket, p); job = this.wo.job_ticket; }
-      else job = await API.createWorkOrder(p, kind === 'revise' ? 'revise' : 'new', this.wo.job_ticket);
+      let carry = null;
+      if (kind !== 'update') {
+        const pull = kind === 'revise' ? false : (kind === 'copy' ? true : this.pull !== false);
+        if (kind !== 'revise') p.carry_forward_qty = null;   // ระบบคำนวณยอดยกมาจากสต็อกให้
+        const res = await API.createWorkOrder(p, kind === 'revise' ? 'revise' : 'new', this.wo.job_ticket, pull);
+        job = res.job_ticket; carry = res.carry;
+      }
       await API.rememberMasters?.(p, this.L);
       this.L = await API.lookups();
-      toast(kind === 'update' ? `บันทึก ${job} แล้ว` : `บันทึกแล้ว ได้เลข JOB ${job}`);
+      if (carry && carry.total > 0) await Office.confirm(`บันทึกแล้ว ได้เลข JOB ${job}\nดึงยอดยกมา ${fmtN(carry.total)} ดวง จาก ${carry.from.join(', ')}`, true);
+      else toast(kind === 'update' ? `บันทึก ${job} แล้ว` : `บันทึกแล้ว ได้เลข JOB ${job}`);
       const wo = await API.getWorkOrder(job);
       this.load(wo, 'edit');
       if (andPrint) { store.set('vp_lastjob', job); Office.autoPrint = job; Office.go('qr'); }
@@ -1152,7 +1236,7 @@ const Office = {
         <div class="logo">V-PACK <span>Job Tracking</span></div>
         <nav class="tabs">
           <button class="tab" data-t="wo">ใบสั่งผลิต</button>
-          <button class="tab" data-t="inbox">รอตรวจ <span class="badge hidden" id="badge"></span></button>
+          <button class="tab" data-t="inbox">ตรวจข้อมูลสแกน <span class="badge hidden" id="badge"></span></button>
           <button class="tab" data-t="progress">ติดตามงาน</button>
           <button class="tab" data-t="qr">พิมพ์ใบสั่งผลิต</button>
           <button class="tab" data-t="master">ข้อมูลหลัก</button>
@@ -1184,7 +1268,7 @@ const Office = {
   inboxPage(){
     $('#page').innerHTML = `
       <div class="toolbar">
-        <div class="seg" id="viewSeg"><button data-v="pending">รอตรวจ</button><button data-v="done">ตรวจแล้ว</button></div>
+        <div class="seg" id="viewSeg"><button data-v="pending">สแกนรอตรวจ</button><button data-v="done">ตรวจแล้ว</button></div>
         <div class="seg" id="deptSeg"><button data-v="all">ทั้งหมด</button><button data-v="prod">ผลิต</button><button data-v="qc">QC</button></div>
         <div class="sp"></div>
         <span id="pendActs" class="rowact">
@@ -1220,7 +1304,7 @@ const Office = {
   drawInbox(){
     const rows = this.visibleRows(), pend = this.view === 'pending';
     const box = $('#inboxBody');
-    if (!rows.length) { box.innerHTML = `<div class="empty">${pend ? 'ไม่มีรายการรอตรวจ 🎉' : 'ยังไม่มีรายการที่ตรวจแล้ว'}</div>`; this.selChanged(); return; }
+    if (!rows.length) { box.innerHTML = `<div class="empty">${pend ? 'ยังไม่มีข้อมูลสแกนรอตรวจ<br><small>เมื่อพนักงานผลิต/QC สแกน QR บนใบสั่งผลิตแล้วกดส่ง ข้อมูลจะมาพักรอที่นี่ — ตรวจ แก้ไข แล้วกดอนุมัติเพื่อนับยอด</small>' : 'ยังไม่มีรายการที่ตรวจแล้ว'}</div>`; this.selChanged(); return; }
     const statusCell = r => pend ? `<span class="pill pending">รอตรวจ</span>` :
       `<span class="pill ${r.review_status}">${r.review_status==='approved'?'อนุมัติ':'ปฏิเสธ'}</span><div class="prodname">${esc(r.reviewed_by||'')} ${fmtT(r.reviewed_at)}${r.review_note ? '<br>' + esc(r.review_note) : ''}</div>`;
     const acts = r => pend ? `<div class="rowact"><button class="btn ok sm" data-a="ok" data-id="${r.id}">✓</button><button class="btn ghost sm" data-a="edit" data-id="${r.id}">แก้</button><button class="btn ghost sm" data-a="no" data-id="${r.id}" style="color:var(--bad)">✕</button></div>` : '';
@@ -1287,41 +1371,80 @@ const Office = {
     };
     $('#e_s').onclick = () => save(false); $('#e_sa').onclick = () => save(true);
   },
-  confirm(msg){ return new Promise(res => {
-    $('#dlgBody').innerHTML = `<h3>${esc(msg)}</h3><div class="acts"><button class="btn ghost" id="c_n">ยกเลิก</button><button class="btn ok" id="c_y">ยืนยัน</button></div>`;
-    const d = $('#dlg'); d.showModal(); $('#c_n').onclick = () => { d.close(); res(false); }; $('#c_y').onclick = () => { d.close(); res(true); };
+  confirm(msg, info){ return new Promise(res => {
+    $('#dlgBody').innerHTML = `<h3 style="white-space:pre-line">${esc(msg)}</h3><div class="acts">${info ? '' : '<button class="btn ghost" id="c_n">ยกเลิก</button>'}<button class="btn ok" id="c_y">${info ? 'ตกลง' : 'ยืนยัน'}</button></div>`;
+    const d = $('#dlg'); d.showModal(); if ($('#c_n')) $('#c_n').onclick = () => { d.close(); res(false); }; $('#c_y').onclick = () => { d.close(); res(true); };
   }); },
   prompt(title, ph){ return new Promise(res => {
     $('#dlgBody').innerHTML = `<h3>${esc(title)}</h3><input id="p_v" class="field" placeholder="${esc(ph)}"><div class="acts"><button class="btn ghost" id="p_n">ยกเลิก</button><button class="btn bad" id="p_y">ปฏิเสธ</button></div>`;
     const d = $('#dlg'); d.showModal(); $('#p_v').focus(); $('#p_n').onclick = () => { d.close(); res(null); }; $('#p_y').onclick = () => { d.close(); res($('#p_v').value.trim()); };
   }); },
 
-  /* ----- ติดตามงาน ----- */
+  /* ----- ติดตามงาน (แทนชีต ติดตามงาน + Prod_Status) ----- */
+  pview: store.get('vp_pview', 'job'), onlyStock: false,
   progressPage(){
     $('#page').innerHTML = `<div class="toolbar">
-        <input id="ps" class="field" style="max-width:340px;padding:9px 12px" placeholder="ค้นหา JOB / ลูกค้า / สินค้า" value="${esc(this.search)}">
-        <label style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="hc" ${this.hideClosed?'checked':''}> ซ่อนงานที่ปิดแล้ว</label>
-        <div class="sp"></div><span class="hint">นับเฉพาะยอดที่อนุมัติแล้ว</span></div>
-      <div class="card tbl-wrap" id="pg"><div class="empty">กำลังโหลด…</div></div>`;
+        <div class="seg" id="pvSeg"><button data-v="job">ติดตามรายJOB</button><button data-v="stock">สต็อกตามสินค้า</button></div>
+        <input id="ps" class="field" style="max-width:300px;padding:6px 10px;font-size:14px" placeholder="ค้นหา JOB / ลูกค้า / สินค้า" value="${esc(this.search)}">
+        <label class="wc ${this.hideClosed?'on':''}" id="hcL"><input type="checkbox" id="hc" ${this.hideClosed?'checked':''}> ซ่อนที่ปิดจ๊อบ</label>
+        <label class="wc ${this.onlyStock?'on':''}" id="osL"><input type="checkbox" id="os" ${this.onlyStock?'checked':''}> เฉพาะที่มีสต็อก</label>
+        <div class="sp"></div><span class="hint">ช่องสีส้ม = กรอก/แก้ได้ · นับเฉพาะยอดสแกนที่อนุมัติแล้ว</span></div>
+      <div class="card tbl-wrap trk-wrap" id="pg"><div class="empty">กำลังโหลด…</div></div>`;
+    document.querySelectorAll('#pvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.pview); b.onclick = () => { this.pview = b.dataset.v; store.set('vp_pview', this.pview); this.progressPage(); }; });
     let t; $('#ps').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.search = e.target.value; this.loadProgress(); }, 300); };
-    $('#hc').onchange = e => { this.hideClosed = e.target.checked; this.loadProgress(); };
+    $('#hc').onchange = e => { this.hideClosed = e.target.checked; $('#hcL').classList.toggle('on', this.hideClosed); this.loadProgress(); };
+    $('#os').onchange = e => { this.onlyStock = e.target.checked; $('#osL').classList.toggle('on', this.onlyStock); this.loadProgress(); };
+    $('#hcL').classList.toggle('hidden', this.pview === 'stock');
     this.loadProgress();
   },
   async loadProgress(){
+    const s = this.search.toLowerCase();
+    const match = r => !s || ((r.job_ticket||'') + r.customer_name + r.product_name).toLowerCase().includes(s);
+    if (this.pview === 'stock') {
+      let rows; try { rows = await API.stockView(this.search); } catch (e) { $('#pg').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+      rows = rows.filter(r => match(r) && (!this.onlyStock || +r.stock_qty !== 0)).sort((a,b) => (+b.stock_qty) - (+a.stock_qty) || (a.customer_name||'').localeCompare(b.customer_name||''));
+      $('#pg').innerHTML = rows.length ? `<table class="trk"><thead><tr><th>ลูกค้า</th><th>สินค้า</th><th class="num">ยอดผลิตสะสม</th><th class="num">ยอด QC สะสม</th><th class="num">ยอดเสียสะสม</th><th class="num">ยอดสั่งผลิตรวม</th><th class="num">ยอดสั่งคงค้าง</th><th>สถานะล่าสุด</th><th class="num">สต็อกคงเหลือ (ยอดยกไป)</th><th>อยู่ที่ JOB</th></tr></thead><tbody>
+        ${rows.map(r => `<tr><td class="cu">${esc(r.customer_name)}</td><td class="pn">${esc(r.product_name)}</td><td class="num">${fmtN(r.prod_total)}</td><td class="num">${fmtN(r.qc_total)}</td>
+          <td class="num">${fmtN(r.waste_total)}</td><td class="num">${fmtN(r.order_total)}</td><td class="num">${fmtN(r.open_order_qty || 0)}</td><td>${esc(r.last_status||'')}</td>
+          <td class="num ${+r.stock_qty > 0 ? 'stock-pos' : +r.stock_qty < 0 ? 'stock-neg' : ''}"><b>${fmtN(r.stock_qty)}</b></td><td class="pn">${esc(r.stock_jobs||'')}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">ไม่พบข้อมูล</div>`;
+      return;
+    }
     let rows;
-    try { rows = await API.progress(this.search, this.hideClosed); } catch (e) { $('#pg').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-    if (USE_DEMO) { const s = this.search.toLowerCase(); rows = rows.filter(r => (!this.hideClosed || !r.closed) && (!s || (r.job_ticket+r.customer_name+r.product_name).toLowerCase().includes(s))); }
-    const bar = (v, o, cls='') => o ? `<div class="bar ${cls}"><i style="width:${Math.min(100, v/o*100)}%"></i></div>` : '';
-    $('#pg').innerHTML = rows.length ? `<table><thead><tr><th>JOB</th><th>ลูกค้า / สินค้า</th><th class="num">ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">ไดคัท</th><th class="num">QC</th><th>สถานะผลิตล่าสุด</th><th>QC ล่าสุด</th><th>รอตรวจ</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td><b>${esc(r.job_ticket)}</b>${r.closed ? '<div class="prodname">ปิดแล้ว</div>' : ''}</td>
-        <td>${esc(r.customer_name)}<div class="prodname">${esc(r.product_name)}</div></td>
-        <td class="num">${fmtN(r.order_qty)}</td>
-        <td class="num">${fmtN(r.print_qty)}${bar(r.print_qty, r.order_qty)}</td>
-        <td class="num">${fmtN(r.diecut_qty)}${bar(r.diecut_qty, r.order_qty)}</td>
-        <td class="num">${fmtN(r.qc_qty)}${bar(r.qc_qty, r.order_qty, 'qcb')}</td>
-        <td>${esc(r.last_prod_status||'–')}<div class="prodname">${r.last_prod_at ? fmtT(r.last_prod_at) : ''}</div></td>
-        <td>${esc(r.last_qc_status||'–')}<div class="prodname">${r.last_qc_at ? fmtT(r.last_qc_at) : ''}</div></td>
+    try { rows = await API.progress(this.search, this.hideClosed, this.onlyStock); } catch (e) { $('#pg').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    rows = rows.filter(r => match(r) && (!this.hideClosed || !r.closed) && (!this.onlyStock || +r.stock_qty !== 0));
+    this.prow = rows;
+    const st = v => { const c = /เสร็จ|จบ JOB/.test(v) ? 'st-ok' : /กำลัง|ทยอย|ส่ง QC|ปรู๊ฟ/.test(v) ? 'st-run' : /ยังไม่เริ่ม/.test(v) ? 'st-no' : ''; return `<span class="st ${c}">${esc(v)}</span>`; };
+    const ed = (r, c) => `<input class="ed" data-j="${esc(r.job_ticket)}" data-f="${c}" value="${r[c] === null || r[c] === undefined ? '' : (c === 'track_note' ? esc(r[c]) : fmtN(r[c]))}" ${c === 'track_note' ? '' : 'inputmode="decimal"'}>`;
+    const neg = v => +v < 0 ? 'stock-neg' : '';
+    $('#pg').innerHTML = rows.length ? `<table class="trk"><thead><tr>
+        <th class="stk">JOB</th><th>ลูกค้า</th><th>สินค้า</th><th class="num">ยอดสั่งผลิต</th><th>สถานะผลิต</th><th>สถานะไดคัท</th><th>ผลตรวจ QC</th>
+        <th class="num">จำนวนผลิต</th><th class="num">ผ่าน QC</th><th class="num inp">ยอดผลิตปรับปรุง</th><th class="num inp">ยอด QC ปรับปรุง</th>
+        <th class="num">ของเสีย</th><th class="num">%เสีย</th><th class="num inp">ยอดยกมา</th><th class="num">พร้อมส่ง</th><th class="num">ค้างส่ง</th>
+        <th class="num inp">ปรับลด/ปิดยอด</th><th class="inp">ปิดจ๊อบ</th><th class="num inp">ตัดสต็อก</th><th class="num">คงคลัง</th><th class="num">สต็อกรวม</th>
+        <th>เครื่องพิมพ์</th><th>ช่างพิมพ์</th><th>ช่างไดคัท</th><th class="inp">หมายเหตุ</th><th>รหัสกระดาษ</th><th>ประเภทกระดาษ</th><th>รอตรวจ</th></tr></thead><tbody>
+      ${rows.map(r => `<tr class="${r.closed ? 'is-closed' : ''}">
+        <td class="stk"><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name)}</td><td class="pn">${esc(r.product_name)}</td>
+        <td class="num">${fmtN(r.order_qty)}</td><td>${st(r.print_status)}</td><td>${st(r.diecut_status)}</td><td>${st(r.qc_status)}</td>
+        <td class="num">${fmtN(r.prod_qty)}</td><td class="num">${fmtN(r.qc_qty)}</td>
+        <td class="num inp">${ed(r,'adj_prod_qty')}</td><td class="num inp">${ed(r,'adj_qc_qty')}</td>
+        <td class="num ${neg(r.waste_qty)}">${fmtN(r.waste_qty)}</td><td class="num">${((+r.waste_pct||0)*100).toFixed(2)}%</td>
+        <td class="num inp">${ed(r,'carry_forward_qty')}</td><td class="num"><b>${fmtN(r.ready_qty)}</b></td><td class="num ${+r.backlog_qty > 0 ? 'stock-neg' : ''}">${fmtN(r.backlog_qty)}</td>
+        <td class="num inp">${ed(r,'reduce_qty')}</td><td class="inp" style="text-align:center"><input type="checkbox" class="edc" data-j="${esc(r.job_ticket)}" ${r.closed ? 'checked' : ''}></td>
+        <td class="num inp">${ed(r,'stock_cut_qty')}</td>
+        <td class="num ${+r.stock_qty > 0 ? 'stock-pos' : neg(r.stock_qty)}"><b>${fmtN(r.stock_qty)}</b></td><td class="num">${fmtN(r.stock_total)}</td>
+        <td>${esc(r.machine||'-')}</td><td>${esc(r.printer||'-')}</td><td>${esc(r.diecutter||'-')}</td>
+        <td class="inp">${ed(r,'track_note')}</td><td>${esc(r.paper_code||'')}</td><td>${esc(r.paper_type||'')}</td>
         <td>${r.pending_scans ? `<span class="pill pending">${r.pending_scans}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">ไม่พบงาน</div>`;
+    $('#pg').querySelectorAll('.ed').forEach(el => el.onchange = async () => {
+      const f = el.dataset.f; let v = el.value.trim();
+      if (f !== 'track_note') { v = v === '' ? null : parseFloat(v.replace(/,/g,'')); if (v !== null && isNaN(v)) { toast('ใส่ตัวเลขเท่านั้น'); return; } }
+      else if (v === '') v = null;
+      try { await API.updateWorkOrder(el.dataset.j, {[f]: v}); toast('บันทึกแล้ว'); this.loadProgress(); } catch (e) { toast('บันทึกไม่ได้: ' + e.message); }
+    });
+    $('#pg').querySelectorAll('.edc').forEach(el => el.onchange = async () => {
+      try { await API.updateWorkOrder(el.dataset.j, {closed: el.checked}); toast(el.checked ? 'ปิดจ๊อบแล้ว' : 'เปิดจ๊อบแล้ว'); this.loadProgress(); } catch (e) { el.checked = !el.checked; toast(e.message); }
+    });
+    $('#pg').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); this.go('wo'); });
   },
 
   /* ----- พิมพ์ใบสั่งผลิต (A4 พร้อม QR 2 จุด) ----- */
