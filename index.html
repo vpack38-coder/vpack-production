@@ -81,7 +81,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* ---------- Office ---------- */
 .top{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-.top .in{max-width:1240px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top .in{max-width:none;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .top .logo{font-weight:700;font-size:17px}
 .top .logo span{color:var(--prod)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap}
@@ -89,7 +89,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .tab.on{background:var(--prod-soft);color:var(--prod)}
 .tab .badge{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:4px}
 .top .who{margin-left:auto;font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
-.page{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+.page{max-width:none;margin:0 auto;padding:14px clamp(12px,1.5vw,28px) 60px}
 .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .toolbar .sp{flex:1}
 .seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:3px}
@@ -135,7 +135,7 @@ dialog::backdrop{background:#1b233366}
 #mtSeg{flex-wrap:wrap}
 /* ---------- ติดตามงาน ---------- */
 .trk-wrap{max-height:calc(100vh - 170px)}
-table.trk{font-size:12px;border-collapse:separate;border-spacing:0}
+table.trk{font-size:12px;border-collapse:separate;border-spacing:0;min-width:100%}
 table.trk th{font-size:11.5px;padding:6px 6px;background:#3b2f63;color:#fff;font-weight:700;white-space:nowrap;z-index:2}
 table.trk th.inp{background:#a0522d}
 table.trk td{padding:4px 6px;white-space:nowrap;vertical-align:middle}
@@ -276,6 +276,8 @@ table.trk tr:hover td{background:#eef4ff}
   .wo-actions .btn{flex:1 1 45%;padding:10px 8px;font-size:14px}
   .dir img{width:82px}
 }
+/* ---------- จอใหญ่ ---------- */
+@media (min-width:1700px){ .wo-grid{grid-template-columns:repeat(6,minmax(0,1fr))} .wo-two .wo-grid{grid-template-columns:repeat(3,minmax(0,1fr))} table.trk{font-size:12.5px} }
 </style>
 </head>
 <body>
