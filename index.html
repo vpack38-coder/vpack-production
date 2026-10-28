@@ -1,0 +1,1343 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>V-Pack Job Tracking</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* ================== ตั้งค่า ==================
+   ใส่ค่าจาก Supabase > Project Settings > API
+   ถ้าเว้นว่างไว้ ระบบจะเปิด "โหมดทดลอง" (เก็บข้อมูลในเบราว์เซอร์นี้เท่านั้น)
+   ห้ามใส่ service_role key เด็ดขาด ใช้ anon key เท่านั้น */
+const SUPABASE_URL = 'https://pzizrqexuxgxwxwwpzaa.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ZwOI1FAXCaL1j5LVaHs6oQ_LgTyJluD';
+</script>
+<style>
+:root{
+  --bg:#f4f6fa; --card:#fff; --ink:#1b2333; --muted:#6a7385; --line:#e3e7ef;
+  --prod:#0f6cbd; --prod-soft:#e6f1fb; --qc:#5b4fc4; --qc-soft:#eeecfb;
+  --ok:#1a7f4b; --ok-soft:#e5f5ec; --warn:#a15c00; --warn-soft:#fff3dc; --bad:#c0352b; --bad-soft:#fdeceb;
+  --accent:var(--prod); --accent-soft:var(--prod-soft);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Tahoma,Calibri,'Segoe UI',sans-serif;font-size:15px;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.demo{background:#22252d;color:#f3d48a;font-size:13px;padding:6px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+.demo button{background:none;border:1px solid #f3d48a55;color:#f3d48a;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px}
+
+/* ---------- Scan page ---------- */
+.scan-wrap{max-width:560px;margin:0 auto;padding:0 0 120px}
+.scan-head{background:var(--accent);color:#fff;padding:22px 20px 26px;border-radius:0 0 22px 22px}
+.scan-head .brand{font-size:13px;opacity:.85;letter-spacing:.02em}
+.scan-head h1{margin:2px 0 0;font-size:22px;font-weight:600}
+.jobcard{background:var(--card);margin:-14px 14px 0;border-radius:var(--r);padding:16px 18px;box-shadow:0 4px 18px #1b23331a}
+.jobno{font-size:28px;font-weight:700;letter-spacing:.01em;color:var(--accent)}
+.jobcard .cust{font-size:14px;color:var(--muted);margin-top:2px}
+.jobcard .prod{font-size:15px;margin-top:6px;line-height:1.45}
+.jobcard .meta{display:flex;gap:14px;margin-top:10px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.jobcard .meta b{color:var(--ink);font-weight:600}
+.sec{margin:22px 16px 0}
+.sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
+.sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.sec h2 .req{color:var(--bad)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.chips.three{grid-template-columns:repeat(3,1fr)}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:13px 10px;text-align:center;cursor:pointer;font-size:15px;line-height:1.3;min-height:52px;transition:.12s}
+.chip:active{transform:scale(.98)}
+.chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.chip.st-done.on{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.field{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--card);font-size:16px}
+.field:focus{outline:none;border-color:var(--accent)}
+.qty{font-size:26px;font-weight:600;text-align:right}
+.hint{font-size:13px;color:var(--muted);margin-top:6px}
+.submitbar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
+.submitbar .inner{max-width:528px;margin:0 auto}
+.btn{white-space:nowrap;border:0;border-radius:12px;padding:14px 18px;font-size:16px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+.btn.block{width:100%;font-size:18px;padding:16px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.ok{background:var(--ok)} .btn.bad{background:var(--bad)}
+.btn.sm{padding:8px 12px;font-size:14px;border-radius:9px}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:12px;padding:12px 14px;margin:16px;font-size:14px}
+.recent{margin:26px 16px 0;font-size:14px}
+.recent h3{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 8px}
+.ritem{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.ritem .t{color:var(--muted);font-size:12px}
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:2px 9px;font-weight:500;white-space:nowrap}
+.pill.pending{background:var(--warn-soft);color:var(--warn)}
+.pill.approved{background:var(--ok-soft);color:var(--ok)}
+.pill.rejected{background:var(--bad-soft);color:var(--bad)}
+.pill.prod{background:var(--prod-soft);color:var(--prod)}
+.pill.qc{background:var(--qc-soft);color:var(--qc)}
+.done-screen{text-align:center;padding:40px 22px}
+.done-screen .ic{width:76px;height:76px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin:0 auto 16px;font-size:40px}
+.done-screen h2{margin:0 0 6px;font-size:22px}
+.summary{background:var(--card);border-radius:var(--r);padding:14px 16px;text-align:left;margin:20px 0;font-size:15px;line-height:1.7}
+.warnbox{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:14px;text-align:left;margin-top:10px}
+
+/* ---------- Office ---------- */
+.top{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top .in{max-width:1240px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top .logo{font-weight:700;font-size:17px}
+.top .logo span{color:var(--prod)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{border:0;background:none;padding:8px 12px;border-radius:9px;cursor:pointer;color:var(--muted);font-weight:500;font-size:15px}
+.tab.on{background:var(--prod-soft);color:var(--prod)}
+.tab .badge{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:4px}
+.top .who{margin-left:auto;font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.page{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .sp{flex:1}
+.seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--ink);color:#fff}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12.5px;padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:#fafbfd;position:sticky;top:0}
+td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl-wrap{overflow:auto;border-radius:var(--r)}
+.wtag{display:block;background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:2px 7px;font-size:12px;margin-top:4px}
+.prodname{color:var(--muted);font-size:12.5px;max-width:280px;line-height:1.35;margin-top:2px}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.rowact{display:flex;gap:6px;white-space:nowrap}
+.inbox-cards{display:none}
+@media (max-width:820px){
+  .inbox-table{display:none}
+  .inbox-cards{display:grid;gap:10px}
+  .icard{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+  .icard .r1{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .icard .r2{margin-top:6px;font-size:14px;line-height:1.6}
+  .icard .rowact{margin-top:10px}
+}
+.mono{font-variant-numeric:tabular-nums}
+.bar{height:6px;background:#eef1f6;border-radius:4px;overflow:hidden;margin-top:4px;min-width:70px}
+.bar i{display:block;height:100%;background:var(--prod)}
+.bar.qcb i{background:var(--qc)}
+dialog{border:0;border-radius:16px;padding:0;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 60px #0004}
+dialog::backdrop{background:#1b233366}
+.dlg{padding:20px}
+.dlg h3{margin:0 0 14px}
+.dlg label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.dlg .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.login{max-width:380px;margin:12vh auto;padding:28px}
+.login h2{margin:0 0 4px}
+.spec-wrap{display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start}
+.spec-cats{padding:6px;display:flex;flex-direction:column}
+.spec-cat{border:0;background:none;text-align:left;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--ink)}
+.spec-cat.on{background:var(--prod-soft);color:var(--prod);font-weight:600}
+@media (max-width:820px){ .spec-wrap{grid-template-columns:1fr} .spec-cats{flex-direction:row;flex-wrap:wrap} }
+#mtSeg{flex-wrap:wrap}
+/* ---------- ฟอร์มใบสั่งผลิต ---------- */
+.wo-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.wo-id{display:flex;gap:10px;align-items:center;font-size:16px}
+.wo-id b{font-size:18px}
+.wo-open{margin-left:auto;display:flex;gap:6px;align-items:center}
+.wo-open .field{padding:5px 10px;width:220px;font-size:14px}
+.wo-fs{border:0;margin:0;padding:0;min-width:0}
+.wo-fs:disabled{opacity:.75}
+.wo-sec{--sc:#334155;--sc-soft:#f1f5f9;background:#fff;border:1px solid var(--line);border-left:5px solid var(--sc);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.wo-sec.s0{--sc:#1f3a68;--sc-soft:#e8eef8}
+.wo-sec.s1{--sc:#0f6cbd;--sc-soft:#e6f1fb}
+.wo-sec.s2{--sc:#0f7b6c;--sc-soft:#e3f4f1}
+.wo-sec.s3{--sc:#7a3db8;--sc-soft:#f1eafa}
+.wo-sec.s4{--sc:#c25a00;--sc-soft:#fdf0e3}
+.wo-sec.s5{--sc:#2e7d32;--sc-soft:#e8f4e9}
+.wo-sec.s6{--sc:#b3261e;--sc-soft:#fcebea}
+.wo-sec h3{margin:0;padding:5px 12px;background:var(--sc);color:#fff;font-size:14px;font-weight:700;display:flex;gap:8px;align-items:center}
+.wo-sec h3 span{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:var(--sc);font-size:12px}
+.wo-sec > .wo-grid,.wo-sec > .wo-two,.wo-sec > .wc-row{margin:8px 12px 10px}
+.wo-sec h4{margin:2px 0 6px;font-size:13px;color:var(--sc);font-weight:700;border-bottom:1px solid var(--sc-soft);padding-bottom:3px}
+.wo-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px 12px}
+.wo-two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.wo-two .wo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.wf{display:flex;flex-direction:column;gap:2px;min-width:0}
+.wf > span{font-size:12px;color:#475569;line-height:1.3}
+.wf > span i{color:var(--bad);font-style:normal}
+.wf > span small{font-size:11px;color:var(--muted)}
+.wf > span small.auto{color:var(--prod)}
+.wf .field{padding:4px 8px;font-size:14px;border-radius:5px;border-width:1px;height:30px}
+.wf textarea.field{height:auto;resize:vertical;line-height:1.4}
+.wf .field:focus{border-color:var(--sc);box-shadow:0 0 0 2px var(--sc-soft)}
+.wf .field.calc{background:#f3f7fc;color:var(--prod);font-weight:700}
+.wf .field.big{font-weight:700;color:var(--bad)}
+.wf .field.bad{border-color:var(--bad);background:var(--bad-soft)}
+.dwrap{display:flex;gap:4px;position:relative}
+.dwrap .field{flex:1;min-width:0}
+.dbtn{border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:14px}
+.dhidden{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}
+.span2{grid-column:span 2}
+.wc-row{display:flex;gap:6px;flex-wrap:wrap}
+.wc{display:inline-flex;gap:5px;align-items:center;border:1px solid var(--line);border-radius:5px;padding:4px 9px;height:30px;cursor:pointer;font-size:13px;background:#fff;user-select:none}
+.wc input{width:15px;height:15px;margin:0;accent-color:var(--prod)}
+.wc.on{border-color:var(--prod);background:var(--prod-soft);color:var(--prod);font-weight:700}
+.dirs{display:grid;grid-template-columns:repeat(2,max-content);gap:4px 10px}
+.dir{border:2px solid var(--line);background:#fff;border-radius:6px;padding:2px;cursor:pointer;display:flex;align-items:center;gap:6px;position:relative}
+.dir img{width:96px;height:auto;display:block}
+.dir .tick{width:22px;height:22px;flex:0 0 22px;border:1.5px solid #333;border-radius:4px;display:grid;place-items:center;font-weight:700;font-size:15px;margin-right:4px}
+.dir.on{border-color:var(--prod);background:var(--prod-soft)}
+.dir.on .tick{background:var(--prod);border-color:var(--prod);color:#fff}
+.wo-actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 25%);padding:12px 0 6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;z-index:4}
+@media (max-width:900px){ .wo-grid{grid-template-columns:repeat(2,minmax(0,1fr))} .wo-two{grid-template-columns:1fr} .wo-open{margin-left:0;width:100%} .wo-open .field{flex:1} }
+/* ---------- ใบสั่งผลิต A4 ---------- */
+.tk-scroll{overflow:auto;padding:4px 0 20px}
+.tk{width:194mm;min-height:279mm;background:#fff;color:#111;font-family:Tahoma,Calibri,sans-serif;font-size:8.2pt;line-height:1.2;padding:0;box-shadow:0 4px 20px #1b23331f;margin:0 auto;display:flex;flex-direction:column}
+.tk *{box-sizing:border-box}
+.tk .hd{display:flex;justify-content:space-between;align-items:flex-end;padding:0 1mm 1.5mm}
+.tk .hd .t{font-size:15pt;font-weight:700;color:#1f3a68}
+.tk .frame{border:1.6px solid #222;flex:1;display:flex;flex-direction:column}
+.tk .tkbar{background:#ecebe0;border-top:1px solid #222;border-bottom:1px solid #222;text-align:center;font-weight:700;font-size:9.6pt;padding:.6mm 0}
+.tk .tkbar.empty{height:4.5mm;padding:0}
+.tk .v{color:#d0141a}
+.tk .vb{color:#d0141a;font-weight:700;font-size:10.5pt}
+.tk .ln{border-bottom:1px dotted #333;display:inline-block;min-width:22mm;padding:0 1mm}
+.tk .g{display:grid;align-items:center;column-gap:1.5mm;row-gap:.5mm}
+.tk .g .ln{min-width:0}
+.tk .fl{display:flex;align-items:flex-end;gap:1.2mm;white-space:nowrap}
+.tk .fl .ln{flex:1;min-width:8mm}
+.tk .nw{white-space:nowrap}
+.tk .lbl{text-align:right;white-space:nowrap}
+.tk .cb{display:inline-grid;place-items:center;width:3.6mm;height:3.6mm;border:1px solid #222;border-radius:.6mm;vertical-align:-0.8mm;font-size:8pt;line-height:1;margin:0 1mm}
+.tk .cb.on{background:#111;color:#fff}
+.tk .cb.red{border-color:#d0141a}
+.tk .qr{text-align:center;color:#1565c0;font-size:7.6pt}
+.tk .qr .q{width:23mm;height:23mm;margin:.8mm auto}
+.tk .qr .q img,.tk .qr .q canvas{width:100%!important;height:100%!important}
+.tk .qr b{font-size:8pt}
+.tk .tksec{padding:1.2mm 2mm}
+.tk .gray{background:#f1f1f1}
+.tk .rolls{display:grid;grid-template-columns:auto auto;gap:1.2mm 3mm;align-content:start}
+.tk .roll{display:flex;align-items:center;gap:1.5mm}
+.tk .roll .ic{width:16.5mm;height:10.6mm;object-fit:contain;display:block}
+.tk .roll .ic .L{position:absolute;left:.7mm;top:.2mm;font-size:8.5pt}
+.tk .roll .ic .eg{display:inline-block}
+.tk .note-lines div{border-bottom:1px dotted #333;height:5.2mm}
+.tk .sig div{display:flex;gap:1.5mm;align-items:flex-end;height:5.6mm;justify-content:flex-end;white-space:nowrap}
+.emp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.emp-row{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
+.emp-row.off{color:var(--muted);text-decoration:line-through}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;z-index:50;box-shadow:0 8px 24px #0003}
+@page{size:A4;margin:8mm}
+@media print{
+  body{background:#fff}
+  .top,.demo,.toolbar,.noprint,.toast{display:none!important}
+  .page{padding:0;max-width:none}
+  .tk-scroll{overflow:visible;padding:0}
+  .tk{box-shadow:none;margin:0;min-height:279mm}
+  .tk,.tk *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div id="demoBar" class="demo hidden">โหมดทดลอง — ยังไม่ได้เชื่อม Supabase ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น <button onclick="Demo.reset()">ล้างข้อมูลทดลอง</button></div>
+<div id="app"></div>
+<div id="toast" class="toast hidden"></div>
+
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+
+<script>
+const ROLL_IMG = {A:"data:image/jpeg;base64,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",B:"data:image/jpeg;base64,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",C:"data:image/jpeg;base64,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",D:"data:image/jpeg;base64,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",E:"data:image/jpeg;base64,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",F:"data:image/jpeg;base64,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",G:"data:image/jpeg;base64,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",H:"data:image/jpeg;base64,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"};
+/* ================== Utilities ================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = n => (n === null || n === undefined || n === '') ? '–' : Number(n).toLocaleString('th-TH');
+const pad2 = n => String(n).padStart(2, '0');
+function isoToTh(iso){ const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : ''; }
+function thToIso(s){ const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) return null;
+  let [_, d, mo, y] = m.map(Number); if (y > 2400) y -= 543; const dt = new Date(Date.UTC(y, mo - 1, d));
+  return (dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && y > 1900) ? `${y}-${pad2(mo)}-${pad2(d)}` : null; }
+const fmtT = t => { if (!t) return '–'; const d = new Date(new Date(t).getTime() + 7*3600e3); return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth()+1)}/${d.getUTCFullYear()+543} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
+const fmtD = t => t ? (isoToTh(t) || '–') : '–';
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 2600); }
+function deviceId(){ let d = store.get('vp_device'); if (!d) { d = 'D' + Math.random().toString(36).slice(2, 10); store.set('vp_device', d); } return d; }
+const DEPT = {
+  prod: { title:'แผนกผลิต', statuses:['กำลังทำ','ทยอยส่ง','เสร็จแล้ว'], final:'เสร็จแล้ว', steps:['พิมพ์','ไดคัท'] },
+  qc:   { title:'แผนกควบคุมสินค้า QC', statuses:['กำลังทำ','ทยอยส่ง','ส่งยอดสุดท้าย (จบ JOB)'], final:'ส่งยอดสุดท้าย (จบ JOB)', steps:[] }
+};
+const USE_DEMO = !SUPABASE_URL || !SUPABASE_ANON_KEY;
+
+/* ================== Demo backend (เลียนแบบฟังก์ชันใน Supabase) ================== */
+const Demo = {
+  KEY: 'vp_demo_v6',
+  seed(){
+    const now = Date.now(), m = 60000;
+    const wo = [
+      ['6910/54','ไร้ซ์แลนด์ อินเตอร์เนชั่นแนล จำกัด (สำนักงานใหญ่)','สติกเกอร์ PP ใส ขนาด 34x64mm Resealable for KROGER 2Lbs. พิมพ์ 4 สี',380000,'Intermittent Sanki-6'],
+      ['6910/53','เคแอนด์เจ พับลิชิ่ง จำกัด (สำนักงานใหญ่)','11D1401V GUARRANTY STICKER SIZE 70x100MM.',30000,'Intermittent Sanki-6'],
+      ['6910/52','ไทยลามิเนต แมนูแฟคเจอเรอร์ จำกัด (สำนักงานใหญ่)','สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10.2x1.5cm. (500Pcs/Roll)',20000,'Intermittent BangSung'],
+      ['6910/51','ปึงหงี่เชียง ฟู้ด โปรดักส์ จำกัด (สำนักงานใหญ่)','สติกเกอร์ขาวเงา ขนาด 68x90mm. ขนมปังอบกรอบ 240 กรัม (ด้านหน้า)',30000,'Intermittent Sanki-6'],
+      ['6910/49','ไทย ยูเนียน อโกรเคมีเคิล จำกัด (สำนักงานใหญ่)','ฉลากผลิตภัณฑ์ ขนาด 100x150mm.',15000,'Intermittent BangSung'],
+      ['6902/01','ปึงหงี่เชียง ฟู้ด โปรดักส์ จำกัด (สำนักงานใหญ่)','สติกเกอร์ขาวเงา ขนาด 68x90mm. ขนมปังอบกรอบ (ด้านหน้า)',30000,'Intermittent Sanki-6']
+    ].map(([job_ticket,customer_name,product_name,order_qty,machine]) => ({job_ticket,customer_name,product_name,order_qty,machine,closed: job_ticket==='6902/01',due_date:null}));
+    wo.unshift({"customer_name": "ควาร์ค ซิสเต็ม จำกัด (สำนักงานใหญ่)", "product_name": "DT Paper w/BM Size: 102x75mm; 525pcs/roll ดวงเปล่า", "product_code": "qs-s-102x75-100x40", "job_ticket": "6910/30", "doc_date": "2026-10-14", "po_no": "6910-20-493", "so_no": "01/69100022", "due_date": "2026-10-21", "other_job": false, "width_mm": 100, "height_mm": 40000, "across": 1, "die_rows": 1, "order_qty": 952, "length_rows": 952, "repeat_mm": 40000, "supplier": "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "paper_code": "OJI-THL-O", "paper_name": "Direct Thermal Paper TOP 76 GSM", "paper_type": "Direct Thermal Paper", "web_width_mm": 100, "run_m": 38080, "total_m": 38080, "slitter": "อุไร + แหม่ม", "no_perf": false, "perf": false, "is_roll": true, "roll_outer": true, "roll_inner": false, "core_size": 1.5, "roll_across": 1, "per_meter": 40, "cut_flush": false, "leave_edge": false, "sprocket": false, "sheet_perf": false, "is_sheet": false, "is_continuous": false, "mto": true, "mts": false, "roll_no_perf": true, "remark": "ลูกค้าขอส่งก่อน 500 ม้วน\nแกน 1.5 นิ้ว ตรวจ BM ทุกม้วน", "lot_no": "L6910-30", "has_paper": true, "ordered_by": "JACK", "closed": false});
+    const emp = [['กษิรา สุบุญมี','prod'],['ดารุณี มันสลาย','prod'],['เอกลักษณ์ สิงห์กลาง','prod'],['อดิศร มันสลาย','prod'],['สันติ แซ่ว่อง','prod'],['อานนท์ บุญเจิม','prod'],['สมหัส มันสลาย','prod'],['วิเชียร มันสลาย','prod'],['อรนุช ชำรัมย์','qc'],['อำนาจ คงช่วย','qc']]
+      .map(([name,dept],i) => ({id:i+1,name,dept,active:true,sort:i}));
+    const inbox = [
+      {dept:'prod',job_ticket:'6910/54',employee_name:'อดิศร มันสลาย',step:'พิมพ์',status:'กำลังทำ',qty:null,note:null,scanned_at:now-95*m,warnings:[]},
+      {dept:'prod',job_ticket:'6910/53',employee_name:'เอกลักษณ์ สิงห์กลาง',step:'พิมพ์',status:'เสร็จแล้ว',qty:32000,note:'16000*2',scanned_at:now-60*m,warnings:[]},
+      {dept:'prod',job_ticket:'6910/53',employee_name:'เอกลักษณ์ สิงห์กลาง',step:'พิมพ์',status:'เสร็จแล้ว',qty:32000,note:null,scanned_at:now-57*m,warnings:['สแกนซ้ำภายใน 10 นาที']},
+      {dept:'qc',job_ticket:'6910/52',employee_name:'อรนุช ชำรัมย์',step:null,status:'ทยอยส่ง',qty:10000,note:null,scanned_at:now-30*m,warnings:[]},
+      {dept:'prod',job_ticket:'6910/52',employee_name:'อานนท์ บุญเจิม',step:'ไดคัท',status:'ทยอยส่ง',qty:190000,note:null,scanned_at:now-12*m,warnings:['ยอดรวม 190,000 เกินยอดสั่ง 20,000 เกิน 20%']}
+    ].map((r,i) => ({id:i+1, review_status:'pending', device_id:'demo', ...r, scanned_at:new Date(r.scanned_at).toISOString()}));
+    const prod_logs = [{id:1,job_ticket:'6910/52',step:'พิมพ์',employee_name:'อานนท์ บุญเจิม',status:'เสร็จแล้ว',qty:21000,logged_at:new Date(now-1440*m).toISOString()}];
+    const qc_logs = [];
+    return {wo, emp, inbox, prod_logs, qc_logs, seq:100};
+  },
+  db(){ if (!this._db) this._db = store.get(this.KEY) || this.seed(); return this._db; },
+  save(){ store.set(this.KEY, this._db); },
+  reset(){ this._db = this.seed(); this.save(); location.reload(); },
+  async getJob(job, dept){
+    const d = this.db(), w = d.wo.find(x => x.job_ticket === job.trim());
+    if (!w) return {found:false};
+    return {found:true, ...w,
+      employees: d.emp.filter(e => e.dept === dept && e.active).sort((a,b)=>a.sort-b.sort).map(e => e.name),
+      recent: d.inbox.filter(r => r.job_ticket === w.job_ticket && r.dept === dept).sort((a,b)=>b.scanned_at.localeCompare(a.scanned_at)).slice(0,8)
+        .map(r => ({employee_name:r.employee_name, step:r.step, status:r.status, qty:r.qty, at:r.scanned_at, review_status:r.review_status}))};
+  },
+  async submitScan(p){
+    const d = this.db(), w = d.wo.find(x => x.job_ticket === p.job.trim());
+    if (!w) throw new Error('ไม่พบเลขที่ JOB ' + p.job);
+    if (w.closed) throw new Error('JOB ' + w.job_ticket + ' ปิดแล้ว ติดต่อออฟฟิศ');
+    const warns = [], now = Date.now();
+    if (d.inbox.some(r => r.job_ticket===w.job_ticket && r.dept===p.dept && r.employee_name===p.employee && r.status===p.status && (r.step||'')===(p.step||'') && r.review_status!=='rejected' && now - new Date(r.scanned_at) < 600000))
+      warns.push('สแกนซ้ำภายใน 10 นาที');
+    if (p.qty && w.order_qty > 0) {
+      const logs = p.dept === 'prod' ? d.prod_logs.filter(l => l.job_ticket===w.job_ticket && l.step===p.step) : d.qc_logs.filter(l => l.job_ticket===w.job_ticket);
+      const pend = d.inbox.filter(r => r.job_ticket===w.job_ticket && r.dept===p.dept && r.review_status==='pending' && (p.dept==='qc' || r.step===p.step));
+      const total = [...logs, ...pend].reduce((s,r) => s + (+r.qty||0), 0);
+      if (total + p.qty > w.order_qty * 1.2) warns.push(`ยอดรวม ${fmtN(total+p.qty)} เกินยอดสั่ง ${fmtN(w.order_qty)} เกิน 20%`);
+    }
+    const row = {id: ++d.seq, dept:p.dept, job_ticket:w.job_ticket, employee_name:p.employee, step:p.step||null, status:p.status, qty:p.qty, note:p.note||null,
+      scanned_at:new Date().toISOString(), device_id:p.device, warnings:warns, review_status:'pending'};
+    d.inbox.push(row); this.save();
+    return {id: row.id, warnings: warns};
+  },
+  async session(){ return {email:'ทดลอง@vpack'}; },
+  async listInbox(view){
+    const d = this.db();
+    let rows = d.inbox.filter(r => view === 'pending' ? r.review_status === 'pending' : r.review_status !== 'pending');
+    rows = rows.sort((a,b) => (view==='pending' ? a.scanned_at.localeCompare(b.scanned_at) : (b.reviewed_at||'').localeCompare(a.reviewed_at||''))).slice(0, 300);
+    return rows.map(r => ({...r, work_orders: d.wo.find(w => w.job_ticket === r.job_ticket)}));
+  },
+  async updateInbox(id, f){ const r = this.db().inbox.find(x => x.id === id); Object.assign(r, f); this.save(); },
+  async approve(ids){
+    const d = this.db(); let n = 0;
+    d.inbox.filter(r => ids.includes(r.id) && r.review_status === 'pending').forEach(r => {
+      const log = {id:++d.seq, inbox_id:r.id, job_ticket:r.job_ticket, employee_name:r.employee_name, status:r.status, qty:r.qty, note:r.note, logged_at:r.scanned_at};
+      if (r.dept === 'prod') d.prod_logs.push({...log, step:r.step}); else d.qc_logs.push(log);
+      r.review_status = 'approved'; r.reviewed_at = new Date().toISOString(); r.reviewed_by = 'ทดลอง'; n++;
+    });
+    this.save(); return n;
+  },
+  async reject(ids, note){
+    const d = this.db(); let n = 0;
+    d.inbox.filter(r => ids.includes(r.id) && r.review_status === 'pending').forEach(r => { r.review_status='rejected'; r.review_note=note; r.reviewed_at=new Date().toISOString(); r.reviewed_by='ทดลอง'; n++; });
+    this.save(); return n;
+  },
+  async progress(){
+    const d = this.db();
+    return d.wo.map(w => {
+      const pl = d.prod_logs.filter(l => l.job_ticket === w.job_ticket).sort((a,b)=>b.logged_at.localeCompare(a.logged_at));
+      const ql = d.qc_logs.filter(l => l.job_ticket === w.job_ticket).sort((a,b)=>b.logged_at.localeCompare(a.logged_at));
+      const sum = (arr, f) => arr.filter(f).reduce((s,l) => s + (+l.qty||0), 0);
+      return {...w,
+        print_qty: sum(pl, l => l.step==='พิมพ์' && l.status!=='กำลังทำ'),
+        diecut_qty: sum(pl, l => l.step==='ไดคัท' && l.status!=='กำลังทำ'),
+        last_prod_status: pl[0] ? `${pl[0].step} · ${pl[0].status}` : null, last_prod_at: pl[0]?.logged_at,
+        qc_qty: sum(ql, l => l.status!=='กำลังทำ'), last_qc_status: ql[0]?.status, last_qc_at: ql[0]?.logged_at,
+        pending_scans: d.inbox.filter(r => r.job_ticket===w.job_ticket && r.review_status==='pending').length};
+    }).sort((a,b) => b.job_ticket.localeCompare(a.job_ticket));
+  },
+  async nextJobTicket(){
+    const d = new Date(Date.now()+7*3600e3), pfx = String((d.getUTCFullYear()+543)%100).padStart(2,'0') + String(d.getUTCMonth()+1).padStart(2,'0') + '/';
+    const n = Math.max(0, ...this.db().wo.map(w => w.job_ticket).filter(j => new RegExp('^' + pfx.replace('/','\\/') + '\\d+$').test(j)).map(j => +j.split('/')[1])) + 1;
+    return pfx + String(n).padStart(2,'0');
+  },
+  async createWorkOrder(p, mode, base){
+    const d = this.db(); let j;
+    if (mode === 'revise') { const b = base.replace(/-R\d+$/,''); let n = 1; while (d.wo.some(w => w.job_ticket === `${b}-R${n}`)) n++; j = `${b}-R${n}`; }
+    else j = await this.nextJobTicket();
+    d.wo.push({...p, job_ticket:j, closed:false, created_at:new Date().toISOString()}); this.save(); return j;
+  },
+  async updateWorkOrder(job, p){ const w = this.db().wo.find(x => x.job_ticket === job); Object.assign(w, p); this.save(); },
+  async rememberMasters(p, L){ const m = this.m();
+    if (p.customer_name && !L.customers.includes(p.customer_name)) m.customers.push({code:'C-'+Date.now(), short_name:p.customer_name, name:p.customer_name});
+    if (p.product_code && !L.products.some(([c]) => c === p.product_code)) m.products.push({code:p.product_code, name:p.product_name, short_name:p.product_name});
+    if (p.paper_code && !L.raw.some(r => r.code === p.paper_code)) m.raw_materials.push({code:p.paper_code, name:p.paper_name, paper_type:p.paper_type, supplier:p.supplier});
+    this.save(); },
+  m(){ const d = this.db(); if (!d.m) { const L = DEMO_LOOKUPS;
+      d.m = { customers: L.customers.map((n,i) => ({code:'C'+(i+1), short_name:n, name:n})),
+        products: L.products.map(([code,name]) => ({code, name, short_name:name})),
+        raw_materials: L.raw.map(r => ({...r, item_type:'วัตถุดิบ'})),
+        suppliers: L.suppliers.map((n,i) => ({code:'S'+(i+1), short_name:n, name:n})),
+        lookups: Object.entries(L.spec).flatMap(([c,vals]) => vals.map((value,sort) => ({category:c, value, sort}))) }; this.save(); }
+    return d.m; },
+  async lookups(){ const m = this.m(), spec = {};
+    [...m.lookups].sort((a,b) => a.sort - b.sort).forEach(x => (spec[x.category] ||= []).push(x.value));
+    return { customers: [...new Set(m.customers.map(x => x.short_name))].sort(), products: m.products.map(x => [x.code, x.name]),
+      raw: m.raw_materials, suppliers: [...new Set(m.suppliers.map(x => x.short_name))].sort(), spec }; },
+  async masterList(t, M, q){ q = (q||'').toLowerCase();
+    const rows = this.m()[t].filter(r => !q || M.search.some(c => String(r[c]||'').toLowerCase().includes(q))).sort((a,b) => String(a[M.key]).localeCompare(String(b[M.key])));
+    return { rows: rows.slice(0,100), more: rows.length > 100 }; },
+  async masterSave(t, key, o, orig){ const arr = this.m()[t];
+    if (arr.some(r => r[key] === o[key] && r[key] !== orig)) throw new Error('duplicate');
+    if (orig === null) arr.push(o); else Object.assign(arr.find(r => r[key] === orig), o); this.save(); },
+  async masterDelete(t, key, k){ const m = this.m(); m[t] = m[t].filter(r => r[key] !== k); this.save(); },
+  async specList(cat){ return this.m().lookups.filter(x => x.category === cat).sort((a,b) => a.sort - b.sort); },
+  async specSave(cat, value, orig, sort){ const m = this.m();
+    if (orig === null) { if (m.lookups.some(x => x.category === cat && x.value === value)) throw new Error('duplicate'); m.lookups.push({category:cat, value, sort}); }
+    else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
+  async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
+  async getWorkOrder(job){ return this.db().wo.find(w => w.job_ticket === job.trim()) || null; },
+  async searchJobs(s){ s = (s||'').toLowerCase(); return this.db().wo.filter(w => !s || (w.job_ticket+w.customer_name+w.product_name).toLowerCase().includes(s)).slice(0,30); },
+  async employees(){ return [...this.db().emp].sort((a,b)=>a.sort-b.sort); },
+  async addEmployee(name, dept){ const d = this.db(); d.emp.push({id:++d.seq, name, dept, active:true, sort:d.emp.length}); this.save(); },
+  async toggleEmployee(id, active){ this.db().emp.find(e => e.id === id).active = active; this.save(); }
+};
+
+/* ================== Supabase backend ================== */
+const Live = {
+  sb: null,
+  init(){ this.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); },
+  chk({data, error}){ if (error) throw new Error(error.message); return data; },
+  async getJob(job, dept){ return this.chk(await this.sb.rpc('get_job_for_scan', {p_job: job, p_dept: dept})); },
+  async submitScan(p){
+    return this.chk(await this.sb.rpc('submit_scan', {p_dept:p.dept, p_job:p.job, p_employee:p.employee, p_step:p.step||'', p_status:p.status, p_qty:p.qty, p_note:p.note||'', p_device:p.device}));
+  },
+  async session(){ const {data} = await this.sb.auth.getSession(); return data.session ? {email: data.session.user.email} : null; },
+  async login(email, password){ this.chk(await this.sb.auth.signInWithPassword({email, password})); },
+  async logout(){ await this.sb.auth.signOut(); },
+  async listInbox(view){
+    let q = this.sb.from('scan_inbox').select('*, work_orders(customer_name, product_name, order_qty)');
+    q = view === 'pending' ? q.eq('review_status','pending').order('scanned_at', {ascending:true})
+                           : q.neq('review_status','pending').order('reviewed_at', {ascending:false});
+    return this.chk(await q.limit(300));
+  },
+  async updateInbox(id, f){ this.chk(await this.sb.from('scan_inbox').update(f).eq('id', id).eq('review_status','pending')); },
+  async approve(ids){ return this.chk(await this.sb.rpc('approve_scans', {p_ids: ids})); },
+  async reject(ids, note){ return this.chk(await this.sb.rpc('reject_scans', {p_ids: ids, p_note: note})); },
+  async progress(s, hideClosed){
+    let q = this.sb.from('v_job_progress').select('*').order('job_ticket', {ascending:false}).limit(300);
+    if (hideClosed) q = q.eq('closed', false);
+    s = (s||'').replace(/[,()%]/g, ' ').trim();
+    if (s) q = q.or(`job_ticket.ilike.%${s}%,customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
+    return this.chk(await q);
+  },
+  async fetchAll(table, cols, order){
+    const out = []; for (let from = 0; ; from += 1000) {
+      const rows = this.chk(await this.sb.from(table).select(cols).order(order).range(from, from + 999));
+      out.push(...rows); if (rows.length < 1000) break; } return out; },
+  async lookups(){
+    const [c, p, r, s, l] = await Promise.all([
+      this.fetchAll('customers','short_name','short_name'), this.fetchAll('products','code,name','code'),
+      this.fetchAll('raw_materials','code,name,paper_type,supplier,width_mm','code'), this.fetchAll('suppliers','short_name','short_name'),
+      this.fetchAll('lookups','category,value,sort','sort')]);
+    const spec = {}; l.forEach(x => (spec[x.category] ||= []).push(x.value));
+    return { customers: [...new Set(c.map(x => x.short_name))], products: p.map(x => [x.code, x.name]), raw: r, suppliers: [...new Set(s.map(x => x.short_name).filter(Boolean))], spec };
+  },
+  async masterList(t, M, q){
+    let x = this.sb.from(t).select('*').order(M.key).limit(101);
+    q = (q||'').replace(/[,()%]/g, ' ').trim();
+    if (q) x = x.or(M.search.map(c => `${c}.ilike.%${q}%`).join(','));
+    const rows = this.chk(await x); return { rows: rows.slice(0,100), more: rows.length > 100 };
+  },
+  async masterSave(t, key, o, origKey){
+    if (origKey === null) this.chk(await this.sb.from(t).insert(o));
+    else this.chk(await this.sb.from(t).update(o).eq(key, origKey));
+  },
+  async masterDelete(t, key, k){ this.chk(await this.sb.from(t).delete().eq(key, k)); },
+  async specList(cat){ return this.chk(await this.sb.from('lookups').select('*').eq('category', cat).order('sort').order('value')); },
+  async specSave(cat, value, orig, sort){
+    if (orig === null) this.chk(await this.sb.from('lookups').insert({category: cat, value, sort}));
+    else this.chk(await this.sb.from('lookups').update({value, sort}).eq('category', cat).eq('value', orig));
+  },
+  async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
+  async nextJobTicket(){ return this.chk(await this.sb.rpc('next_job_ticket')); },
+  async createWorkOrder(p, mode, base){ return this.chk(await this.sb.rpc('create_work_order', {p, p_mode: mode, p_base: base || null})); },
+  async updateWorkOrder(job, p){ this.chk(await this.sb.from('work_orders').update(p).eq('job_ticket', job)); },
+  async rememberMasters(p, L){   // รหัสงาน/ลูกค้า/กระดาษใหม่ที่ยังไม่มีในข้อมูลหลัก → เพิ่มให้อัตโนมัติ
+    try {
+      if (p.product_code && !L.products.some(([c]) => c === p.product_code)) await this.sb.from('products').insert({code: p.product_code, name: p.product_name, short_name: p.product_name});
+      if (p.customer_name && !L.customers.includes(p.customer_name)) await this.sb.from('customers').insert({code: 'NEW-' + Date.now(), short_name: p.customer_name, name: p.customer_name});
+      if (p.paper_code && !L.raw.some(r => r.code === p.paper_code)) await this.sb.from('raw_materials').insert({code: p.paper_code, name: p.paper_name, paper_type: p.paper_type, supplier: p.supplier});
+    } catch {}
+  },
+  async getWorkOrder(job){ return this.chk(await this.sb.from('work_orders').select('*').eq('job_ticket', job.trim()).maybeSingle()); },
+  async searchJobs(s){
+    s = (s||'').replace(/[,()%]/g, ' ').trim();
+    let q = this.sb.from('work_orders').select('job_ticket, customer_name, product_name, order_qty').order('job_ticket', {ascending:false}).limit(30);
+    if (s) q = q.or(`job_ticket.ilike.%${s}%,customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
+    return this.chk(await q);
+  },
+  async employees(){ return this.chk(await this.sb.from('employees').select('*').order('sort').order('name')); },
+  async addEmployee(name, dept){ this.chk(await this.sb.from('employees').insert({name, dept, sort: 99})); },
+  async toggleEmployee(id, active){ this.chk(await this.sb.from('employees').update({active}).eq('id', id)); }
+};
+
+const API = USE_DEMO ? Demo : (Live.init(), Live);
+if (USE_DEMO) $('#demoBar').classList.remove('hidden');
+
+/* ================== หน้าสแกน (พนักงาน) ================== */
+const params = new URLSearchParams(location.search);
+const scanDept = params.get('scan');
+
+async function renderScan(dept, job){
+  const D = DEPT[dept];
+  document.documentElement.style.setProperty('--accent', `var(--${dept})`);
+  document.documentElement.style.setProperty('--accent-soft', `var(--${dept}-soft)`);
+  document.title = `${D.title} · JOB Tracking`;
+  const app = $('#app');
+  const head = `<div class="scan-head"><div class="brand">V-PACK · JOB Tracking</div><h1>${esc(D.title)}</h1></div>`;
+
+  if (!job) {
+    app.innerHTML = `<div class="scan-wrap">${head}
+      <div class="jobcard"><div style="font-size:15px;margin-bottom:10px">พิมพ์เลขที่ JOB (กรณีสแกน QR ไม่ได้)</div>
+      <input id="manualJob" class="field" placeholder="เช่น 6910/49" inputmode="text" autocomplete="off">
+      <button class="btn block" style="margin-top:12px" id="goJob">ต่อไป</button></div></div>`;
+    $('#goJob').onclick = () => { const j = $('#manualJob').value.trim(); if (j) location.search = `?scan=${dept}&job=${encodeURIComponent(j)}`; };
+    return;
+  }
+
+  app.innerHTML = `<div class="scan-wrap">${head}<div class="jobcard">กำลังโหลด…</div></div>`;
+  let info;
+  try { info = await API.getJob(job, dept); }
+  catch (e) { app.innerHTML = `<div class="scan-wrap">${head}<div class="err">โหลดข้อมูลไม่ได้: ${esc(e.message)}<br>ลองตรวจอินเทอร์เน็ตแล้วสแกนใหม่</div></div>`; return; }
+  if (!info.found) {
+    app.innerHTML = `<div class="scan-wrap">${head}<div class="err">ไม่พบเลขที่ JOB <b>${esc(job)}</b> ในระบบ แจ้งออฟฟิศ หรือพิมพ์เลขใหม่</div>
+      <div class="sec"><input id="manualJob" class="field" value="${esc(job)}"><button class="btn block" style="margin-top:10px" id="goJob">ค้นหาอีกครั้ง</button></div></div>`;
+    $('#goJob').onclick = () => { const j = $('#manualJob').value.trim(); if (j) location.search = `?scan=${dept}&job=${encodeURIComponent(j)}`; };
+    return;
+  }
+
+  const lastName = store.get('vp_name_' + dept, '');
+  const st = { employee: info.employees.includes(lastName) ? lastName : '', other: '', step: '', status: '', qty: '', note: '' };
+  let n = 0;
+  const num = () => `<span class="n">${++n}</span>`;
+
+  app.innerHTML = `<div class="scan-wrap">${head}
+    <div class="jobcard">
+      <div class="jobno">${esc(info.job_ticket)}</div>
+      <div class="cust">${esc(info.customer_name)}</div>
+      <div class="prod">${esc(info.product_name)}</div>
+      <div class="meta"><span>ยอดสั่งผลิต <b>${fmtN(info.order_qty)}</b></span>${info.machine ? `<span>เครื่อง <b>${esc(info.machine)}</b></span>` : ''}${info.due_date ? `<span>กำหนดส่ง <b>${fmtD(info.due_date)}</b></span>` : ''}</div>
+    </div>
+    ${info.closed ? `<div class="err">JOB นี้ปิดแล้ว บันทึกเพิ่มไม่ได้ ติดต่อออฟฟิศ</div>` : `
+    <div class="sec"><h2>${num()} ชื่อ${dept==='prod'?'ช่างฝ่ายผลิต':'พนักงาน QC'} <span class="req">*</span></h2>
+      <div class="chips" id="empChips">${info.employees.map(e => `<button class="chip" data-v="${esc(e)}">${esc(e)}</button>`).join('')}<button class="chip" data-v="__other">อื่นๆ</button></div>
+      <input id="otherName" class="field hidden" style="margin-top:8px" placeholder="พิมพ์ชื่อ">
+    </div>
+    ${dept === 'prod' ? `<div class="sec"><h2>${num()} ขั้นตอนการทำงาน <span class="req">*</span></h2>
+      <div class="chips" id="stepChips">${D.steps.map(s => `<button class="chip" data-v="${s}">${s}</button>`).join('')}</div></div>` : ''}
+    <div class="sec"><h2>${num()} สถานะ <span class="req">*</span></h2>
+      <div class="chips three" id="stChips">${D.statuses.map(s => `<button class="chip ${s===D.final?'st-done':''}" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
+    <div class="sec hidden" id="qtySec"><h2>${num()} จำนวน${dept==='prod'?'ที่ผลิตได้':' QC'} (ดวง) <span class="req">*</span></h2>
+      <input id="qty" class="field qty" inputmode="numeric" placeholder="0" autocomplete="off">
+      <div class="hint" id="qtyHint"></div></div>
+    <div class="sec"><h2>หมายเหตุ</h2><textarea id="note" class="field" rows="2" placeholder="ถ้ามี"></textarea></div>
+    <div class="submitbar"><div class="inner"><button class="btn block" id="submit" disabled>ส่งข้อมูล</button></div></div>`}
+    ${info.recent.length ? `<div class="recent"><h3>ล่าสุดของ JOB นี้ (${esc(D.title)})</h3>${info.recent.map(r => `
+      <div class="ritem"><div>${esc(r.employee_name)}${r.step ? ' · ' + esc(r.step) : ''}<div class="t">${fmtT(r.at)}</div></div>
+      <div style="text-align:right">${esc(r.status)}${r.qty ? ' · ' + fmtN(r.qty) : ''}<div><span class="pill ${r.review_status}">${{pending:'รอตรวจ',approved:'ตรวจแล้ว',rejected:'ไม่ผ่าน'}[r.review_status]}</span></div></div></div>`).join('')}</div>` : ''}
+  </div>`;
+  if (info.closed) return;
+
+  const needQty = () => st.status && st.status !== 'กำลังทำ';
+  const refresh = () => {
+    document.querySelectorAll('#empChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === (st.other !== null && st.employee === '__other' ? '__other' : st.employee)));
+    $('#otherName').classList.toggle('hidden', st.employee !== '__other');
+    document.querySelectorAll('#stepChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.step));
+    document.querySelectorAll('#stChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.status));
+    $('#qtySec').classList.toggle('hidden', !needQty());
+    const name = st.employee === '__other' ? st.other.trim() : st.employee;
+    const qtyOk = !needQty() || (+st.qty > 0);
+    $('#submit').disabled = !(name && st.status && qtyOk && (dept !== 'prod' || st.step));
+    const hint = $('#qtyHint');
+    if (needQty() && +st.qty > 0 && info.order_qty) hint.textContent = `= ${(st.qty / info.order_qty * 100).toFixed(0)}% ของยอดสั่ง ${fmtN(info.order_qty)}`;
+    else hint.textContent = '';
+  };
+  const bind = (sel, key) => document.querySelectorAll(sel + ' .chip').forEach(c => c.onclick = () => { st[key] = c.dataset.v; refresh(); if (key==='status' && needQty()) setTimeout(() => $('#qty').focus(), 50); });
+  bind('#empChips', 'employee'); bind('#stepChips', 'step'); bind('#stChips', 'status');
+  $('#otherName').oninput = e => { st.other = e.target.value; refresh(); };
+  $('#qty').oninput = e => { const v = e.target.value.replace(/[^\d]/g, ''); st.qty = v; e.target.value = v ? Number(v).toLocaleString('en-US') : ''; refresh(); };
+  $('#note').oninput = e => { st.note = e.target.value; };
+  refresh();
+
+  $('#submit').onclick = async () => {
+    const btn = $('#submit'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
+    const employee = st.employee === '__other' ? st.other.trim() : st.employee;
+    const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty: needQty() ? +st.qty : null, note: st.note, device: deviceId() };
+    try {
+      const res = await API.submitScan(payload);
+      if (st.employee !== '__other') store.set('vp_name_' + dept, employee);
+      app.innerHTML = `<div class="scan-wrap">${head}<div class="done-screen">
+        <div class="ic">✓</div><h2>ส่งข้อมูลแล้ว</h2><div style="color:var(--muted)">รอออฟฟิศตรวจสอบก่อนนับยอด</div>
+        <div class="summary"><b>${esc(info.job_ticket)}</b> · ${esc(info.product_name)}<br>
+          ${esc(employee)}${payload.step ? ' · ' + esc(payload.step) : ''}<br>
+          สถานะ <b>${esc(payload.status)}</b>${payload.qty ? ` · จำนวน <b>${fmtN(payload.qty)}</b>` : ''}${payload.note ? `<br>หมายเหตุ: ${esc(payload.note)}` : ''}</div>
+        ${res.warnings?.length ? `<div class="warnbox">⚠ ${res.warnings.map(esc).join('<br>⚠ ')}<br><small>ถ้าส่งผิด แจ้งออฟฟิศได้เลย ออฟฟิศจะแก้หรือยกเลิกให้</small></div>` : ''}
+        <button class="btn ghost block" style="margin-top:20px" onclick="location.reload()">กลับไปหน้า JOB นี้</button>
+      </div></div>`;
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'ส่งข้อมูล';
+      toast('ส่งไม่สำเร็จ: ' + e.message);
+    }
+  };
+}
+
+/* ================== ใบสั่งผลิต A4 ================== */
+function jobTicketHTML(wo, orderBy){
+  const S = wo;
+  const v = k => { const x = S[k]; return (x === null || x === undefined || x === false) ? '' : x; };
+  const has = k => S[k] === true;
+  const cb = (on, red) => `<span class="cb ${on ? 'on' : ''} ${red ? 'red' : ''}">${on ? '✓' : ''}</span>`;
+  const n = (x, dec) => (x === '' || x === null || x === undefined) ? '' : (isNaN(+x) ? esc(x) : Number(x).toLocaleString('en-US', dec ? {minimumFractionDigits:2, maximumFractionDigits:2} : {maximumFractionDigits:2}));
+  const d = x => { if (!x) return ''; const m = String(x).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}-${m[2]}-${+m[1] + 543}` : esc(x); };
+  const ln = (x, w, cls='v') => `<span class="ln ${cls}" style="${w ? 'min-width:' + w : ''}">${x === '' ? '&nbsp;' : x}</span>`;
+  const dir = v('roll_direction');
+  const noteLines = txt => { const a = String(txt || '').split(/\r?\n/).flatMap(l => l.match(/.{1,48}/g) || ['']); while (a.length < 5) a.push(''); return a.length > 5 ? [...a.slice(0,4), a.slice(4).join(' ')] : a; };
+  const rot = {A:90, B:-90, C:0, D:180};
+  const roll = L => `<div class="roll"><img class="ic" src="${ROLL_IMG[L]}" alt="${L}">${cb(dir === L)}</div>`;
+  const g = (cols, rows) => `<div class="g" style="grid-template-columns:${cols}">${rows}</div>`;
+  const row = (label, val, unit='', cls='v') => `<span class="lbl">${label}</span><span class="ln ${cls}" style="text-align:center">${val === '' ? '&nbsp;' : val}</span><span class="nw">${unit}</span>`;
+  const qr = (id, top, bottom) => `<div class="qr"><div>${top}</div><div class="q" id="${id}"></div><b>📱 ${bottom}</b></div>`;
+
+  return `<div class="tk">
+  <div class="hd"><span style="font-size:10pt">V-Packaging</span><span class="t">ใบสั่งผลิต</span><span>รหัสเอกสาร ..................</span></div>
+  <div class="frame">
+    <div class="tksec" style="display:grid;grid-template-columns:1fr 58mm;gap:3mm">
+      ${g('30mm 1fr', `
+        <span class="lbl">ชื่อลูกค้า :</span>${ln(esc(wo.customer_name), '100%')}
+        <span class="lbl">ชื่อสินค้าที่ผลิต :</span><span class="v gray" style="padding:1.2mm 1.5mm;min-height:9mm">${esc(wo.product_name)}</span>
+        <span class="lbl">รหัสงาน :</span>${ln(esc(wo.product_code), '100%')}
+        <span></span><span style="display:grid;grid-template-columns:1fr 1fr;font-weight:700">
+          <span>${cb(has('mto'))} Made to Order (MTO)<br><span style="font-weight:400;margin-left:6mm">ผลิตตามคำสั่งซื้อ</span></span>
+          <span>${cb(has('mts'))} Made to Stock (MTS)<br><span style="font-weight:400;margin-left:6mm">ผลิตเพื่อเก็บสต็อก</span></span></span>`)}
+      ${g('auto 1fr', `
+        <span class="lbl">JOB TICKET MO:</span>${ln(esc(wo.job_ticket), '', 'vb')}
+        <span class="lbl">วันที่เอกสาร:</span>${ln(d(wo.doc_date || v('doc_date')))}
+        <span class="lbl">P/O.No. :</span>${ln(esc(wo.po_no || ''))}
+        <span class="lbl">S/O.No. :</span>${ln(esc(wo.so_no || ''))}
+        <span class="lbl">กำหนดส่ง :</span>${ln(wo.due_date ? d(wo.due_date) : esc(wo.due_note || ''))}
+        <span class="lbl v">${esc(v('job_label'))}</span><span>${cb(has('other_job'), true)}</span>`)}
+    </div>
+
+    <div class="tkbar">1. ข้อมูลเบื้องต้น (Input)</div>
+    <div class="tksec" style="display:grid;grid-template-columns:1fr 62mm;gap:3mm">
+      ${g('52mm 26mm 1fr', `
+        ${row('กว้าง (มม.)', n(v('width_mm')), 'MM.', 'vb')}
+        ${row('สูง (มม.)', n(v('height_mm')), 'MM.', 'vb')}
+        ${row('จำนวนดวงต่อแถว (Across)', n(v('across')), 'ดวง/แถว', 'vb')}
+        ${row('จำนวนแถวในบล็อกมีด (ดวง)', n(v('die_rows')), 'แถว', 'vb')}
+        <span class="lbl v" style="font-weight:700">จำนวนที่สั่งผลิตรวม (ดวง)</span><span class="ln vb" style="text-align:center">${n(wo.order_qty ?? v('order_qty'))}</span><span style="font-weight:700">ดวง</span>
+        ${row('จำนวนแถวแนวยาว (แถว)', n(v('length_rows')), '', '')}
+        ${row('ระยะตั้งงาน (มม.)', n(v('repeat_mm')), 'MM.', 'vb')}`)}
+      <div>
+        <div class="fl"><b>เครื่องพิมพ์ :</b>${ln(esc(wo.machine || ''))}</div>
+        ${qr('tkq_prod', 'สแกนเริ่มงาน/ส่งยอด', 'สำหรับแผนกผลิต')}
+      </div>
+    </div>
+
+    <div class="tkbar empty"></div>
+    <div class="tksec" style="display:grid;grid-template-columns:1fr 1fr;gap:3mm">
+      ${g('auto 1fr', `
+        <span class="lbl">วัตถุดิบของ :</span><span class="v">${esc(v('supplier'))}</span>`)}
+      ${g('auto 1fr', `
+        <span class="lbl">รหัสกระดาษ :</span>${ln(esc(v('paper_code')), '100%', 'vb')}`)}
+      ${g('52mm 26mm 1fr', `
+        ${row('ความกว้างหน้าม้วน Web Width (มม.)', n(v('web_width_mm')), 'MM.', 'v')}
+        ${row('ระยะยาวงานจริง (เมตร)', n(v('run_m'), 1), 'M.', 'vb')}
+        ${row('ระยะเผื่อตั้งเครื่อง Setup Waste (เมตร)', n(v('setup_waste_m'), 1), 'M.', 'v')}
+        ${row('รวมเมตรที่ต้องใช้ (เมตร)', n(v('total_m'), 1), 'M.', 'vb')}`)}
+      ${g('auto 1fr', `
+        <span class="lbl">ชื่อกระดาษ :</span><span class="v gray" style="padding:1mm 1.5mm">${esc(v('paper_name')) || '&nbsp;'}</span>
+        <span class="lbl">ประเภทกระดาษ :</span>${ln(esc(v('paper_type')), '100%')}
+        <span class="lbl">ประเภทกาว :</span>${ln(esc(v('adhesive')), '100%')}
+        <span class="lbl">หลังกระดาษ :</span>${ln(esc(v('liner')), '100%')}`)}
+    </div>
+
+    <div class="tkbar">3. ข้อมูลการพิมพ์ (Printing) สำหรับช่างพิมพ์</div>
+    <div class="tksec">${g('20mm 1fr 22mm 1fr auto 1fr', `
+        <span class="lbl">ชนิดสี :</span>${ln(esc(v('ink_type')), '100%')}
+        <span class="lbl">จำนวนสี</span><span>${ln(n(v('color_count')), '20mm')} สี</span>
+        <span class="lbl">สีพิเศษ (รหัส Pantone)</span><span class="fl">${cb(has('special_color'))}${ln(esc(v('pantone')))}</span>
+        <span class="lbl">การเคลือบ :</span>${ln(esc(v('coating')), '100%')}
+        <span class="lbl">รหัสเคลือบ :</span>${ln(esc(v('coating_code')), '100%')}
+        <span></span><span></span>
+        <span class="lbl">Spot UV :</span><span>${cb(has('spot_uv'))}</span>
+        <span class="lbl">หน้ากระดาษ :</span><span>${ln(n(v('paper_face_mm')), '20mm')} mm.</span>
+        <span></span><span></span>`)}</div>
+
+    <div class="tkbar">4.การจบงาน (Finishing) สำหรับงานไดคัท ทำบล็อก Hot Stamping</div>
+    <div class="tksec" style="display:grid;grid-template-columns:1.25fr 1fr;gap:1mm 6mm">
+      <div class="fl"><span>การไดคัท : &nbsp;เลขที่ไดคัท :</span>${ln(esc(v('diecut_no')))}</div>
+      <div class="fl"><span>มุมไดคัท</span>${ln(esc(v('diecut_corner')) + (v('corner_radius') !== '' ? ' ' + n(v('corner_radius')) : ''))}<span>มม.</span></div>
+      <div class="fl"><span>ชนิดและสีฟอยล์ : ${cb(has('foil_type_check'))}</span>${ln(esc(v('foil_type')))}<span>${cb(has('foil_color_check'))}</span>${ln(esc(v('foil_color')))}</div>
+      <div class="fl"><span>เครื่องไดคัท :</span>${ln(esc(v('diecut_machine')))}</div>
+      <div class="fl"><span>หมายเหตุเทคนิค : ${cb(has('no_perf'))} ไม่มีปรุ &nbsp; ${cb(has('perf'))} มีปรุ (มม.)</span>${ln(esc(v('perf_spec')))}<span>มม.</span></div>
+      <div class="fl"><span>เครื่อง Slitter</span>${ln(esc(v('slitter')))}</div>
+    </div>
+
+    <div class="tkbar">5. รูปแบบการส่งมอบ (Packaging) แผนก Packing</div>
+    <div style="display:grid;grid-template-columns:1fr 62mm;flex:0 0 auto">
+      <div class="tksec" style="border-right:1px solid #222">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:1mm 3mm;font-weight:700">
+          <span>รูปแบบงาน : ${cb(has('is_roll'))}</span><span>ระบบม้วน</span>
+          <span>ม้วนนอก ${cb(has('roll_outer'))}</span><span style="display:flex;justify-content:space-between"><span>ม้วนใน ${cb(has('roll_inner'))}</span><span style="margin-right:6mm">รายละเอียดงานม้วน</span></span>
+        </div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:3mm;margin-top:2mm">
+          <div class="rolls">${['A','E','B','F','C','G','D','H'].map(roll).join('')}</div>
+          ${g('auto 16mm', `
+            <span class="lbl">แกนกระดาษ(มม.) :</span>${ln(n(v('core_size')), '100%')}
+            <span class="lbl">ช่องไฟ (มม.) :</span>${ln(n(v('roll_gap')) || '-', '100%')}
+            <span class="lbl">จำนวน/แถว(ดวง/แถว)</span>${ln(n(v('roll_across')), '100%')}
+            <span class="lbl">จำนวน/ม้วน(ดวง/ม้วน) :</span>${ln(n(v('per_roll')) || '-', '100%')}
+            <span class="lbl">จำนวน/เมตร(เมตร) :</span>${ln(n(v('per_meter')), '100%')}
+            <span class="lbl">ขอบซ้าย (มม.) :</span>${ln(n(v('margin_left')) || '-', '100%')}
+            <span class="lbl">ขอบขวา (มม.) :</span>${ln(n(v('margin_right')) || '-', '100%')}
+            <span class="lbl">มีปรุ (มม.) ${cb(has('roll_perf'))}</span>${ln(esc(v('roll_perf_mm')), '100%')}
+            <span class="lbl">ไม่มีปรุ</span><span>${cb(has('roll_no_perf'))}</span>`)}
+        </div>
+      </div>
+      <div class="tksec">
+        <div style="display:flex;justify-content:space-between;font-weight:700"><span>${cb(has('is_sheet'))} งานแผ่น</span><span>${cb(has('is_continuous'))} คอมต่อเนื่อง</span></div>
+        <div style="text-align:center;font-weight:700;margin:1mm 0 2mm">รายละเอียดงานแผ่น/คอมต่อเนื่อง</div>
+        ${g('auto 1fr auto', `
+          ${row('การจัดวาง (แนวนอน) :', n(v('layout_h')), 'ดวง/แถว')}
+          ${row('การจัดวาง (แนวตั้ง) :', n(v('layout_v')), 'ดวง/แถว')}
+          ${row('ช่องไฟ (Gap) :', esc(v('sheet_gap')), 'มม.')}
+          ${row('จำนวนบรรจุ :', n(v('pack_qty')), 'ดวง/แพ็ค')}
+          ${row('ขนาดสำเร็จ :', n(v('finished_size')), 'มม.')}`)}
+        <div style="display:flex;justify-content:space-between;margin-top:1.5mm"><span>${cb(has('cut_flush'))} ตัดชิดดวง</span><span>${cb(has('leave_edge'))} เหลือขอบ</span></div>
+        <div style="margin-top:1mm;text-align:right">พับหน้าละ : ${ln(n(v('fold_per_page')), '18mm')} ดวง</div>
+        <div style="display:flex;justify-content:space-between;margin-top:1.5mm"><span class="nw">${cb(has('sprocket'))} รูหนามเตย</span><span class="nw">${cb(has('sheet_perf'))} มีปรุ (มม.) ${ln(n(v('sheet_perf_mm')), '10mm')}</span></div>
+      </div>
+    </div>
+
+    <div class="tkbar">6.บันทึกเพิ่มเติม / QC (บันทึกเพิ่มเติม QC / The Daily Tracker)</div>
+    <div class="tksec" style="display:grid;grid-template-columns:52mm 1fr 34mm 32mm;gap:3mm;flex:1">
+      <div class="g" style="grid-template-columns:auto 1fr auto;row-gap:3.2mm;align-content:start">
+        <span class="lbl">ยอดคงเหลือยกมา :</span>${ln(n(v('carry_forward_qty')), '100%')}<span>ดวง</span>
+        <span class="lbl">ยอดผลิตจริง :</span>${ln(n(v('actual_qty')), '100%')}<span>ดวง</span>
+        <span class="lbl">ยอดหลังจาก QC</span>${ln(n(v('after_qc_qty')), '100%')}<span>ดวง</span>
+        <span class="lbl">LOT Number :</span>${ln(esc(v('lot_no')), '100%')}<span></span>
+        <span class="nw" style="grid-column:1/-1">${cb(has('has_paper'))} มีกระดาษแล้ว &nbsp; ${cb(has('paper_ordered'))} สั่งกระดาษแล้ว</span>
+      </div>
+      <div><div class="v" style="text-align:center;font-weight:700">หมายเหตุ</div>
+        <div class="note-lines">${noteLines(v('remark')).map(x => `<div class="v" style="overflow:hidden;white-space:nowrap">${esc(x)}</div>`).join('')}</div></div>
+      <div class="sig"><div style="justify-content:center;font-weight:700;height:5mm">ลงชื่อ</div>
+        <div>ช่างพิมพ์ : ${ln(esc(v('printer_name')), '18mm')}</div><div>ช่างไดคัท : ${ln(esc(v('diecut_name')), '18mm')}</div><div>QC : ${ln(esc(v('qc_name')), '18mm')}</div><div>Art : ${ln(esc(v('art_name')), '18mm')}</div>
+        <div>ผู้สั่งงาน : ${ln(`<b style="color:#1565c0">${esc(v('ordered_by') || orderBy)}</b>`, '18mm', '')}</div></div>
+      ${qr('tkq_qc', 'สแกนตรวจQC/ส่งยอด', 'สำหรับแผนก QC')}
+    </div>
+  </div></div>`;
+}
+
+const WO_FIELDS = [["customer_name", "text"], ["product_name", "text"], ["product_code", "text"], ["job_ticket", "text"], ["doc_date", "date"], ["po_no", "text"], ["so_no", "text"], ["due_date", "date"], ["other_job", "boolean"], ["width_mm", "numeric"], ["height_mm", "numeric"], ["across", "numeric"], ["die_rows", "numeric"], ["order_qty", "numeric"], ["length_rows", "numeric"], ["repeat_mm", "numeric"], ["machine", "text"], ["supplier", "text"], ["paper_code", "text"], ["paper_name", "text"], ["paper_type", "text"], ["adhesive", "text"], ["liner", "text"], ["web_width_mm", "numeric"], ["run_m", "numeric"], ["setup_waste_m", "numeric"], ["total_m", "numeric"], ["ink_type", "text"], ["color_count", "numeric"], ["special_color", "boolean"], ["pantone", "text"], ["coating", "text"], ["coating_code", "text"], ["paper_face_mm", "numeric"], ["spot_uv", "boolean"], ["diecut_no", "text"], ["diecut_corner", "text"], ["corner_radius", "numeric"], ["diecut_machine", "text"], ["slitter", "text"], ["foil_type", "text"], ["foil_color", "text"], ["no_perf", "boolean"], ["perf", "boolean"], ["perf_spec", "text"], ["is_roll", "boolean"], ["roll_outer", "boolean"], ["roll_inner", "boolean"], ["core_size", "numeric"], ["roll_gap", "text"], ["roll_across", "numeric"], ["per_roll", "text"], ["per_meter", "text"], ["margin_left", "text"], ["margin_right", "text"], ["layout_h", "numeric"], ["layout_v", "numeric"], ["pack_qty", "text"], ["finished_size", "text"], ["cut_flush", "boolean"], ["leave_edge", "boolean"], ["fold_per_page", "numeric"], ["sprocket", "boolean"], ["sheet_perf", "boolean"], ["sheet_perf_mm", "text"], ["is_sheet", "boolean"], ["is_continuous", "boolean"], ["job_label", "text"], ["mto", "boolean"], ["mts", "boolean"], ["roll_direction", "text"], ["remark", "text"], ["due_note", "text"], ["foil_type_check", "boolean"], ["foil_color_check", "boolean"], ["roll_perf", "boolean"], ["roll_perf_mm", "text"], ["roll_no_perf", "boolean"], ["sheet_gap", "text"], ["carry_forward_qty", "numeric"], ["actual_qty", "numeric"], ["after_qc_qty", "numeric"], ["lot_no", "text"], ["has_paper", "boolean"], ["paper_ordered", "boolean"], ["printer_name", "text"], ["diecut_name", "text"], ["qc_name", "text"], ["art_name", "text"], ["ordered_by", "text"]];
+const DEMO_LOOKUPS = {"spec": {"machine": ["Rotary Sanki-6", "Rotary Sanki-7", "Intermittent BangSung", "Intermittent Sanki-6", "Letterpress Iwasaki", "Letterpress Onda", "Letterpress Label man", "Silk Screen", "Ricoh Pro C7200x", "Die-1", "Die BangSung", "Die Hikari"], "diecut_machine": ["Die-1", "Die BangSung", "Die Hikari", "Graphtec CE7000", "Rotary Sanki-6", "Rotary Sanki-7", "Intermittent Sanki-6"], "paper_type": ["กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "ขาวด้าน (Matte Paper)", "กระดาษคราฟท์ (Kraft Paper)", "PP ขาวเงา (PP White Gloss)", "PP ขาวด้าน (PP White Matt)", "PP ใส (Clear / Transparent PP)", "PP มุก (Pearlescent PP)", "PE (ยืดหยุ่น) (Polyethylene (PE))", "PET ทนความร้อน (Polyester (PET))", "PVC ใส (PVC Clear)", "PVC ขาวเงา (Glossy White PVC)", "Direct Thermal (DT) ฉีกขาด", "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "Direct Thermal Paper (DT-RM)", "Direct Thermal Paper (DT-TOP)", "Direct Thermal Paper", "Thermal Transfer (TT)", "เปลือกไข่ (Destructible Vinyl)", "วอยด์เงิน (ทิ้งคราบ) (Silver VOID)", "สุญญากาศ (Static Clad / Window Decal)", "PP SILVER", "PET SILVER MAT (เงินด้าน)", "PE ขาวด้าน (PE White Matt)", "การ์ดสี", "กระดาษกล่องแป้งหลังเทา", "Co-Ex ขาวด้าน"], "adhesive": ["กาวรีมูฟ (Remove Adhesive)", "กาวธรรมดา (Permanent Adhesive)", "กาวห้องเย็น (Freezer Grade Adhesive)", "กาวเหนียวพิเศษ (High Tack Adhesive)", "สุญญากาศ (Vacuum Sticker)", "กาวทนความร้อน (Heat Resistant Adhesive)", "กาวดำ"], "liner": ["หลังคราฟท์", "หลังปอนด์", "กลาสซีน", "หลังปอนด์ (เหลือง)", "หลังใส (PET Liner)"], "ink_type": ["สีน้ำมัน", "สี UV", "สี CMYK"], "coating": ["OPP ใส", "OPP ด้าน", "UV เงา", "UV ด้าน", "วานิช (Varnish)"], "coating_code": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_type": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_color": ["ทอง", "เงิน", "ฟ้า"], "diecut_corner": ["มุมแหลม", "วงกลม", "วงรี", "แบบพิเศษ", "มุมมน R"], "job_label": ["FORECAST:", "PROOFS:", "ครั้งที่ Revised", "เคลมสินค้า"], "diecut_no": ["R3-(68x90)-2/1", "S-(68x75)-2/1", "S-(35x35)-4/1", "C15-5F/2F", "RB00005", "S-(203.2x193.4)-4/1", "B01099", "R2-(210x115)-1", "R4-(120x164)-1", "S-(100x100)-2/1", "A01155", "A00681", "B00366", "A00043-44", "B01009", "R2-(105x130)-1", "RB00008", "A01164", "R1.5-(55x35)-2F", "SP-(65x100)-2F", "A01120", "R5-(280x135)-1", "S-(70x80)-2/1", "SP-(63x88)-2/1", "S-(63x88)-2/1", "R15.5-(46x46)-3/3"]}, "customers": ["ควอลิตี้ ลาเบล โปรดักส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ควาร์ค ซิสเต็ม จำกัด (สำนักงานใหญ่)", "ซานโต ไฟร์ โปรดักท์ จำกัด (สำนักงานใหญ่)", "มนต์นมสด", "ร้านเพ็ญนภา", "ลีดเดอร์ ไฟร์ เซฟตี้ จำกัด (สำนักงานใหญ่)", "สหโชค แฟคทอรี่ 2560 จำกัด (สำนักงานใหญ่)", "เคแอนด์เจ พับลิชิ่ง จำกัด (สำนักงานใหญ่)", "แอล แอนด์ อี โซลิด สเตท จำกัด (สำนักงานใหญ่)", "โคมาร์ค (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ไทย ยูเนียน อโกรเคมีเคิล จำกัด (สำนักงานใหญ่)", "ไทยซินอุตสาหกรรม จำกัด (สำนักงานใหญ่)", "ไทยลามิเนต แมนูแฟคเจอเรอร์ จำกัด (สำนักงานใหญ่)", "ไทยเมอร์รี่ จำกัด (สำนักงานใหญ่)", "ไร้ซ์แลนด์ อินเตอร์เนชั่นแนล จำกัด (สำนักงานใหญ่)"], "products": [["pen-40x40-PVC-G", "สติกเกอร์ PVC ขาวเงา วงกลม ขนาด 4x4cm. 3ดวง/แถว HYDRO STATION THAILAND"], ["qs-95x30-PPWMRM-2S", "ST-PP-RM ขาวด้าน  Size 95x30mm; Dai.3\" 1,500pcs/Roll กรีดในดวง 2 ข้าง"], ["qs-102x75-STDTBL-2K", "ST-DT ฉีกไม่ขาด หลังฟ้า Size 102x75mm. Dia.3\" ; 2,000pcs/roll"], ["qs-100x35-DTSBL-1000", "ST-DT หลังฟ้า ฉีกไม่ขาด Size 100x35mm; Dia.1.5:; 1,000pcs/roll"], ["qs-102x152.4-DTTC-PK", "DT Paper Topcoat 80g.w/BM Size 102x152.4mm.250/roll แถบชมพู"], ["qs-102x152.4-DTTCBLP", "DT Paper Topcoat 80g w/BM Size 102x152.4mm.250/Roll แถบฟ้า ปรุกลางดวง"], ["qlp-45x280-PPWG-MML", "สติกเกอร์ PP ขาวเงา ขนาด 45x280mm. พิมพ์ 4 สี+OPP ใส มาชเมลโล่ว เคลือบช็อกโกแลต"], ["qlp-45x250-PPWG-PAN", "สติกเกอร์ PP ขาวเงา ขนาด 45x250mm. มินิเบอร์เกอร์ สังขยาใบเตย"], ["kmt-s-0002-PCL", "พิมพ์เคเงิน สติ๊กเกอร์ Zincomin Zinc, Vitamins&Minerals 60'S MDC (PCL)"], ["tlm-s-4MT108-4001", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10x3cm. (500 Pcs/Roll) MSUMT4001"], ["tmr-80x60-PP-WM", "สติกเกอร์ Direct Thermal PP ขาวด้าน ขนาด 8x6cm. พิมพ์ 1 สีดำ 3,000 ดวง/ม้วน"], ["egat-35x35-LED-PPRM ID24790", "ฉลาก หลอด LED ขนาด 35x35mm. ID24790 L&E LED-T8 16 วัตต์ เดย์ไลท์"], ["qs-76x126-SGTT-1000", "ST-TT Size 76x126mm. Dia.3\" 1,000pcs/roll"], ["qs-4x4\"-DTBM", "DT Paper w/BM Size 4\" x 4\" กระดาษต่อเนื่องแบบมีปรุ"], ["qs-s-102x75-100x40", "DT Paper w/BM Size: 102x75mm; 525pcs/roll ดวงเปล่า"], ["ldf-s-STKPOI-NL", "สติกเกอร์ชี้จุดเครื่องดับเพลิง รูปถังดับเพลิง มีเบอร์โทร"], ["egat-45x45-POT-PET ID 6242", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm ID 6242 NIKKO DAILY LIFE COLLECTION 1.2"], ["egat-45x45-POT-PET ID 6243", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6243 NIKKO DAILY LIFE COLLECTION 1.5"], ["egat-45x45-POT-PET ID 6244", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6244 NIKKO DAILY LIFE COLLECTION 1.8"], ["qlp-65x290-PPC-CCNC", "สติกเกอร์ PP ใส ขนาด 65x290mm พิมพ์ 4 สี+รองขาว เค้กมะพร้าว Coconut"], ["santo-95x65-PVCC", "สติ๊กเกอร์วิธีใช้เครื่องดับเพลิง (แผ่นใส) ขนาด 9.5x6.5cm."], ["santo-89x47-PVCWG-Y", "สติ๊กเกอร์ชื่อบริษัทฯ (สีเหลือง) ขนาด 8.9x4.7cm."], ["shc-s-20x30", "สติกเกอร์ชี้จุดติดตั้ง+วิธีใช้เครื่องดับเพลิง ขนาด 20x30cm. (ดึงสลัก)"], ["kj-s-12C1031-PJTA165", "12C1031 NAME PLATE PJ-TA165 (SHEET) SIZE 40x80MM."], ["kj-s-12G1031-PJWA182", "12G1031 NAME PLATE PJ-WA182 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-10M1035-PJSL163", "10M1035 NAME PLATE PJ-SL163 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-31D1045-SBC9W3", "31D1045 NAME PLATE SB-C9W3 SIZE 105x165MM."], ["kj-s-10B114-PJSL161", "10B114 CAUTION LABEL PJ-SL161 SIZE 14x55MM."], ["qs-40x20-PPUPO", "ST-UPO (Fasson) Size: 40x20mm; Dia.3\"; 5,000/roll 2 ดวงชิด"], ["mont-58x58-PPWM-HL", "สติกเกอร์วงกลม PP ขาวด้าน ขนาด 58x58mm. โยเกิร์ต น้ำผึ้งผสมมะนาว"], ["tlm-s-4MT041-4002", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10.1x7.5cm. (500Pcs/Roll) MSUMT4002"], ["kj-s-11D1401V", "11D1401V GUARRANTY STICKER SIZE 70x100MM."], ["kj-s-2K123VTNR191STV", "2K123VT NAME PLATE KS-NR191STV SIZE 23x65MM."], ["tuac-PPWG-290x160", "สติกเกอร์ PP ขาวเงา ขนาด 290x106mm พิมพ์ 5 สี เคลือบ UV อีมา-เอส 1000  มิลลิลิตร"], ["rl-34x64-PPCL", "สติกเกอร์ PP ใส ขนาด 34x64mm Resealable for KROGER 2Lbs. พิมพ์ 4 สี"]], "raw": [{"code": "SVLW", "name": "SVLW (ROLL-SQM) Gloss PVC/White", "paper_type": "PVC ขาวเงา (Glossy White PVC)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SY7050N.1000-AAG730", "name": "SY7050N.1000(AAG730) SYNTHETIC PAPER/R480/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 208}, {"code": "HBTLA-BL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 220}, {"code": "OJI-THL-O", "name": "Direct Thermal Paper TOP 76 GSM", "paper_type": "Direct Thermal Paper", "supplier": "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "width_mm": 216}, {"code": "KP1429", "name": "สติกเกอร์ PP ขาวเงา 60 ไมครอน กาว Hotmelt หลังกลาสซีส 60 แกรม", "paper_type": "PP ขาวเงา (PP White Gloss)", "supplier": "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "width_mm": 115}, {"code": "AW0331P-AAH099", "name": "AW0331P(AAH099) FASTCOAT 2 PEFC/S1010/ BG40WH IMP FSC (PEFC)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 110}, {"code": "HBTLS-WL-HL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 176}, {"code": "HMCL-AG-WERM", "name": "HMCL-AG-WERM 106CM.(ROLL-SQM) Cast Coated/White Removable", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 330}, {"code": "FLD/RPC5/GZD", "name": "EAN8324400 FLD/RPC5/GZD RAFLACOAT FIT-FSC RPC5 WHITE GLASS C5-FSC", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 165}, {"code": "HTLW#45-W", "name": "Gloss white PET (TC) 45/Solvent/White glassine 60", "paper_type": "PET ทนความร้อน (Polyester (PET))", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 111}, {"code": "HPPTL-WE", "name": "GLOSS CLEAR TOP COATED POLYPROPYLENE LABEL", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SVLT-Y", "name": "SVLT-Y Gloss PVC/Transparent PVC ใส/หลังเหลือง", "paper_type": "PVC ใส (PVC Clear)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 80}, {"code": "FGSL-ALMH", "name": "ADCEL-Semigloss paper 80G.(Hotmelt Glue)(LAMH60)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "SCX80W-WG", "name": "สติกเกอร์กึ่งมันกึ่งด้าน หลังกลาสซีนขาว", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "DJP/RP37/GZI/H0", "name": "PP SILVER TC 50 FIT RP37 WHITE GLASSINE 65-FSC RTAC BACKPRINT", "paper_type": "PP SILVER ", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 100}, {"code": "BW0153-AAD953", "name": "BW0153 (AAD953) SYNTHETIC PAPER/S4700N/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 175}, {"code": "MZ0152-W-AAH706", "name": "MZ0152-W(AAH706) 1M Matte ChromePET TC/S333/BG50Wh", "paper_type": "PET SILVER MAT (เงินด้าน)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 80}, {"code": "AW0271-AAG535", "name": "AW0271 High Gloss Paper/S1010/BG40 Wht Imp FSC", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 130}, {"code": "BW0266A-AAG573", "name": "BW0266A(AAG573) PP50 TCClear/S692N/BG40Wh Imp FSC", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 220}], "suppliers": ["Avery Dennison (Thailand) Ltd. (Head Office)", "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "UPM Raflatac Co., Ltd. (Head Office)", "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)"]};
+/* ================== ใบสั่งผลิต (แทน ProductionOrder / EDITORDER) ================== */
+const WO_BOOL = new Set(WO_FIELDS.filter(f => f[1] === 'boolean').map(f => f[0]));
+const WO_NUM  = new Set(WO_FIELDS.filter(f => f[1] === 'numeric').map(f => f[0]));
+const WO_DATE = new Set(WO_FIELDS.filter(f => f[1] === 'date').map(f => f[0]));
+const todayISO = () => { const d = new Date(Date.now() + 7*3600e3); return d.toISOString().slice(0,10); };
+function blankWO(){ const o = {}; WO_FIELDS.forEach(([c,t]) => o[c] = t === 'boolean' ? false : null); o.doc_date = todayISO(); o.mto = true; return o; }
+
+const WOForm = {
+  wo: null, mode: 'new', dirty: false, L: null,
+  async page(){
+    if (!this.L) { try { this.L = await API.lookups(); } catch (e) { $('#page').innerHTML = `<div class="err">โหลดข้อมูลหลักไม่ได้: ${esc(e.message)}</div>`; return; } }
+    const L = this.L;
+    const pending = store.get('vp_open_job', null);
+    $('#page').innerHTML = `
+      <datalist id="dl_customers">${L.customers.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <datalist id="dl_products">${L.products.map(([c,n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('')}</datalist>
+      <datalist id="dl_raw">${L.raw.map(r => `<option value="${esc(r.code)}">${esc(r.name||'')}</option>`).join('')}</datalist>
+      <datalist id="dl_suppliers">${L.suppliers.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      ${Object.entries(L.spec).map(([k, arr]) => `<datalist id="dl_${k}">${arr.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
+      <datalist id="dl_jobs"></datalist>
+      <div class="wo-bar">
+        <div class="wo-id"><span id="woMode" class="pill"></span><b id="woJob"></b><span id="woDirty" class="hint"></span></div>
+        <div class="wo-open"><input id="woOpen" class="field" placeholder="เปิดใบเดิม: เลข JOB" list="dl_jobs" autocomplete="off"><button class="btn ghost sm" id="woOpenBtn">เปิด</button><button class="btn ghost sm" id="woNew">+ ใบใหม่</button></div>
+      </div>
+      <div id="woForm"></div>
+      <div class="wo-actions" id="woActions"></div>`;
+    let t; $('#woOpen').oninput = e => { clearTimeout(t); t = setTimeout(async () => {
+      const list = await API.searchJobs(e.target.value); $('#dl_jobs').innerHTML = list.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name)} · ${esc(j.product_name)}</option>`).join(''); }, 250); };
+    $('#woOpenBtn').onclick = () => this.open($('#woOpen').value.trim());
+    $('#woOpen').onkeydown = e => { if (e.key === 'Enter') this.open($('#woOpen').value.trim()); };
+    $('#woNew').onclick = async () => { if (this.dirty && !(await Office.confirm('ล้างฟอร์มเพื่อเริ่มใบใหม่? ข้อมูลที่ยังไม่บันทึกจะหาย'))) return; this.load(blankWO(), 'new'); };
+    if (pending) { store.set('vp_open_job', null); await this.open(pending); }
+    else if (this.wo) this.load(this.wo, this.mode, true);
+    else this.load(blankWO(), 'new');
+  },
+  async open(job){
+    if (!job) return;
+    if (this.dirty && !(await Office.confirm(`เปิด ${job}? ข้อมูลที่ยังไม่บันทึกจะหาย`))) return;
+    let wo; try { wo = await API.getWorkOrder(job); } catch (e) { return toast(e.message); }
+    if (!wo) return toast('ไม่พบ JOB ' + job);
+    this.load(wo, 'edit'); $('#woOpen').value = '';
+  },
+  async load(wo, mode, keepDirty){
+    this.wo = {...blankWO(), ...wo}; this.mode = mode; if (!keepDirty) this.dirty = false;
+    $('#woMode').className = 'pill ' + (mode === 'new' ? 'pending' : 'prod');
+    $('#woMode').textContent = mode === 'new' ? 'ใบใหม่' : (wo.closed ? 'ปิดจ๊อบแล้ว' : 'แก้ไข');
+    $('#woJob').textContent = mode === 'new' ? 'เลข JOB จะออกตอนบันทึก' : wo.job_ticket;
+    if (mode === 'new') { try { const nx = await API.nextJobTicket(); $('#woJob').textContent = `JOB ถัดไป: ${nx}`; } catch {} }
+    this.render(); this.setDirty(this.dirty);
+  },
+  setDirty(v){ this.dirty = v; const d = $('#woDirty'); if (d) d.textContent = v ? '● ยังไม่ได้บันทึก' : ''; },
+
+  /* --- field helpers --- */
+  f(c, label, o = {}){
+    const v = this.wo[c]; const t = 'text';
+    if (WO_DATE.has(c)) return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label} <small>(วว/ดด/ปปปป พ.ศ.)</small></span>
+      <span class="dwrap"><input type="text" class="field" data-d="${c}" value="${isoToTh(v)}" placeholder="วว/ดด/ปปปป" inputmode="numeric" maxlength="10" autocomplete="off">
+      <button type="button" class="dbtn" data-dp="${c}" title="เลือกจากปฏิทิน">📅</button><input type="date" class="dhidden" data-dn="${c}" value="${v || ''}" tabindex="-1"></span></label>`;
+    const im = WO_NUM.has(c) ? 'inputmode="decimal"' : '';
+    const list = o.list ? `list="${o.list}"` : '';
+    const cls = `field ${o.calc ? 'calc' : ''} ${o.big ? 'big' : ''}`;
+    const val = v === null || v === undefined ? '' : v;
+    const ctl = o.area ? `<textarea class="${cls}" data-c="${c}" rows="${o.rows||3}">${esc(val)}</textarea>`
+      : `<input type="${t}" class="${cls}" data-c="${c}" value="${esc(val)}" ${im} ${list} ${o.calc ? 'readonly tabindex="-1"' : ''} autocomplete="off">`;
+    return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}${o.unit ? ` <small>(${o.unit})</small>` : ''}${o.calc ? ' <small class="auto">คำนวณอัตโนมัติ</small>' : ''}</span>${ctl}</label>`;
+  },
+  c(c, label){ return `<label class="wc ${this.wo[c] ? 'on' : ''}"><input type="checkbox" data-c="${c}" ${this.wo[c] ? 'checked' : ''}> ${label}</label>`; },
+  sec(n, title, body, cls=''){ return `<section class="wo-sec s${n || 0} ${cls}"><h3>${n ? `<span>${n}</span>` : ''}${title}</h3>${body}</section>`; },
+  render(){
+    const g = (...x) => `<div class="wo-grid">${x.join('')}</div>`;
+    const row = (...x) => `<div class="wc-row">${x.join('')}</div>`;
+    const dirs = ['A','B','C','D','E','F','G','H'];
+    const rot = {A:90,B:-90,C:0,D:180,E:90,F:-90,G:0,H:180};
+    const dirPick = `<div class="wf span2"><span>ทิศทางการม้วน <small>(A–D ม้วนนอก, E–H ม้วนใน)</small></span><div class="dirs">${['A','E','B','F','C','G','D','H'].map(d =>
+      `<button type="button" class="dir ${this.wo.roll_direction === d ? 'on' : ''}" data-dir="${d}"><img src="${ROLL_IMG[d]}" alt="${d}"><span class="tick">${this.wo.roll_direction === d ? '✓' : ''}</span></button>`).join('')}</div></div>`;
+    const ro = this.mode === 'edit' && this.wo.closed;
+    $('#woForm').innerHTML = `<fieldset ${ro ? 'disabled' : ''} class="wo-fs">
+      ${this.sec('', 'ข้อมูลใบสั่งผลิต', g(
+        this.f('customer_name','ชื่อลูกค้า',{list:'dl_customers', req:1, span:2}),
+        this.f('product_code','รหัสงาน',{list:'dl_products'}),
+        this.f('doc_date','วันที่เอกสาร'),
+        this.f('product_name','ชื่อสินค้าที่ผลิต',{req:1, span:2, area:1, rows:2}),
+        this.f('po_no','P/O.No.'), this.f('so_no','S/O.No.'),
+        this.f('due_date','กำหนดส่ง'), this.f('due_note','กำหนดส่ง (ข้อความ)',{}),
+        this.f('job_label','งาน (PROOFS/FORECAST/เคลม)',{list:'dl_job_label'}),
+        `<div class="wf"><span>&nbsp;</span>${row(this.c('other_job','งานอื่นๆ'))}</div>`,
+        `<div class="wf span2"><span>ประเภทการผลิต</span>${row(this.c('mto','Made to Order (MTO)'), this.c('mts','Made to Stock (MTS)'))}</div>`))}
+      ${this.sec(1, 'ข้อมูลเบื้องต้น (Input)', g(
+        this.f('width_mm','กว้าง',{unit:'มม.'}), this.f('height_mm','สูง',{unit:'มม.'}),
+        this.f('across','จำนวนดวงต่อแถว (Across)',{unit:'ดวง/แถว'}), this.f('die_rows','จำนวนแถวในบล็อกมีด',{unit:'แถว'}),
+        this.f('order_qty','จำนวนที่สั่งผลิตรวม',{unit:'ดวง', req:1, big:1}), this.f('length_rows','จำนวนแถวแนวยาว',{calc:1}),
+        this.f('repeat_mm','ระยะตั้งงาน',{unit:'มม.'}), this.f('machine','เครื่องพิมพ์',{list:'dl_machine'})))}
+      ${this.sec(2, 'วัตถุดิบ (Material)', g(
+        this.f('supplier','วัตถุดิบของ (Supplier)',{list:'dl_suppliers', span:2}),
+        this.f('paper_code','รหัสกระดาษ',{list:'dl_raw'}), this.f('paper_name','ชื่อกระดาษ',{}),
+        this.f('paper_type','ประเภทกระดาษ',{list:'dl_paper_type'}), this.f('adhesive','ประเภทกาว',{list:'dl_adhesive'}),
+        this.f('liner','หลังกระดาษ',{list:'dl_liner'}), this.f('web_width_mm','ความกว้างหน้าม้วน Web Width',{unit:'มม.'}),
+        this.f('run_m','ระยะยาวงานจริง',{unit:'เมตร', calc:1}), this.f('setup_waste_m','ระยะเผื่อตั้งเครื่อง Setup Waste',{unit:'เมตร'}),
+        this.f('total_m','รวมเมตรที่ต้องใช้',{unit:'เมตร', calc:1})))}
+      ${this.sec(3, 'ข้อมูลการพิมพ์ (Printing)', g(
+        this.f('ink_type','ชนิดสี',{list:'dl_ink_type'}), this.f('color_count','จำนวนสี',{unit:'สี'}),
+        `<div class="wf"><span>สีพิเศษ</span>${row(this.c('special_color','มีสีพิเศษ'))}</div>`, this.f('pantone','รหัส Pantone'),
+        this.f('coating','การเคลือบ / กระดาษเคลือบ',{list:'dl_coating'}), this.f('coating_code','รหัสเคลือบ',{list:'dl_coating_code'}),
+        `<div class="wf"><span>Spot UV</span>${row(this.c('spot_uv','Spot UV'))}</div>`, this.f('paper_face_mm','หน้ากระดาษ',{unit:'มม.'})))}
+      ${this.sec(4, 'การจบงาน (Finishing) ไดคัท / Hot Stamping', g(
+        this.f('diecut_no','เลขที่ไดคัท',{list:'dl_diecut_no'}), this.f('diecut_corner','มุมไดคัท',{list:'dl_diecut_corner'}),
+        this.f('corner_radius','ขนาดมุมมน',{unit:'มม.'}), this.f('diecut_machine','เครื่องไดคัท',{list:'dl_diecut_machine'}),
+        `<div class="wf"><span>ชนิดฟอยล์</span>${row(this.c('foil_type_check','ติ๊ก'))}</div>`, this.f('foil_type','ชนิดฟอยล์',{list:'dl_foil_type'}),
+        `<div class="wf"><span>สีฟอยล์</span>${row(this.c('foil_color_check','ติ๊ก'))}</div>`, this.f('foil_color','สีฟอยล์',{list:'dl_foil_color'}),
+        `<div class="wf span2"><span>หมายเหตุเทคนิค</span>${row(this.c('no_perf','ไม่มีปรุ'), this.c('perf','มีปรุ'))}</div>`,
+        this.f('perf_spec','ปรุกี่ (มม.)',{}), this.f('slitter','เครื่อง Slitter',{list:'dl_slitter'})))}
+      ${this.sec(5, 'รูปแบบการส่งมอบ (Packaging)', `
+        <div class="wc-row" style="margin-bottom:12px">${this.c('is_roll','ระบบม้วน')}${this.c('is_sheet','งานแผ่น')}${this.c('is_continuous','คอมต่อเนื่อง')}</div>
+        <div class="wo-two">
+          <div><h4>รายละเอียดงานม้วน</h4>${g(
+            `<div class="wf span2"><span>&nbsp;</span>${row(this.c('roll_outer','ม้วนนอก'), this.c('roll_inner','ม้วนใน'))}</div>`, dirPick,
+            this.f('core_size','แกนกระดาษ',{unit:'มม.'}), this.f('roll_gap','ช่องไฟ',{unit:'มม.'}),
+            this.f('roll_across','จำนวน/แถว',{unit:'ดวง/แถว'}), this.f('per_roll','จำนวน/ม้วน',{unit:'ดวง/ม้วน'}),
+            this.f('per_meter','จำนวน/เมตร'), this.f('margin_left','ขอบซ้าย',{unit:'มม.'}), this.f('margin_right','ขอบขวา',{unit:'มม.'}),
+            `<div class="wf"><span>ปรุ (งานม้วน)</span>${row(this.c('roll_perf','มีปรุ'), this.c('roll_no_perf','ไม่มีปรุ'))}</div>`,
+            this.f('roll_perf_mm','มีปรุกี่มม. (งานม้วน)'))}</div>
+          <div><h4>รายละเอียดงานแผ่น / คอมต่อเนื่อง</h4>${g(
+            this.f('layout_h','การจัดวาง (แนวนอน)',{unit:'ดวง/แถว'}), this.f('layout_v','การจัดวาง (แนวตั้ง)',{unit:'ดวง/แถว'}),
+            this.f('sheet_gap','ช่องไฟ (Gap)',{unit:'มม.'}), this.f('pack_qty','จำนวนบรรจุ',{unit:'ดวง/แพ็ค'}),
+            this.f('finished_size','ขนาดสำเร็จ',{unit:'มม.'}), this.f('fold_per_page','พับหน้าละ',{unit:'ดวง'}),
+            `<div class="wf span2"><span>&nbsp;</span>${row(this.c('cut_flush','ตัดชิดดวง'), this.c('leave_edge','เหลือขอบ'), this.c('sprocket','รูหนามเตย'), this.c('sheet_perf','มีปรุ'))}</div>`,
+            this.f('sheet_perf_mm','ปรุกี่ (มม.) งานแผ่น'))}</div>
+        </div>`)}
+      ${this.sec(6, 'บันทึกเพิ่มเติม / QC', g(
+        this.f('carry_forward_qty','ยอดคงเหลือยกมา',{unit:'ดวง'}), this.f('actual_qty','ยอดผลิตจริง',{unit:'ดวง'}),
+        this.f('after_qc_qty','ยอดหลังจาก QC',{unit:'ดวง'}), this.f('lot_no','LOT Number'),
+        `<div class="wf span2"><span>กระดาษ</span>${row(this.c('has_paper','มีกระดาษแล้ว'), this.c('paper_ordered','สั่งกระดาษแล้ว'))}</div>`,
+        this.f('remark','หมายเหตุ',{area:1, rows:4, span:2}),
+        this.f('printer_name','ช่างพิมพ์'), this.f('diecut_name','ช่างไดคัท'), this.f('qc_name','QC'), this.f('art_name','Art'),
+        this.f('ordered_by','ผู้สั่งงาน')))}
+    </fieldset>`;
+    // actions
+    const A = this.mode === 'new'
+      ? `<button class="btn" id="aSave">บันทึกใบสั่งผลิต</button>`
+      : `${this.wo.closed ? '' : '<button class="btn" id="aUpdate">บันทึกการแก้ไข</button>'}
+         <button class="btn ghost" id="aRevise">บันทึกเป็น Revised</button>
+         <button class="btn ghost" id="aCopy">สร้าง JOB ใหม่จากใบนี้</button>
+         <button class="btn ghost" id="aPrint">พิมพ์ใบสั่งผลิต</button>
+         <label class="wc ${this.wo.closed ? 'on' : ''}" style="margin-left:auto"><input type="checkbox" id="aClosed" ${this.wo.closed ? 'checked' : ''}> ปิดจ๊อบ</label>`;
+    $('#woActions').innerHTML = A;
+    this.bind();
+  },
+  bind(){
+    const form = $('#woForm');
+    form.querySelectorAll('[data-d]').forEach(el => {
+      const c = el.dataset.d;
+      el.addEventListener('input', () => {
+        let d = el.value.replace(/\D/g, '').slice(0, 8);
+        el.value = d.length > 4 ? `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0,2)}/${d.slice(2)}` : d;
+        const iso = thToIso(el.value);
+        el.classList.toggle('bad', el.value !== '' && !iso);
+        this.wo[c] = iso; this.setDirty(true);
+      });
+    });
+    form.querySelectorAll('[data-dp]').forEach(b => b.onclick = () => { const h = form.querySelector(`[data-dn="${b.dataset.dp}"]`); try { h.showPicker(); } catch { h.click(); } });
+    form.querySelectorAll('[data-dn]').forEach(h => h.onchange = () => { const c = h.dataset.dn; this.wo[c] = h.value || null;
+      const t = form.querySelector(`[data-d="${c}"]`); t.value = isoToTh(h.value); t.classList.remove('bad'); this.setDirty(true); });
+    form.querySelectorAll('[data-c]').forEach(el => {
+      const c = el.dataset.c;
+      const ev = el.type === 'checkbox' ? 'change' : 'input';
+      el.addEventListener(ev, () => {
+        if (el.type === 'checkbox') { this.wo[c] = el.checked; el.parentElement.classList.toggle('on', el.checked); }
+        else this.wo[c] = el.value === '' ? null : el.value;
+        this.setDirty(true);
+        this.onChange(c);
+      });
+    });
+    form.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => {
+      const d = b.dataset.dir; this.wo.roll_direction = this.wo.roll_direction === d ? null : d;
+      if (this.wo.roll_direction) { const inner = 'EFGH'.includes(d); this.wo.roll_outer = !inner; this.wo.roll_inner = inner; this.wo.is_roll = true; }
+      this.setDirty(true); this.render();
+    });
+    $('#aSave')?.addEventListener('click', () => this.save('new'));
+    $('#aUpdate')?.addEventListener('click', () => this.save('update'));
+    $('#aRevise')?.addEventListener('click', () => this.save('revise'));
+    $('#aCopy')?.addEventListener('click', () => this.save('copy'));
+    $('#aPrint')?.addEventListener('click', async () => {
+      if (this.dirty && !(await Office.confirm('ยังไม่ได้บันทึกการแก้ไข พิมพ์ตามข้อมูลที่บันทึกล่าสุด?'))) return;
+      store.set('vp_lastjob', this.wo.job_ticket); Office.go('qr');
+    });
+    $('#aClosed')?.addEventListener('change', async e => {
+      try { await API.updateWorkOrder(this.wo.job_ticket, {closed: e.target.checked}); this.wo.closed = e.target.checked; toast(e.target.checked ? 'ปิดจ๊อบแล้ว — พนักงานจะสแกน JOB นี้ไม่ได้' : 'เปิดจ๊อบอีกครั้ง'); this.load(this.wo, 'edit', true); }
+      catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
+    });
+  },
+  setVal(c, v){ this.wo[c] = v; const el = $(`#woForm [data-c="${c}"]`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } },
+  onChange(c){
+    const w = this.wo, N = x => { const n = parseFloat(String(x ?? '').replace(/,/g,'')); return isNaN(n) ? null : n; };
+    if (['order_qty','across','die_rows','repeat_mm','setup_waste_m'].includes(c)) {
+      const q = N(w.order_qty), a = N(w.across), r = N(w.die_rows), rp = N(w.repeat_mm), sw = N(w.setup_waste_m) || 0;
+      const per = a && r ? a * r : null;
+      const rows = q !== null && per ? +(q / per).toFixed(2) : null;               // = F13/(F11*F12)
+      const run  = q !== null && per && rp !== null ? +((q * rp) / per / 1000).toFixed(2) : null;  // = (F13*F15)/(F11*F12)/1000
+      this.setVal('length_rows', rows); this.setVal('run_m', run);
+      this.setVal('total_m', run !== null ? +(run + sw).toFixed(2) : (sw || null));  // = F20+F21
+    }
+    if (c === 'product_code') {
+      const p = this.L.products.find(([code]) => code === (w.product_code||'').trim());
+      if (p) this.setVal('product_name', p[1]);
+    }
+    if (c === 'paper_code') {
+      const r = this.L.raw.find(x => x.code === (w.paper_code||'').trim());
+      if (r) { this.setVal('paper_name', r.name);
+        if (!w.paper_type && r.paper_type) this.setVal('paper_type', r.paper_type);
+        if (!w.supplier && r.supplier) this.setVal('supplier', r.supplier);
+        if (!w.web_width_mm && r.width_mm) this.setVal('web_width_mm', r.width_mm); }
+    }
+  },
+  payload(){
+    const o = {};
+    WO_FIELDS.forEach(([c,t]) => {
+      let v = this.wo[c];
+      if (t === 'boolean') v = !!v;
+      else if (t === 'numeric') { const n = parseFloat(String(v ?? '').replace(/,/g,'')); v = isNaN(n) ? null : n; }
+      else if (typeof v === 'string') { v = v.trim(); if (v === '') v = null; }
+      o[c] = v ?? (t === 'boolean' ? false : null);
+    });
+    delete o.job_ticket;
+    return o;
+  },
+  async save(kind){
+    const p = this.payload();
+    const miss = [['customer_name','ชื่อลูกค้า'],['product_name','ชื่อสินค้าที่ผลิต'],['order_qty','จำนวนที่สั่งผลิต']].filter(([c]) => p[c] === null).map(x => x[1]);
+    if (miss.length) return toast('กรุณากรอก: ' + miss.join(', '));
+    const msgs = { new: 'บันทึกใบสั่งผลิตใหม่?', update: `บันทึกการแก้ไข JOB ${this.wo.job_ticket}?`, revise: `บันทึกเป็นงาน Revised ของ ${this.wo.job_ticket}?`, copy: 'สร้าง JOB ใหม่ โดยใช้ข้อมูลจากใบนี้?' };
+    if (!(await Office.confirm(msgs[kind]))) return;
+    try {
+      let job;
+      if (kind === 'update') { await API.updateWorkOrder(this.wo.job_ticket, p); job = this.wo.job_ticket; }
+      else job = await API.createWorkOrder(p, kind === 'revise' ? 'revise' : 'new', this.wo.job_ticket);
+      await API.rememberMasters?.(p, this.L);
+      this.L = await API.lookups();
+      toast(kind === 'update' ? `บันทึก ${job} แล้ว` : `บันทึกแล้ว ได้เลข JOB ${job}`);
+      const wo = await API.getWorkOrder(job);
+      this.load(wo, 'edit');
+      if (kind !== 'update' && await Office.confirm(`JOB ${job} — พิมพ์ใบสั่งผลิตพร้อม QR เลยไหม?`)) { store.set('vp_lastjob', job); Office.go('qr'); }
+    } catch (e) { toast('บันทึกไม่สำเร็จ: ' + e.message); }
+  }
+};
+
+/* ================== ข้อมูลหลัก (แทนชีต CUSTOM / PRODUCT / RAWMAT / SUPPLIER / DATA_SPEC) ================== */
+const MASTER = {
+  customers: { title:'ลูกค้า', key:'code', search:['code','short_name','name'], cols:[
+    ['code','รหัสลูกค้า',{hint:'เว้นว่างได้ ระบบจะออกรหัสให้'}], ['short_name','ชื่อที่ใช้ในใบสั่งผลิต',{req:1, wide:1}], ['name','ชื่อเต็ม (ตามใบกำกับ)',{wide:1}]] },
+  products: { title:'สินค้า', key:'code', search:['code','name'], cols:[
+    ['code','รหัสงาน / รหัสสินค้า',{req:1}], ['name','ชื่อสินค้า',{req:1, wide:1}], ['short_name','ชื่อย่อสินค้า',{wide:1, list:0}],
+    ['price','ราคา',{num:1}], ['width_mm','กว้าง (มม.)',{num:1}], ['height_mm','สูง (มม.)',{num:1}], ['paper_code','รหัสกระดาษ',{dl:'dl_m_raw'}], ['note','หมายเหตุ',{wide:1, list:0}]] },
+  raw_materials: { title:'วัตถุดิบ (กระดาษ)', key:'code', search:['code','name','supplier'], cols:[
+    ['code','รหัสกระดาษ',{req:1}], ['name','ชื่อกระดาษ',{req:1, wide:1}], ['std_cost','ราคาทุนมาตรฐาน',{num:1}], ['unit','หน่วยนับ'],
+    ['width_mm','หน้ากว้าง (มม.)',{num:1}], ['paper_type','ประเภทกระดาษ',{dl:'dl_m_paper_type'}], ['supplier','ซัพพลายเออร์',{dl:'dl_m_sup', wide:1}], ['item_type','ประเภทสินค้า',{list:0, def:'วัตถุดิบ'}]] },
+  suppliers: { title:'ซัพพลายเออร์', key:'code', search:['code','short_name','name'], cols:[
+    ['code','รหัสผู้ขาย',{hint:'เว้นว่างได้ ระบบจะออกรหัสให้'}], ['short_name','ชื่อที่ใช้ในใบสั่งผลิต',{req:1, wide:1}], ['name','ชื่อเต็ม',{wide:1}]] },
+  lookups: { title:'Spec อื่นๆ (DATA_SPEC)' }
+};
+const SPEC_CATS = [
+  ['machine','เครื่องพิมพ์'], ['diecut_machine','เครื่องไดคัท'], ['slitter','เครื่อง Slitter'], ['paper_type','ประเภทกระดาษ'], ['adhesive','ประเภทกาว'],
+  ['liner','หลังกระดาษ (Liner)'], ['ink_type','ชนิดสี'], ['coating','การเคลือบ'], ['coating_code','รหัสเคลือบ'], ['foil_type','ชนิดฟอยล์'],
+  ['foil_color','สีฟอยล์'], ['diecut_corner','มุมไดคัท'], ['diecut_no','เลขที่ไดคัท'], ['job_label','งาน (PROOFS/FORECAST/เคลม)']];
+
+const MasterPage = {
+  t: store.get('vp_mt', 'customers'), q: '', cat: 'machine', rows: [], more: false,
+  async page(){
+    $('#page').innerHTML = `
+      <div class="toolbar">
+        <div class="seg" id="mtSeg">${Object.entries(MASTER).map(([k,m]) => `<button data-v="${k}">${m.title}</button>`).join('')}</div>
+      </div>
+      <div id="mtBody"></div>
+      <datalist id="dl_m_raw"></datalist><datalist id="dl_m_sup"></datalist><datalist id="dl_m_paper_type"></datalist>`;
+    document.querySelectorAll('#mtSeg button').forEach(b => b.onclick = () => { this.t = b.dataset.v; store.set('vp_mt', this.t); this.q = ''; this.draw(); });
+    this.draw();
+    try { const L = await API.lookups();
+      $('#dl_m_raw').innerHTML = L.raw.map(r => `<option value="${esc(r.code)}">${esc(r.name||'')}</option>`).join('');
+      $('#dl_m_sup').innerHTML = L.suppliers.map(x => `<option value="${esc(x)}">`).join('');
+      $('#dl_m_paper_type').innerHTML = (L.spec.paper_type||[]).map(x => `<option value="${esc(x)}">`).join(''); } catch {}
+  },
+  draw(){
+    document.querySelectorAll('#mtSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === this.t));
+    if (this.t === 'lookups') return this.drawSpec();
+    const M = MASTER[this.t];
+    $('#mtBody').innerHTML = `
+      <div class="toolbar"><input id="mtQ" class="field" style="max-width:360px;padding:9px 12px" placeholder="ค้นหา ${M.title} (รหัส / ชื่อ)" value="${esc(this.q)}">
+        <div class="sp"></div><button class="btn sm" id="mtAdd">+ เพิ่ม${M.title}ใหม่</button></div>
+      <div class="card tbl-wrap" id="mtList"><div class="empty">กำลังโหลด…</div></div>`;
+    let tm; $('#mtQ').oninput = e => { clearTimeout(tm); tm = setTimeout(() => { this.q = e.target.value; this.load(); }, 300); };
+    $('#mtAdd').onclick = () => this.edit(null);
+    this.load();
+  },
+  async load(){
+    const M = MASTER[this.t];
+    try { const r = await API.masterList(this.t, M, this.q); this.rows = r.rows; this.more = r.more; }
+    catch (e) { $('#mtList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    const shown = M.cols.filter(c => c[2]?.list !== 0);
+    $('#mtList').innerHTML = this.rows.length ? `<table><thead><tr>${shown.map(([c,l,o]) => `<th class="${o?.num?'num':''}">${l}</th>`).join('')}<th></th></tr></thead><tbody>
+      ${this.rows.map((r,i) => `<tr>${shown.map(([c,l,o]) => `<td class="${o?.num?'num':''}">${o?.num ? fmtN(r[c]) : esc(r[c] ?? '')}</td>`).join('')}
+        <td><div class="rowact"><button class="btn ghost sm" data-e="${i}">แก้ไข</button><button class="btn ghost sm" data-d="${i}" style="color:var(--bad)">ลบ</button></div></td></tr>`).join('')}
+      </tbody></table>${this.more ? `<div class="hint" style="padding:10px 14px">แสดง 100 รายการแรก — พิมพ์ค้นหาเพื่อหาเฉพาะรายการ</div>` : ''}` : `<div class="empty">ไม่พบข้อมูล</div>`;
+    $('#mtList').querySelectorAll('[data-e]').forEach(b => b.onclick = () => this.edit(this.rows[+b.dataset.e]));
+    $('#mtList').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
+      const r = this.rows[+b.dataset.d];
+      if (!(await Office.confirm(`ลบ ${M.title} "${r.short_name || r.name || r.code}"? (ใบสั่งผลิตเดิมที่ใช้ชื่อนี้จะไม่ถูกลบ)`))) return;
+      try { await API.masterDelete(this.t, M.key, r[M.key]); WOForm.L = null; toast('ลบแล้ว'); this.load(); } catch (e) { toast('ลบไม่ได้: ' + e.message); }
+    });
+  },
+  edit(row){
+    const M = MASTER[this.t], isNew = !row;
+    const r = row || Object.fromEntries(M.cols.map(([c,,o]) => [c, o?.def ?? null]));
+    $('#dlgBody').innerHTML = `<h3>${isNew ? 'เพิ่ม' : 'แก้ไข'}${M.title}</h3>
+      ${M.cols.map(([c,l,o]) => `<label>${l}${o?.req ? ' <span style="color:var(--bad)">*</span>' : ''}${o?.hint ? ` <small>(${o.hint})</small>` : ''}</label>
+        <input class="field" data-mc="${c}" value="${esc(r[c] ?? '')}" ${o?.num ? 'inputmode="decimal"' : ''} ${o?.dl ? `list="${o.dl}"` : ''} autocomplete="off">`).join('')}
+      <div class="acts"><button class="btn ghost" id="m_c">ยกเลิก</button><button class="btn" id="m_s">บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal(); d.querySelector('[data-mc]').focus();
+    $('#m_c').onclick = () => d.close();
+    $('#m_s').onclick = async () => {
+      const o = {};
+      M.cols.forEach(([c,,op]) => { let v = d.querySelector(`[data-mc="${c}"]`).value.trim();
+        if (op?.num) { const n = parseFloat(v.replace(/,/g,'')); v = isNaN(n) ? null : n; } else if (v === '') v = null; o[c] = v; });
+      const miss = M.cols.filter(([c,,op]) => op?.req && (o[c] === null)).map(x => x[1]);
+      if (miss.length) return toast('กรุณากรอก: ' + miss.join(', '));
+      if (!o.code) o.code = (this.t === 'customers' ? 'C-' : this.t === 'suppliers' ? 'S-' : 'X-') + Date.now().toString(36).toUpperCase();
+      try { await API.masterSave(this.t, M.key, o, isNew ? null : row[M.key]); WOForm.L = null; d.close(); toast('บันทึกแล้ว'); this.load(); }
+      catch (e) { toast(/duplicate|unique/i.test(e.message) ? 'รหัสนี้มีอยู่แล้ว' : 'บันทึกไม่ได้: ' + e.message); }
+    };
+  },
+  async drawSpec(){
+    $('#mtBody').innerHTML = `<div class="spec-wrap">
+      <div class="card spec-cats">${SPEC_CATS.map(([k,l]) => `<button class="spec-cat ${k===this.cat?'on':''}" data-k="${k}">${l}</button>`).join('')}</div>
+      <div class="card" id="specList"><div class="empty">กำลังโหลด…</div></div></div>`;
+    document.querySelectorAll('.spec-cat').forEach(b => b.onclick = () => { this.cat = b.dataset.k; this.drawSpec(); });
+    let vals; try { vals = await API.specList(this.cat); } catch (e) { $('#specList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    const label = SPEC_CATS.find(c => c[0] === this.cat)[1];
+    $('#specList').innerHTML = `<div style="padding:14px;display:flex;gap:8px;border-bottom:1px solid var(--line)">
+        <input id="specNew" class="field" style="padding:9px 12px" placeholder="เพิ่มรายการใหม่ใน ${esc(label)}"><button class="btn sm" id="specAdd">+ เพิ่ม</button></div>
+      ${vals.length ? vals.map((v,i) => `<div class="emp-row"><span>${esc(v.value)}</span><span class="rowact">
+        <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''}>↑</button><button class="btn ghost sm" data-rn="${i}">แก้</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></div>`).join('')
+        : '<div class="empty">ยังไม่มีรายการ</div>'}
+      <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบแล้วใบสั่งผลิตเดิมไม่เปลี่ยน</div>`;
+    const add = async () => { const v = $('#specNew').value.trim(); if (!v) return;
+      try { await API.specSave(this.cat, v, null, vals.length); WOForm.L = null; this.drawSpec(); } catch (e) { toast(/duplicate|unique/i.test(e.message) ? 'มีรายการนี้อยู่แล้ว' : e.message); } };
+    $('#specAdd').onclick = add; $('#specNew').onkeydown = e => { if (e.key === 'Enter') add(); };
+    document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.del];
+      if (!(await Office.confirm(`ลบ "${v.value}" ออกจาก ${label}?`))) return;
+      await API.specDelete(this.cat, v.value); WOForm.L = null; this.drawSpec(); });
+    document.querySelectorAll('[data-rn]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.rn];
+      const nv = await this.ask(`แก้ไขรายการใน ${label}`, v.value); if (!nv || nv === v.value) return;
+      try { await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; this.drawSpec(); } catch (e) { toast(e.message); } });
+    document.querySelectorAll('[data-up]').forEach(b => b.onclick = async () => { const i = +b.dataset.up; if (!i) return;
+      const a = vals[i-1], c = vals[i];
+      await API.specSave(this.cat, c.value, c.value, i - 1); await API.specSave(this.cat, a.value, a.value, i);
+      // ให้เลขลำดับต่อเนื่อง
+      WOForm.L = null; this.drawSpec(); });
+  },
+  ask(title, val){ return new Promise(res => {
+    $('#dlgBody').innerHTML = `<h3>${esc(title)}</h3><input id="a_v" class="field" value="${esc(val)}"><div class="acts"><button class="btn ghost" id="a_n">ยกเลิก</button><button class="btn" id="a_y">บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#a_v').focus(); $('#a_n').onclick = () => { d.close(); res(null); }; $('#a_y').onclick = () => { d.close(); res($('#a_v').value.trim()); };
+  }); }
+};
+
+/* ================== หน้าออฟฟิศ ================== */
+const Office = {
+  tab: store.get('vp_tab', 'wo'),
+  view: 'pending', deptFilter: 'all', sel: new Set(), rows: [], hideClosed: true, search: '',
+  async start(){
+    const s = await API.session();
+    if (!s) return this.loginPage();
+    this.user = s;
+    $('#app').innerHTML = `
+      <div class="top"><div class="in">
+        <div class="logo">V-PACK <span>Job Tracking</span></div>
+        <nav class="tabs">
+          <button class="tab" data-t="wo">ใบสั่งผลิต</button>
+          <button class="tab" data-t="inbox">รอตรวจ <span class="badge hidden" id="badge"></span></button>
+          <button class="tab" data-t="progress">ติดตามงาน</button>
+          <button class="tab" data-t="qr">พิมพ์ใบสั่งผลิต</button>
+          <button class="tab" data-t="master">ข้อมูลหลัก</button>
+          <button class="tab" data-t="emp">พนักงาน</button>
+        </nav>
+        <div class="who">${esc(s.email)} ${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
+      </div></div><div class="page" id="page"></div>`;
+    document.querySelectorAll('.tab').forEach(b => b.onclick = () => this.go(b.dataset.t));
+    $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
+    this.go(this.tab);
+    setInterval(() => { if (this.tab === 'inbox' && this.view === 'pending' && !document.querySelector('dialog[open]') && !this.sel.size) this.loadInbox(true); }, 30000);
+  },
+  loginPage(){
+    $('#app').innerHTML = `<div class="card login"><h2>V-PACK Job Tracking</h2><div style="color:var(--muted);font-size:14px;margin-bottom:16px">เข้าสู่ระบบสำหรับออฟฟิศ</div>
+      <input id="em" class="field" type="email" placeholder="อีเมล" autocomplete="username">
+      <input id="pw" class="field" type="password" placeholder="รหัสผ่าน" style="margin-top:8px" autocomplete="current-password">
+      <button class="btn block" style="margin-top:14px" id="lg">เข้าสู่ระบบ</button>
+      <div class="hint" style="margin-top:14px">พนักงานผลิต/QC ไม่ต้อง login ใช้การสแกน QR บนใบสั่งผลิต</div></div>`;
+    const go = async () => { try { await API.login($('#em').value.trim(), $('#pw').value); location.reload(); } catch (e) { toast('เข้าสู่ระบบไม่ได้: ' + e.message); } };
+    $('#lg').onclick = go; $('#pw').onkeydown = e => { if (e.key === 'Enter') go(); };
+  },
+  go(t){
+    this.tab = t; store.set('vp_tab', t);
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    ({wo:()=>WOForm.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page()})[t]();
+  },
+
+  /* ----- รอตรวจ ----- */
+  inboxPage(){
+    $('#page').innerHTML = `
+      <div class="toolbar">
+        <div class="seg" id="viewSeg"><button data-v="pending">รอตรวจ</button><button data-v="done">ตรวจแล้ว</button></div>
+        <div class="seg" id="deptSeg"><button data-v="all">ทั้งหมด</button><button data-v="prod">ผลิต</button><button data-v="qc">QC</button></div>
+        <div class="sp"></div>
+        <span id="pendActs" class="rowact">
+          <button class="btn ghost sm" id="approveClean">อนุมัติทั้งหมดที่ไม่มีคำเตือน</button>
+          <button class="btn ok sm" id="approveSel" disabled>อนุมัติที่เลือก</button>
+          <button class="btn bad sm" id="rejectSel" disabled>ปฏิเสธที่เลือก</button>
+        </span>
+      </div>
+      <div id="inboxBody" class="card"><div class="empty">กำลังโหลด…</div></div>`;
+    const segs = () => {
+      document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === this.view));
+      document.querySelectorAll('#deptSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === this.deptFilter));
+      $('#pendActs').classList.toggle('hidden', this.view !== 'pending');
+    };
+    document.querySelectorAll('#viewSeg button').forEach(b => b.onclick = () => { this.view = b.dataset.v; this.sel.clear(); segs(); this.loadInbox(); });
+    document.querySelectorAll('#deptSeg button').forEach(b => b.onclick = () => { this.deptFilter = b.dataset.v; this.sel.clear(); segs(); this.drawInbox(); });
+    $('#approveSel').onclick = () => this.doApprove([...this.sel]);
+    $('#rejectSel').onclick = () => this.doReject([...this.sel]);
+    $('#approveClean').onclick = () => {
+      const ids = this.visibleRows().filter(r => !r.warnings?.length).map(r => r.id);
+      if (!ids.length) return toast('ไม่มีรายการที่ไม่มีคำเตือน');
+      this.doApprove(ids, `อนุมัติ ${ids.length} รายการที่ไม่มีคำเตือน?`);
+    };
+    segs(); this.loadInbox();
+  },
+  visibleRows(){ return this.rows.filter(r => this.deptFilter === 'all' || r.dept === this.deptFilter); },
+  async loadInbox(silent){
+    try { this.rows = await API.listInbox(this.view === 'pending' ? 'pending' : 'done'); }
+    catch (e) { if (!silent) $('#inboxBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    if (this.view === 'pending') { const b = $('#badge'); b.textContent = this.rows.length; b.classList.toggle('hidden', !this.rows.length); }
+    this.drawInbox();
+  },
+  drawInbox(){
+    const rows = this.visibleRows(), pend = this.view === 'pending';
+    const box = $('#inboxBody');
+    if (!rows.length) { box.innerHTML = `<div class="empty">${pend ? 'ไม่มีรายการรอตรวจ 🎉' : 'ยังไม่มีรายการที่ตรวจแล้ว'}</div>`; this.selChanged(); return; }
+    const statusCell = r => pend ? `<span class="pill pending">รอตรวจ</span>` :
+      `<span class="pill ${r.review_status}">${r.review_status==='approved'?'อนุมัติ':'ปฏิเสธ'}</span><div class="prodname">${esc(r.reviewed_by||'')} ${fmtT(r.reviewed_at)}${r.review_note ? '<br>' + esc(r.review_note) : ''}</div>`;
+    const acts = r => pend ? `<div class="rowact"><button class="btn ok sm" data-a="ok" data-id="${r.id}">✓</button><button class="btn ghost sm" data-a="edit" data-id="${r.id}">แก้</button><button class="btn ghost sm" data-a="no" data-id="${r.id}" style="color:var(--bad)">✕</button></div>` : '';
+    const warn = r => (r.warnings||[]).map(w => `<span class="wtag">⚠ ${esc(w)}</span>`).join('');
+    box.innerHTML = `
+      <div class="tbl-wrap inbox-table"><table>
+        <thead><tr>${pend ? '<th><input type="checkbox" id="selAll"></th>' : ''}<th>เวลาสแกน</th><th>ฝ่าย</th><th>JOB / สินค้า</th><th>พนักงาน</th><th>ขั้นตอน</th><th>สถานะงาน</th><th class="num">จำนวน</th><th>หมายเหตุ</th><th>${pend ? '' : 'ผลตรวจ'}</th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          ${pend ? `<td><input type="checkbox" class="sel" data-id="${r.id}" ${this.sel.has(r.id)?'checked':''}></td>` : ''}
+          <td class="mono" style="white-space:nowrap">${fmtT(r.scanned_at)}</td>
+          <td><span class="pill ${r.dept}">${r.dept==='prod'?'ผลิต':'QC'}</span></td>
+          <td><b>${esc(r.job_ticket)}</b><div class="prodname">${esc(r.work_orders?.product_name)}</div>${warn(r)}</td>
+          <td>${esc(r.employee_name)}</td><td>${esc(r.step||'–')}</td><td>${esc(r.status)}</td>
+          <td class="num"><b>${fmtN(r.qty)}</b>${r.work_orders?.order_qty ? `<div class="prodname">สั่ง ${fmtN(r.work_orders.order_qty)}</div>` : ''}</td>
+          <td style="max-width:180px">${esc(r.note||'')}</td>
+          <td>${pend ? acts(r) : statusCell(r)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="inbox-cards">${rows.map(r => `<div class="icard">
+          <div class="r1"><label style="display:flex;gap:8px;align-items:center">${pend ? `<input type="checkbox" class="sel" data-id="${r.id}" ${this.sel.has(r.id)?'checked':''}>` : ''}<b>${esc(r.job_ticket)}</b> <span class="pill ${r.dept}">${r.dept==='prod'?'ผลิต':'QC'}</span></label><span class="prodname mono">${fmtT(r.scanned_at)}</span></div>
+          <div class="r2">${esc(r.employee_name)}${r.step ? ' · ' + esc(r.step) : ''} · <b>${esc(r.status)}</b>${r.qty ? ' · <b>' + fmtN(r.qty) + '</b>' : ''}
+            <div class="prodname">${esc(r.work_orders?.product_name)}</div>${r.note ? `<div>📝 ${esc(r.note)}</div>` : ''}${warn(r)}</div>
+          ${pend ? acts(r) : `<div style="margin-top:8px">${statusCell(r)}</div>`}</div>`).join('')}</div>`;
+    box.querySelectorAll('.sel').forEach(c => c.onchange = () => { const id = +c.dataset.id; c.checked ? this.sel.add(id) : this.sel.delete(id); this.selChanged(); });
+    $('#selAll')?.addEventListener('change', e => { rows.forEach(r => e.target.checked ? this.sel.add(r.id) : this.sel.delete(r.id)); this.drawInbox(); });
+    box.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+      const id = +b.dataset.id;
+      if (b.dataset.a === 'ok') this.doApprove([id], null);
+      if (b.dataset.a === 'no') this.doReject([id]);
+      if (b.dataset.a === 'edit') this.editRow(this.rows.find(r => r.id === id));
+    });
+    this.selChanged();
+  },
+  selChanged(){ const n = this.sel.size; const a = $('#approveSel'), r = $('#rejectSel'); if (!a) return;
+    a.disabled = r.disabled = !n; a.textContent = n ? `อนุมัติที่เลือก (${n})` : 'อนุมัติที่เลือก'; },
+  async doApprove(ids, confirmMsg){
+    if (confirmMsg && !(await this.confirm(confirmMsg))) return;
+    try { const n = await API.approve(ids); toast(`อนุมัติแล้ว ${n} รายการ`); ids.forEach(i => this.sel.delete(i)); this.loadInbox(); }
+    catch (e) { toast('ผิดพลาด: ' + e.message); }
+  },
+  async doReject(ids){
+    const note = await this.prompt(`ปฏิเสธ ${ids.length} รายการ`, 'เหตุผล (เช่น สแกนซ้ำ, ผิด JOB)');
+    if (note === null) return;
+    try { const n = await API.reject(ids, note || 'ปฏิเสธ'); toast(`ปฏิเสธแล้ว ${n} รายการ`); ids.forEach(i => this.sel.delete(i)); this.loadInbox(); }
+    catch (e) { toast('ผิดพลาด: ' + e.message); }
+  },
+  editRow(r){
+    const D = DEPT[r.dept];
+    const opts = (list, v) => list.map(x => `<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
+    $('#dlgBody').innerHTML = `<h3>แก้ไขรายการ ${esc(r.job_ticket)} <span class="pill ${r.dept}">${r.dept==='prod'?'ผลิต':'QC'}</span></h3>
+      <label>เลขที่ JOB</label><input id="e_job" class="field" value="${esc(r.job_ticket)}">
+      <label>พนักงาน</label><input id="e_emp" class="field" value="${esc(r.employee_name)}">
+      ${r.dept==='prod' ? `<label>ขั้นตอน</label><select id="e_step" class="field">${opts(D.steps, r.step)}</select>` : ''}
+      <label>สถานะงาน</label><select id="e_st" class="field">${opts(D.statuses, r.status)}</select>
+      <label>จำนวน</label><input id="e_qty" class="field" inputmode="numeric" value="${r.qty ?? ''}">
+      <label>หมายเหตุ</label><input id="e_note" class="field" value="${esc(r.note||'')}">
+      <div class="acts"><button class="btn ghost" id="e_c">ยกเลิก</button><button class="btn" id="e_s">บันทึก</button><button class="btn ok" id="e_sa">บันทึก + อนุมัติ</button></div>`;
+    const dlg = $('#dlg'); dlg.showModal();
+    $('#e_c').onclick = () => dlg.close();
+    const save = async (andApprove) => {
+      const q = $('#e_qty').value.replace(/[^\d.]/g, '');
+      const f = { job_ticket: $('#e_job').value.trim(), employee_name: $('#e_emp').value.trim(), status: $('#e_st').value, qty: q === '' ? null : +q, note: $('#e_note').value.trim() || null };
+      if (r.dept === 'prod') f.step = $('#e_step').value;
+      try { await API.updateInbox(r.id, f); if (andApprove) await API.approve([r.id]); dlg.close(); toast(andApprove ? 'บันทึกและอนุมัติแล้ว' : 'บันทึกแล้ว'); this.loadInbox(); }
+      catch (e) { toast('ผิดพลาด: ' + e.message); }
+    };
+    $('#e_s').onclick = () => save(false); $('#e_sa').onclick = () => save(true);
+  },
+  confirm(msg){ return new Promise(res => {
+    $('#dlgBody').innerHTML = `<h3>${esc(msg)}</h3><div class="acts"><button class="btn ghost" id="c_n">ยกเลิก</button><button class="btn ok" id="c_y">ยืนยัน</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#c_n').onclick = () => { d.close(); res(false); }; $('#c_y').onclick = () => { d.close(); res(true); };
+  }); },
+  prompt(title, ph){ return new Promise(res => {
+    $('#dlgBody').innerHTML = `<h3>${esc(title)}</h3><input id="p_v" class="field" placeholder="${esc(ph)}"><div class="acts"><button class="btn ghost" id="p_n">ยกเลิก</button><button class="btn bad" id="p_y">ปฏิเสธ</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#p_v').focus(); $('#p_n').onclick = () => { d.close(); res(null); }; $('#p_y').onclick = () => { d.close(); res($('#p_v').value.trim()); };
+  }); },
+
+  /* ----- ติดตามงาน ----- */
+  progressPage(){
+    $('#page').innerHTML = `<div class="toolbar">
+        <input id="ps" class="field" style="max-width:340px;padding:9px 12px" placeholder="ค้นหา JOB / ลูกค้า / สินค้า" value="${esc(this.search)}">
+        <label style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="hc" ${this.hideClosed?'checked':''}> ซ่อนงานที่ปิดแล้ว</label>
+        <div class="sp"></div><span class="hint">นับเฉพาะยอดที่อนุมัติแล้ว</span></div>
+      <div class="card tbl-wrap" id="pg"><div class="empty">กำลังโหลด…</div></div>`;
+    let t; $('#ps').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.search = e.target.value; this.loadProgress(); }, 300); };
+    $('#hc').onchange = e => { this.hideClosed = e.target.checked; this.loadProgress(); };
+    this.loadProgress();
+  },
+  async loadProgress(){
+    let rows;
+    try { rows = await API.progress(this.search, this.hideClosed); } catch (e) { $('#pg').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    if (USE_DEMO) { const s = this.search.toLowerCase(); rows = rows.filter(r => (!this.hideClosed || !r.closed) && (!s || (r.job_ticket+r.customer_name+r.product_name).toLowerCase().includes(s))); }
+    const bar = (v, o, cls='') => o ? `<div class="bar ${cls}"><i style="width:${Math.min(100, v/o*100)}%"></i></div>` : '';
+    $('#pg').innerHTML = rows.length ? `<table><thead><tr><th>JOB</th><th>ลูกค้า / สินค้า</th><th class="num">ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">ไดคัท</th><th class="num">QC</th><th>สถานะผลิตล่าสุด</th><th>QC ล่าสุด</th><th>รอตรวจ</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><b>${esc(r.job_ticket)}</b>${r.closed ? '<div class="prodname">ปิดแล้ว</div>' : ''}</td>
+        <td>${esc(r.customer_name)}<div class="prodname">${esc(r.product_name)}</div></td>
+        <td class="num">${fmtN(r.order_qty)}</td>
+        <td class="num">${fmtN(r.print_qty)}${bar(r.print_qty, r.order_qty)}</td>
+        <td class="num">${fmtN(r.diecut_qty)}${bar(r.diecut_qty, r.order_qty)}</td>
+        <td class="num">${fmtN(r.qc_qty)}${bar(r.qc_qty, r.order_qty, 'qcb')}</td>
+        <td>${esc(r.last_prod_status||'–')}<div class="prodname">${r.last_prod_at ? fmtT(r.last_prod_at) : ''}</div></td>
+        <td>${esc(r.last_qc_status||'–')}<div class="prodname">${r.last_qc_at ? fmtT(r.last_qc_at) : ''}</div></td>
+        <td>${r.pending_scans ? `<span class="pill pending">${r.pending_scans}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">ไม่พบงาน</div>`;
+  },
+
+  /* ----- พิมพ์ใบสั่งผลิต (A4 พร้อม QR 2 จุด) ----- */
+  qrPage(){
+    const base = store.get('vp_base', location.origin + location.pathname);
+    $('#page').innerHTML = `<div class="toolbar noprint">
+        <input id="qj" class="field" style="max-width:280px;padding:9px 12px" placeholder="เลขที่ JOB เช่น 6910/30" list="jobList" autocomplete="off" value="${esc(store.get('vp_lastjob',''))}">
+        <datalist id="jobList"></datalist>
+        <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint" disabled>พิมพ์ A4</button>
+        <div class="sp"></div>
+        <label class="hint">ผู้สั่งงาน <input id="qby" class="field" style="padding:5px 9px;width:120px;display:inline-block" value="${esc(store.get('vp_orderby',''))}"></label>
+      </div>
+      <div class="hint noprint" style="margin:-4px 0 14px">ลิงก์หน้าเว็บที่ใช้ใน QR: <input id="qbase" class="field" style="padding:5px 9px;font-size:13px;max-width:520px;display:inline-block;width:auto;min-width:300px" value="${esc(base)}"> <small>(ต้องเป็นลิงก์ที่มือถือพนักงานเปิดได้)</small></div>
+      <div id="qout" class="tk-scroll"></div>`;
+    let t; $('#qj').oninput = e => { clearTimeout(t); t = setTimeout(async () => {
+      const list = await API.searchJobs(e.target.value); $('#jobList').innerHTML = list.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name)} · ${esc(j.product_name)}</option>`).join(''); }, 250); };
+    $('#qbase').onchange = e => store.set('vp_base', e.target.value.trim());
+    $('#qby').onchange = e => { store.set('vp_orderby', e.target.value.trim()); gen(); };
+    $('#qprint').onclick = () => window.print();
+    const gen = async () => {
+      const job = $('#qj').value.trim(); if (!job) return;
+      let wo; try { wo = await API.getWorkOrder(job); } catch (e) { return toast(e.message); }
+      if (!wo) { $('#qprint').disabled = true; return toast('ไม่พบ JOB ' + job); }
+      store.set('vp_lastjob', wo.job_ticket);
+      const b = $('#qbase').value.trim();
+      const url = d => `${b}?scan=${d}&job=${encodeURIComponent(wo.job_ticket)}`;
+      $('#qout').innerHTML = jobTicketHTML(wo, $('#qby').value.trim());
+      ['prod','qc'].forEach(d => new QRCode($('#tkq_' + d), {text: url(d), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M}));
+      $('#qprint').disabled = false;
+    };
+    $('#qgo').onclick = gen; $('#qj').onkeydown = e => { if (e.key === 'Enter') gen(); };
+    if ($('#qj').value) gen();
+  },
+
+  /* ----- พนักงาน ----- */
+  async empPage(){
+    let list; try { list = await API.employees(); } catch (e) { $('#page').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    $('#page').innerHTML = `<div class="emp-grid">${['prod','qc'].map(d => `<div class="card">
+        <div style="padding:14px;display:flex;justify-content:space-between;align-items:center"><b>${DEPT[d].title}</b><span class="pill ${d}">${list.filter(e=>e.dept===d&&e.active).length} คน</span></div>
+        ${list.filter(e => e.dept === d).map(e => `<div class="emp-row ${e.active?'':'off'}"><span>${esc(e.name)}</span><button class="btn ghost sm" data-id="${e.id}" data-on="${e.active?1:0}">${e.active?'ซ่อน':'ใช้งาน'}</button></div>`).join('')}
+        <div class="emp-row"><input class="field" style="padding:8px 10px" placeholder="เพิ่มชื่อ" id="add_${d}"><button class="btn sm" style="margin-left:8px" data-add="${d}">เพิ่ม</button></div></div>`).join('')}</div>
+      <div class="hint" style="margin-top:12px">ชื่อที่ซ่อนจะไม่แสดงในหน้าสแกน แต่ประวัติเดิมยังอยู่</div>`;
+    document.querySelectorAll('[data-id]').forEach(b => b.onclick = async () => { await API.toggleEmployee(+b.dataset.id, b.dataset.on !== '1'); this.empPage(); });
+    document.querySelectorAll('[data-add]').forEach(b => b.onclick = async () => { const v = $('#add_' + b.dataset.add).value.trim(); if (!v) return; try { await API.addEmployee(v, b.dataset.add); this.empPage(); } catch (e) { toast(e.message); } });
+  }
+};
+
+/* ================== Start ================== */
+if (scanDept === 'prod' || scanDept === 'qc') renderScan(scanDept, params.get('job'));
+else Office.start();
+</script>
+</body>
+</html>
