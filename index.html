@@ -210,9 +210,124 @@ table.trk tr:hover td{background:#eef4ff}
 .dir.on .tick{background:var(--prod);border-color:var(--prod);color:#fff}
 .wo-actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 25%);padding:12px 0 6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;z-index:4}
 @media (max-width:900px){ .wo-grid{grid-template-columns:repeat(2,minmax(0,1fr))} .wo-two{grid-template-columns:1fr} .wo-open{margin-left:0;width:100%} .wo-open .field{flex:1} }
+/* ---------- ใบสั่งผลิต แบบที่ 2 ---------- */
+.tk2{font-size:8pt;line-height:1.25;padding:0;display:flex;flex-direction:column;gap:1.6mm}
+.tk2 .cb{width:3.2mm;height:3.2mm;font-size:7pt;margin:0 .6mm 0 0}
+.t2-head{display:grid;grid-template-columns:1fr 54mm 36mm;gap:2.5mm}
+.t2-brand{display:flex;align-items:baseline;gap:3mm;border-bottom:2px solid #1f3a68;padding-bottom:1mm;margin-bottom:1.2mm}
+.t2-brand b{font-size:10.5pt;color:#1f3a68}
+.t2-brand span{font-size:15pt;font-weight:700;color:#1f3a68}
+.t2-brand small{font-size:8pt;color:#64748b;font-weight:400;margin-left:1mm}
+.tk2 .k{display:grid;grid-template-columns:28mm 1fr;align-items:baseline;border-bottom:.6px solid #cbd5e1;padding:.55mm 0;min-width:0}
+.tk2 .k > span{color:#475569;font-size:7.4pt}
+.tk2 .k > b{font-weight:600;color:#c00;min-width:0;overflow-wrap:anywhere}
+.tk2 .k > b.chk{color:#111;font-weight:400}
+.tk2 .k > b small{color:#475569;font-weight:400;font-size:7pt}
+.tk2 .k > b.big{font-size:10pt}
+.tk2 .k > b.num{font-size:9.5pt;font-weight:700;color:#111}
+.tk2 .k > b.red{color:#c8102e;font-weight:700}
+.tk2 .k > b.num.red{color:#c8102e}
+.t2-cust{display:grid;grid-template-columns:1fr 1fr;column-gap:4mm}
+.tk2 .sp2{grid-column:span 2}
+.t2-job{background:#1f3a68;color:#fff;border-radius:2mm;padding:1.5mm 3mm;text-align:right}
+.t2-job small{display:block;font-size:7pt;opacity:.85}
+.t2-job b{font-size:20pt;letter-spacing:.3mm}
+.t2-doc{margin-top:1mm}
+.t2-doc .k{grid-template-columns:20mm 1fr;text-align:right}
+.t2-doc .k > span{text-align:left}
+.t2-tiles{display:grid;grid-template-columns:1fr .8fr 1fr 1.25fr 1fr;border:1.2px solid #1f3a68;border-radius:1.5mm;overflow:hidden}
+.t2-tiles > div{padding:1.2mm 2mm;border-right:.8px solid #cbd5e1;display:flex;flex-direction:column}
+.t2-tiles > div:last-child{border-right:0}
+.t2-tiles span{font-size:7pt;color:#475569}
+.t2-tiles b{font-size:11pt}
+.t2-tiles b small{font-size:7pt;font-weight:400}
+.t2-tiles em{font-style:normal;font-size:7.4pt;color:#475569}
+.t2-tiles .hl{background:#fdecec}.t2-tiles .hl b{color:#c8102e;font-size:12.5pt}
+.t2-tiles .hl2{background:#fff4e5}.t2-tiles .hl2 b{color:#c8102e;font-size:10pt}
+.t2-cols{display:grid;grid-template-columns:1fr 63mm;gap:2.5mm}
+.tk2 .s{border:1px solid #94a3b8;border-radius:1.5mm;overflow:hidden;margin-bottom:1.8mm}
+.tk2 .s:last-child{margin-bottom:0}
+.tk2 .sh{background:#ecebe0;font-weight:700;font-size:8.4pt;padding:.7mm 2mm;border-bottom:1px solid #94a3b8;display:flex;align-items:center;gap:1.5mm}
+.tk2 .sh i{font-style:normal;background:#1f3a68;color:#fff;border-radius:50%;width:4.2mm;height:4.2mm;display:inline-grid;place-items:center;font-size:7pt}
+.tk2 .sb{padding:.6mm 2mm 1mm}
+.tk2 .kvg{display:grid;grid-template-columns:1fr 1fr;column-gap:4mm}
+.tk2 .kvg.one{grid-template-columns:1fr}
+.tk2 .kvg.one .k{grid-template-columns:23mm 1fr}
+.t2-types{font-weight:700;padding:.8mm 0;border-bottom:.6px solid #cbd5e1;font-size:7.4pt;white-space:nowrap}
+.t2-rollhead{display:grid;grid-template-columns:1fr 1fr;font-weight:700;padding-top:1mm}
+.t2-rolls{display:grid;grid-template-columns:1fr 1fr;gap:1mm 2mm;padding:1mm 0}
+.t2-rolls > div{display:flex;align-items:center;gap:1mm;border:1px solid transparent;border-radius:1mm;padding:.3mm}
+.t2-rolls > div.on{border-color:#c8102e;background:#fdecec}
+.t2-rolls img{width:20mm;height:12.8mm;object-fit:contain}
+.t2-sub{font-weight:700;margin-top:1.2mm;border-top:1px solid #94a3b8;padding-top:.8mm}
+.t2-foot{display:grid;grid-template-columns:1fr 36mm;gap:2.5mm;flex:1}
+.t2-foot .s{margin:0}
+.t2-f6{display:grid;grid-template-columns:44mm 1fr;gap:1mm 3mm}
+.t2-f6 .kvg.one .k{grid-template-columns:20mm 1fr}
+.t2-note .nh{font-weight:700;color:#c00;font-size:7.6pt}
+.t2-note .nl{border-bottom:.8px dotted #475569;height:4.8mm;color:#c00;white-space:nowrap;overflow:hidden}
+.t2-sign{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,1fr);gap:2mm;margin-top:1mm}
+.t2-sign div{display:flex;flex-direction:column}
+.t2-sign span{font-size:7pt;color:#475569}
+.t2-sign b{border-bottom:.8px dotted #475569;min-height:5mm;color:#1565c0}
+.t2-qr{border:1.6px solid #1565c0;border-radius:2mm;text-align:center;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.t2-qr.q2{border-color:#5b4fc4}
+.t2-qr .qh{font-weight:700;font-size:9.5pt;color:#1565c0}
+.t2-qr.q2 .qh{color:#5b4fc4}
+.t2-qr .q{width:31mm;height:31mm;margin:1mm 0}
+.t2-qr .q img,.t2-qr .q canvas{width:100%!important;height:100%!important}
+.t2-qr .qf{font-size:7pt;color:#334155}
+.t2-qrs{display:grid;grid-template-columns:1fr 1fr;gap:2mm}
+.t2-qrs > div{border:1.6px solid #1565c0;border-radius:2mm;text-align:center;padding:1mm;display:flex;flex-direction:column;align-items:center}
+.t2-qrs .q2{border-color:#5b4fc4}
+.t2-qrs .qh{font-weight:700;font-size:9.5pt;color:#1565c0}
+.t2-qrs .q2 .qh{color:#5b4fc4}
+.t2-qrs .q{width:31mm;height:31mm;margin:1mm 0}
+.t2-qrs .q img,.t2-qrs .q canvas{width:100%!important;height:100%!important}
+.t2-qrs .qf{font-size:7pt;color:#334155}
+
+/* ---- แบบระบบ v2: Tahoma 9 / ค่าเป็นสีแดงแบบใบ Excel ---- */
+.tk2{font-family:Tahoma,Calibri,sans-serif;font-size:9pt;line-height:1.22;gap:1.4mm}
+.tk2 .k > span{font-size:8pt}
+.tk2 .k > b,.tk2 .k > b.num{color:#c8102e;font-weight:700;font-size:9pt}
+.tk2 .k > b.big{font-size:10pt}
+.tk2 .k > b small{color:#475569}
+.tk2 .k{padding:.45mm 0}
+.t2-mt{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:0 1mm;padding:.8mm 0;font-size:8.6pt}
+.t2-mt b{margin-right:1mm}.t2-mt > span{white-space:nowrap;margin-right:5mm}
+.t2-tiles{grid-template-columns:1fr .85fr 1.05fr 1.3fr 1.15fr}
+.t2-tiles b{color:#c8102e;font-size:11pt}
+.t2-tiles .tm2{display:grid;grid-template-columns:auto auto;column-gap:1.5mm;align-items:baseline;justify-content:start}
+.t2-tiles .tm2 b{font-size:10.5pt;text-align:right}.t2-tiles .tm2 small{font-size:7.4pt;color:#475569}
+.tk2 .sh{font-size:9pt}
+.t2-types{display:flex;flex-wrap:wrap;gap:.6mm 3mm;white-space:nowrap;font-size:8.6pt}
+.t2-paper{grid-column:1/-1;font-weight:700;border-top:.8px solid #cbd5e1;padding-top:1mm;margin-top:1mm}
+.t2-sign b{color:#c8102e}
+.t2-note .nl{color:#c8102e}
+
+/* ---- แบบระบบ v3 ---- */
+.tk2 .k > b,.tk2 .k > b.num{font-size:8.4pt}
+.tk2 .k > b.big{font-size:9.2pt}
+.tk2 .k > b.long{font-size:7.8pt;font-weight:700;line-height:1.2}
+.t2-tiles b{font-size:10.5pt}.t2-tiles .hl b{font-size:12pt}.t2-tiles .hl2 b{font-size:9.5pt}
+.t2-sub{display:flex;align-items:center;gap:1mm;font-weight:700;margin-top:1.4mm;border-top:1px solid #94a3b8;padding-top:.9mm;font-size:8.8pt}
+.t2-sub.first{margin-top:0;border-top:0;padding-top:0}
+.t2-cut{display:grid;grid-template-columns:1fr 1fr;gap:.8mm 2mm;padding:1mm 0;border-bottom:.6px solid #cbd5e1;font-size:8.4pt}
+.t2-cut span{display:flex;align-items:center;gap:.6mm;white-space:nowrap}
+.tk2 .t2-cols{flex:1}
+.tk2 .t2-cr > .s.pk{height:100%;margin:0}
+.tk2 .t2-cr{display:flex;flex-direction:column}
+.tk2 .t2-foot{flex:0 0 auto}
+.tk2 .t2-cl{display:flex;flex-direction:column;justify-content:space-between;gap:2mm}
+.tk2 .t2-cl > .s{margin:0}
+.tk2 .sb{padding:1mm 2mm 1.4mm}
+.tk2 .k{padding:.7mm 0}
+.t2-f6{grid-template-columns:70mm 1fr}
+.t2-f6 .kvg.one .k{grid-template-columns:26mm 1fr}
+.t2-note .nl{height:4.6mm}
 /* ---------- ใบสั่งผลิต A4 ---------- */
 .tk-scroll{overflow:auto;padding:4px 0 20px}
-.tk{width:194mm;min-height:279mm;background:#fff;color:#111;font-family:Tahoma,Calibri,sans-serif;font-size:8.2pt;line-height:1.2;padding:0;box-shadow:0 4px 20px #1b23331f;margin:0 auto;display:flex;flex-direction:column}
+.tk{width:200mm;min-height:286mm;background:#fff;color:#111;font-family:Tahoma,Calibri,sans-serif;font-size:8.2pt;line-height:1.2;padding:0;box-shadow:0 4px 20px #1b23331f;margin:0 auto;display:flex;flex-direction:column}
 .tk *{box-sizing:border-box}
 .tk .hd{display:flex;justify-content:space-between;align-items:flex-end;padding:0 1mm 1.5mm}
 .tk .hd .t{font-size:15pt;font-weight:700;color:#1f3a68}
@@ -232,29 +347,29 @@ table.trk tr:hover td{background:#eef4ff}
 .tk .cb.on{background:#111;color:#fff}
 .tk .cb.red{border-color:#d0141a}
 .tk .qr{text-align:center;color:#1565c0;font-size:7.6pt}
-.tk .qr .q{width:23mm;height:23mm;margin:.8mm auto}
+.tk .qr .q{width:30mm;height:30mm;margin:.8mm auto}
 .tk .qr .q img,.tk .qr .q canvas{width:100%!important;height:100%!important}
 .tk .qr b{font-size:8pt}
-.tk .tksec{padding:1.2mm 2mm}
+.tk .tksec{padding:.8mm 2mm}
 .tk .gray{background:#f1f1f1}
 .tk .rolls{display:grid;grid-template-columns:auto auto;gap:1.2mm 3mm;align-content:start}
 .tk .roll{display:flex;align-items:center;gap:1.5mm}
-.tk .roll .ic{width:16.5mm;height:10.6mm;object-fit:contain;display:block}
+.tk .roll .ic{width:14.5mm;height:9.3mm;object-fit:contain;display:block}
 .tk .roll .ic .L{position:absolute;left:.7mm;top:.2mm;font-size:8.5pt}
 .tk .roll .ic .eg{display:inline-block}
-.tk .note-lines div{border-bottom:1px dotted #333;height:5.2mm}
-.tk .sig div{display:flex;gap:1.5mm;align-items:flex-end;height:5.6mm;justify-content:flex-end;white-space:nowrap}
+.tk .note-lines div{border-bottom:1px dotted #333;height:4.6mm}
+.tk .sig div{display:flex;gap:1.5mm;align-items:flex-end;height:5mm;justify-content:flex-end;white-space:nowrap}
 .emp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .emp-row{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
 .emp-row.off{color:var(--muted);text-decoration:line-through}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;z-index:50;box-shadow:0 8px 24px #0003}
-@page{size:A4;margin:8mm}
+@page{size:A4;margin:5mm}
 @media print{
   body{background:#fff}
   .top,.demo,.toolbar,.noprint,.toast{display:none!important}
   .page{padding:0;max-width:none}
   .tk-scroll{overflow:visible;padding:0}
-  .tk{box-shadow:none;margin:0;min-height:279mm}
+  .tk{box-shadow:none;margin:0;min-height:286mm}
   .tk,.tk *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 @media (max-width:600px){
@@ -310,6 +425,51 @@ table.trk tr:hover td{background:#eef4ff}
 .lk-form{display:grid;grid-template-columns:200px 1fr;gap:6px 10px;padding:14px;align-items:center}
 .lk-form label{text-align:right;font-size:13px;color:#334155}
 .lk-form .field{padding:6px 10px}
+/* ---------- จัดวางใบสั่งผลิต v2 ---------- */
+.wo-split{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:4px 28px;margin:8px 12px 10px}
+.wo-col{display:grid;gap:4px;align-content:start}
+.wo-col.two{grid-template-columns:1fr 1fr;column-gap:16px}
+.wo-fs .wo-col.two .wf{grid-template-columns:150px minmax(0,1fr)}
+.pair{display:flex;gap:6px;align-items:center;min-width:0}
+.pair > .field,.pair > .dwrap{flex:1;min-width:0}
+.pair.p-code > .dwrap{flex:0 0 210px}
+.pair .wc{flex:0 0 auto}
+.wo-fs .wf .field.pulled{background:#e8f1fd;border-color:#b6cff0;color:#0b4fb3}
+.wo-fs .wf .field.calc{background:#eceff3;border-color:#d3d8df;color:#111827;font-weight:700}
+.wo-fs .wf .field.red{color:#c8102e;font-weight:700}
+.wo-fs .wf .field.big{color:#c8102e;font-weight:700}
+.wo-legend{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-left:8px}
+.wo-legend i{display:inline-block;width:22px;height:13px;border-radius:3px;border:1px solid;margin-left:8px}
+.lg-k{background:#fffbe6;border-color:#e3d6a6}.lg-p{background:#e8f1fd;border-color:#b6cff0}.lg-c{background:#eceff3;border-color:#d3d8df}
+@media (max-width:1100px){ .wo-split{grid-template-columns:1fr} }
+@media (max-width:600px){ .wo-col.two{grid-template-columns:1fr} .pair.p-code{flex-wrap:wrap} .pair.p-code > .dwrap{flex:1 1 100%} .wo-legend{width:100%;margin-left:0;flex-wrap:wrap} }
+.stock-badge{font-size:12.5px;margin-top:2px}
+.sb-yes{color:#17663b;font-weight:700;background:#e3f5ea;border-radius:4px;padding:1px 8px}
+.sb-no{color:#b42318;font-weight:700;background:#fdeceb;border-radius:4px;padding:1px 8px}
+.stock-badge small{color:var(--muted)}
+.rchip{border:1px solid #e3d6a6;background:#fffbe6;border-radius:4px;height:28px;padding:0 8px;cursor:pointer;font:inherit;font-size:13px}
+.rchip.on{background:var(--sc);border-color:var(--sc);color:#fff;font-weight:700}
+.pair.p-r{flex-wrap:wrap}.pair.p-r > .field{flex:0 0 90px}
+.carry{min-height:30px}
+.pk-types{display:flex;gap:6px;align-items:center;margin:8px 12px}
+.pk-block{margin:6px 12px 10px;padding-top:2px}
+.rollrow{display:flex;gap:8px;align-items:center;margin:0 0 6px;flex-wrap:wrap}
+.rollrow .rl{width:150px;display:flex;justify-content:flex-end}
+.rollrow .dir img{width:104px}
+.wo-fs .span3{grid-column:span 3}
+.span3{grid-column:span 3}
+@media (max-width:1100px){ .span3{grid-column:span 2} }
+@media (max-width:600px){ .rollrow .rl{width:100%;justify-content:flex-start} .rollrow .dir img{width:72px} .span3{grid-column:auto} }
+.pair.p-ak{flex-wrap:wrap}.pair.p-ak > .field{flex:1 1 220px}
+/* ---------- ฐานข้อมูล แบบตารางแน่น (SmartBiz) ---------- */
+#mtList table{font-size:13px}
+#mtList th{background:#3fa7d6;color:#fff;padding:4px 8px;font-size:12.5px}
+#mtList td{padding:2px 8px;border-bottom:1px solid #eef1f5;line-height:1.35}
+#mtList tbody tr:nth-child(even) td{background:#f8fbfd}
+#mtList tbody tr:hover td{background:#dff3fb}
+#mtList td:first-child{background:#e6f7fd;font-variant-numeric:tabular-nums}
+#mtList .rowact .btn.sm{padding:1px 8px;font-size:12px;border-radius:4px;height:22px}
+#mtList .rowact{gap:4px}
 </style>
 </head>
 <body>
@@ -504,6 +664,7 @@ const Demo = {
     if (orig === null) { if (m.lookups.some(x => x.category === cat && x.value === value)) throw new Error('duplicate'); m.lookups.push({category:cat, value, sort}); }
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
+  async lastJobFor(code){ return [...this.db().wo].filter(w => (w.product_code||'').trim() === (code||'').trim()).sort((a,b) => b.job_ticket.localeCompare(a.job_ticket))[0] || null; },
   async getWorkOrder(job){ return this.db().wo.find(w => w.job_ticket === job.trim()) || null; },
   async searchJobs(s){ s = (s||'').toLowerCase(); return this.db().wo.filter(w => !s || (w.job_ticket+w.customer_name+w.product_name).toLowerCase().includes(s)).slice(0,30); },
   async employees(){ return [...this.db().emp].sort((a,b)=>a.sort-b.sort); },
@@ -588,6 +749,7 @@ const Live = {
       if (p.paper_code && !L.raw.some(r => r.code === p.paper_code)) await this.sb.from('raw_materials').insert({code: p.paper_code, name: p.paper_name, paper_type: p.paper_type, supplier: p.supplier});
     } catch {}
   },
+  async lastJobFor(code){ const r = this.chk(await this.sb.from('work_orders').select('*').eq('product_code', code).order('job_ticket', {ascending:false}).limit(1)); return r[0] || null; },
   async getWorkOrder(job){ return this.chk(await this.sb.from('work_orders').select('*').eq('job_ticket', job.trim()).maybeSingle()); },
   async searchJobs(s){
     s = (s||'').replace(/[,()%]/g, ' ').trim();
@@ -738,13 +900,13 @@ function jobTicketHTML(wo, orderBy){
         <span></span><span style="display:grid;grid-template-columns:1fr 1fr;font-weight:700">
           <span>${cb(has('mto'))} Made to Order (MTO)<br><span style="font-weight:400;margin-left:6mm">ผลิตตามคำสั่งซื้อ</span></span>
           <span>${cb(has('mts'))} Made to Stock (MTS)<br><span style="font-weight:400;margin-left:6mm">ผลิตเพื่อเก็บสต็อก</span></span></span>`)}
-      ${g('auto 1fr', `
+      <div style="justify-self:end">${g('auto 32mm', `
         <span class="lbl">JOB TICKET MO:</span>${ln(esc(wo.job_ticket), '', 'vb')}
         <span class="lbl">วันที่เอกสาร:</span>${ln(d(wo.doc_date || v('doc_date')))}
         <span class="lbl">P/O.No. :</span>${ln(esc(wo.po_no || ''))}
         <span class="lbl">S/O.No. :</span>${ln(esc(wo.so_no || ''))}
         <span class="lbl">กำหนดส่ง :</span>${ln(wo.due_date ? d(wo.due_date) : esc(wo.due_note || ''))}
-        <span class="lbl v">${esc(v('job_label'))}</span><span>${cb(has('other_job'), true)}</span>`)}
+        <span class="lbl v">${esc(v('job_label'))}</span><span>${cb(has('other_job'), true)}</span>`)}</div>
     </div>
 
     <div class="tkbar">1. ข้อมูลเบื้องต้น (Input)</div>
@@ -757,22 +919,19 @@ function jobTicketHTML(wo, orderBy){
         <span class="lbl v" style="font-weight:700">จำนวนที่สั่งผลิตรวม (ดวง)</span><span class="ln vb" style="text-align:center">${n(wo.order_qty ?? v('order_qty'))}</span><span style="font-weight:700">ดวง</span>
         ${row('จำนวนแถวแนวยาว (แถว)', n(v('length_rows')), '', '')}
         ${row('ระยะตั้งงาน (มม.)', n(v('repeat_mm')), 'MM.', 'vb')}`)}
-      <div>
-        <div class="fl"><b>เครื่องพิมพ์ :</b>${ln(esc(wo.machine || ''))}</div>
-        ${qr('tkq_prod', 'สแกนเริ่มงาน/ส่งยอด', 'สำหรับแผนกผลิต')}
-      </div>
+      <div style="display:grid;place-items:center">${qr('tkq_prod', 'สแกนเริ่มงาน/ส่งยอด', 'สำหรับแผนกผลิต')}</div>
     </div>
 
-    <div class="tkbar empty"></div>
+    <div class="tkbar">2. วัตถุดิบ (Material)</div>
     <div class="tksec" style="display:grid;grid-template-columns:1fr 1fr;gap:3mm">
       ${g('auto 1fr', `
         <span class="lbl">วัตถุดิบของ :</span><span class="v">${esc(v('supplier'))}</span>`)}
       ${g('auto 1fr', `
         <span class="lbl">รหัสกระดาษ :</span>${ln(esc(v('paper_code')), '100%', 'vb')}`)}
       ${g('52mm 26mm 1fr', `
-        ${row('ความกว้างหน้าม้วน Web Width (มม.)', n(v('web_width_mm')), 'MM.', 'v')}
+        ${row('ความกว้างหน้าม้วน Web Width (มม.)', n(v('web_width_mm')), 'MM.', 'vb')}
         ${row('ระยะยาวงานจริง (เมตร)', n(v('run_m'), 1), 'M.', 'vb')}
-        ${row('ระยะเผื่อตั้งเครื่อง Setup Waste (เมตร)', n(v('setup_waste_m'), 1), 'M.', 'v')}
+        ${row('ระยะเผื่อตั้งเครื่อง Setup Waste (เมตร)', n(v('setup_waste_m'), 1), 'M.', 'vb')}
         ${row('รวมเมตรที่ต้องใช้ (เมตร)', n(v('total_m'), 1), 'M.', 'vb')}`)}
       ${g('auto 1fr', `
         <span class="lbl">ชื่อกระดาษ :</span><span class="v gray" style="padding:1mm 1.5mm">${esc(v('paper_name')) || '&nbsp;'}</span>
@@ -783,12 +942,13 @@ function jobTicketHTML(wo, orderBy){
 
     <div class="tkbar">3. ข้อมูลการพิมพ์ (Printing) สำหรับช่างพิมพ์</div>
     <div class="tksec">${g('20mm 1fr 22mm 1fr auto 1fr', `
+        <span class="lbl">เครื่องพิมพ์ :</span><span style="grid-column:span 5">${ln(esc(wo.machine || ''), '100%', 'vb')}</span>
         <span class="lbl">ชนิดสี :</span>${ln(esc(v('ink_type')), '100%')}
         <span class="lbl">จำนวนสี</span><span>${ln(n(v('color_count')), '20mm')} สี</span>
         <span class="lbl">สีพิเศษ (รหัส Pantone)</span><span class="fl">${cb(has('special_color'))}${ln(esc(v('pantone')))}</span>
         <span class="lbl">การเคลือบ :</span>${ln(esc(v('coating')), '100%')}
         <span class="lbl">รหัสเคลือบ :</span>${ln(esc(v('coating_code')), '100%')}
-        <span></span><span></span>
+        <span class="lbl">ฆ่ากาว :</span>${ln(esc([v('adhesive_kill') ? (v('adhesive_kill') === 'ไม่มี' ? 'ไม่ฆ่ากาว' : 'ฆ่ากาว' + v('adhesive_kill')) : '', v('adhesive_kill_note')].filter(Boolean).join(' – ')), '100%')}
         <span class="lbl">Spot UV :</span><span>${cb(has('spot_uv'))}</span>
         <span class="lbl">หน้ากระดาษ :</span><span>${ln(n(v('paper_face_mm')), '20mm')} mm.</span>
         <span></span><span></span>`)}</div>
@@ -840,8 +1000,8 @@ function jobTicketHTML(wo, orderBy){
     </div>
 
     <div class="tkbar">6.บันทึกเพิ่มเติม / QC (บันทึกเพิ่มเติม QC / The Daily Tracker)</div>
-    <div class="tksec" style="display:grid;grid-template-columns:52mm 1fr 34mm 32mm;gap:3mm;flex:1">
-      <div class="g" style="grid-template-columns:auto 1fr auto;row-gap:3.2mm;align-content:start">
+    <div class="tksec" style="display:grid;grid-template-columns:50mm 1fr 32mm 37mm;gap:2.5mm;flex:1">
+      <div class="g" style="grid-template-columns:auto 1fr auto;row-gap:2.2mm;align-content:start">
         <span class="lbl">ยอดคงเหลือยกมา :</span>${ln(+v('carry_forward_qty') > 0 ? n(v('carry_forward_qty')) : 'ไม่มีสต็อก', '100%')}<span>ดวง</span>
         <span class="lbl">ยอดผลิตจริง :</span>${ln(n(v('actual_qty')), '100%')}<span>ดวง</span>
         <span class="lbl">ยอดหลังจาก QC</span>${ln(n(v('after_qc_qty')), '100%')}<span>ดวง</span>
@@ -851,18 +1011,134 @@ function jobTicketHTML(wo, orderBy){
       <div><div class="v" style="text-align:center;font-weight:700">หมายเหตุ</div>
         <div class="note-lines">${noteLines(v('remark')).map(x => `<div class="v" style="overflow:hidden;white-space:nowrap">${esc(x)}</div>`).join('')}</div></div>
       <div class="sig"><div style="justify-content:center;font-weight:700;height:5mm">ลงชื่อ</div>
-        <div>ช่างพิมพ์ : ${ln(esc(v('printer_name')), '18mm')}</div><div>ช่างไดคัท : ${ln(esc(v('diecut_name')), '18mm')}</div><div>QC : ${ln(esc(v('qc_name')), '18mm')}</div><div>Art : ${ln(esc(v('art_name')), '18mm')}</div>
+        <div>ช่างพิมพ์ : ${ln(esc(v('printer_name')), '18mm')}</div><div>ช่างไดคัท : ${ln(esc(v('diecut_name')), '18mm')}</div><div>QC : ${ln(esc(v('qc_name')), '18mm')}</div><div>Artwork : ${ln(esc(v('art_name')), '18mm')}</div>
         <div>ผู้สั่งงาน : ${ln(`<b style="color:#1565c0">${esc(v('ordered_by') || orderBy)}</b>`, '18mm', '')}</div></div>
-      ${qr('tkq_qc', 'สแกนตรวจQC/ส่งยอด', 'สำหรับแผนก QC')}
+      <div style="display:grid;place-items:center">${qr('tkq_qc', 'สแกนตรวจQC/ส่งยอด', 'สำหรับแผนก QC')}</div>
     </div>
   </div></div>`;
 }
 
-const WO_FIELDS = [["customer_name", "text"], ["product_name", "text"], ["product_code", "text"], ["job_ticket", "text"], ["doc_date", "date"], ["po_no", "text"], ["so_no", "text"], ["due_date", "date"], ["other_job", "boolean"], ["width_mm", "numeric"], ["height_mm", "numeric"], ["across", "numeric"], ["die_rows", "numeric"], ["order_qty", "numeric"], ["length_rows", "numeric"], ["repeat_mm", "numeric"], ["machine", "text"], ["supplier", "text"], ["paper_code", "text"], ["paper_name", "text"], ["paper_type", "text"], ["adhesive", "text"], ["liner", "text"], ["web_width_mm", "numeric"], ["run_m", "numeric"], ["setup_waste_m", "numeric"], ["total_m", "numeric"], ["ink_type", "text"], ["color_count", "numeric"], ["special_color", "boolean"], ["pantone", "text"], ["coating", "text"], ["coating_code", "text"], ["paper_face_mm", "numeric"], ["spot_uv", "boolean"], ["diecut_no", "text"], ["diecut_corner", "text"], ["corner_radius", "numeric"], ["diecut_machine", "text"], ["slitter", "text"], ["foil_type", "text"], ["foil_color", "text"], ["no_perf", "boolean"], ["perf", "boolean"], ["perf_spec", "text"], ["is_roll", "boolean"], ["roll_outer", "boolean"], ["roll_inner", "boolean"], ["core_size", "numeric"], ["roll_gap", "text"], ["roll_across", "numeric"], ["per_roll", "text"], ["per_meter", "text"], ["margin_left", "text"], ["margin_right", "text"], ["layout_h", "numeric"], ["layout_v", "numeric"], ["pack_qty", "text"], ["finished_size", "text"], ["cut_flush", "boolean"], ["leave_edge", "boolean"], ["fold_per_page", "numeric"], ["sprocket", "boolean"], ["sheet_perf", "boolean"], ["sheet_perf_mm", "text"], ["is_sheet", "boolean"], ["is_continuous", "boolean"], ["job_label", "text"], ["mto", "boolean"], ["mts", "boolean"], ["roll_direction", "text"], ["remark", "text"], ["due_note", "text"], ["foil_type_check", "boolean"], ["foil_color_check", "boolean"], ["roll_perf", "boolean"], ["roll_perf_mm", "text"], ["roll_no_perf", "boolean"], ["sheet_gap", "text"], ["carry_forward_qty", "numeric"], ["actual_qty", "numeric"], ["after_qc_qty", "numeric"], ["lot_no", "text"], ["has_paper", "boolean"], ["paper_ordered", "boolean"], ["printer_name", "text"], ["diecut_name", "text"], ["qc_name", "text"], ["art_name", "text"], ["ordered_by", "text"]];
+/* ================== ใบสั่งผลิต แบบที่ 2 (ของระบบ) ================== */
+function jobTicketHTML2(wo, orderBy){
+  const v = k => { const x = wo[k]; return (x === null || x === undefined || x === false) ? '' : x; };
+  const has = k => wo[k] === true;
+  const cb = on => `<span class="cb ${on ? 'on' : ''}">${on ? '✓' : ''}</span>`;
+  const n = (x, dec) => (x === '' || x === null || x === undefined) ? '' : (isNaN(+x) ? esc(x) : Number(x).toLocaleString('en-US', dec ? {minimumFractionDigits:2, maximumFractionDigits:2} : {maximumFractionDigits:2}));
+  const d = x => isoToTh(x) || '';
+  const e = x => esc(x);
+  const kv = (label, val, o = {}) => `<div class="k ${o.span ? 'sp' + o.span : ''}"><span>${label}</span><b class="${o.cls || ''} ${String(val ?? '').replace(/<[^>]+>/g,'').length > (o.span ? 48 : 22) ? 'long' : ''}">${val === '' || val == null ? '&nbsp;' : val}${o.unit && val !== '' ? ` <small>${o.unit}</small>` : ''}</b></div>`;
+  const sec = (num, title, body, cls = '') => `<div class="s ${cls}"><div class="sh">${num ? `<i>${num}</i>` : ''}${title}</div><div class="sb">${body}</div></div>`;
+  const dir = v('roll_direction');
+  const runM = +v('total_m'), web = +v('web_width_mm'), sqm = runM > 0 && web > 0 ? runM * web / 1000 : '';
+  const gap = +v('repeat_mm') > 0 && +v('height_mm') > 0 ? +(v('repeat_mm') - v('height_mm')).toFixed(2) : '';
+  const kill = v('adhesive_kill') ? (v('adhesive_kill') === 'ไม่มี' ? 'ไม่ฆ่ากาว' : 'ฆ่ากาว' + v('adhesive_kill')) : '';
+  const carry = +v('carry_forward_qty') > 0 ? n(v('carry_forward_qty')) + ' ดวง' : 'ไม่มีสต็อก';
+  const notes = String(v('remark')).split(/\r?\n/).flatMap(l => l.match(/.{1,60}/g) || ['']).slice(0, 4); while (notes.length < 4) notes.push('');
+
+  return `<div class="tk tk2">
+  <div class="t2-head">
+    <div class="t2-hl">
+      <div class="t2-brand"><b>V-Packaging</b><span>ใบสั่งผลิต <small>Production Order</small></span></div>
+      <div class="t2-cust">
+        ${kv('ชื่อลูกค้า', e(wo.customer_name), {span:2})}
+        ${kv('ชื่อสินค้าที่ผลิต', e(wo.product_name), {span:2, cls:'big'})}
+        ${kv('รหัสงาน', e(v('product_code')), {span:2})}
+        <div class="t2-mt"><span>${cb(has('mto'))}<b>Made to Order (MTO)</b> ผลิตตามคำสั่งซื้อ</span><span>${cb(has('mts'))}<b>Made to Stock (MTS)</b> ผลิตเพื่อเก็บสต็อก</span></div>
+      </div>
+    </div>
+    <div class="t2-hr">
+      <div class="t2-job"><small>JOB TICKET MO</small><b>${e(wo.job_ticket)}</b></div>
+      <div class="t2-doc">
+        ${kv('วันที่เอกสาร', d(v('doc_date')))}${kv('P/O.No.', e(v('po_no')))}${kv('S/O.No.', e(v('so_no')))}
+        ${kv('กำหนดส่ง', wo.due_date ? d(wo.due_date) : e(v('due_note')), {cls:'red'})}
+        ${v('job_label') || has('other_job') ? kv('งาน', `${cb(has('other_job'))} ${e(v('job_label'))}`, {cls:'red'}) : ''}
+      </div>
+    </div>
+    <div class="t2-qr q1"><div class="qh">ฝ่ายผลิต</div><div class="q" id="tkq_prod"></div><div class="qf">สแกนเริ่มงาน / ส่งยอด</div></div>
+  </div>
+
+  <div class="t2-tiles">
+    <div><span>ขนาดดวง (กว้าง × สูง)</span><b>${n(v('width_mm'))} × ${n(v('height_mm'))} <small>มม.</small></b></div>
+    <div><span>ดวง/แถว × แถวบล็อกมีด</span><b>${n(v('across'))} × ${n(v('die_rows'))}</b></div>
+    <div class="hl"><span>จำนวนสั่งผลิตรวม</span><b>${n(v('order_qty'))} <small>ดวง</small></b></div>
+    <div class="hl2"><span>เครื่องพิมพ์</span><b>${e(v('machine')) || '&nbsp;'}</b></div>
+    <div class="tm"><span>วัตถุดิบที่ต้องใช้</span><div class="tm2"><b>${n(v('total_m'), 1) || '-'}</b><small>เมตร</small><b>${sqm ? n(sqm) : '-'}</b><small>ตร.ม.</small></div></div>
+  </div>
+
+  <div class="t2-cols">
+    <div class="t2-cl">
+      ${sec(1, 'ข้อมูลเบื้องต้น (Input)', `<div class="kvg">
+        ${kv('กว้าง', n(v('width_mm')), {unit:'มม.', cls:'num'})}${kv('สูง', n(v('height_mm')), {unit:'มม.', cls:'num'})}
+        ${kv('ดวงต่อแถว (Across)', n(v('across')), {cls:'num'})}${kv('แถวในบล็อกมีด', n(v('die_rows')), {cls:'num'})}
+        ${kv('ระยะตั้งงาน', n(v('repeat_mm')), {unit:'มม.', cls:'num'})}${kv('ช่องไฟแนวยาว (Gap)', n(gap), {unit:'มม.'})}
+        ${kv('จำนวนแถวแนวยาว', n(v('length_rows')), {})}${kv('จำนวนสั่งผลิต', n(v('order_qty')), {unit:'ดวง', cls:'num red'})}</div>`)}
+      ${sec(2, 'วัตถุดิบ (Material)', `<div class="kvg">
+        ${kv('วัตถุดิบของ', e(v('supplier')), {span:2})}
+        ${kv('รหัสกระดาษ', e(v('paper_code')), {cls:'num red'})}${kv('ประเภทกระดาษ', e(v('paper_type')))}
+        ${kv('ชื่อกระดาษ', e(v('paper_name')), {span:2})}
+        ${kv('ประเภทกาว', e(v('adhesive')))}${kv('หลังกระดาษ', e(v('liner')))}
+        ${kv('หน้ากว้าง Web Width', n(v('web_width_mm')), {unit:'มม.', cls:'num'})}${kv('ระยะยาวงานจริง', n(v('run_m'), 1), {unit:'ม.', cls:'num'})}
+        ${kv('เผื่อตั้งเครื่อง Setup', n(v('setup_waste_m'), 1), {unit:'ม.', cls:'num'})}${kv('รวมเมตร / ตร.ม.', n(v('total_m'), 1) + (sqm ? ` <small>ม.</small> / ${n(sqm)} <small>ตร.ม.</small>` : ''), {cls:'num red'})}</div>`)}
+      ${sec(3, 'ข้อมูลการพิมพ์ (Printing)', `<div class="kvg">
+        ${kv('เครื่องพิมพ์', e(v('machine')), {span:2, cls:'num red'})}
+        ${kv('ชนิดสี', e(v('ink_type')))}${kv('จำนวนสี', n(v('color_count')), {unit:'สี', cls:'num'})}
+        ${kv('สีพิเศษ / Pantone', `${cb(has('special_color'))} ${e(v('pantone'))}`)}${kv('Spot UV', cb(has('spot_uv')))}
+        ${kv('การเคลือบ', e(v('coating')))}${kv('รหัสเคลือบ', e(v('coating_code')))}
+        ${kv('หน้ากระดาษ', n(v('paper_face_mm')), {unit:'มม.'})}${kv('ฆ่ากาว', e([kill, v('adhesive_kill_note')].filter(Boolean).join(' – ')), {cls: kill && kill !== 'ไม่ฆ่ากาว' ? 'red' : ''})}</div>`)}
+      ${sec(4, 'การจบงาน (Finishing) ไดคัท / Hot Stamping', `<div class="kvg">
+        ${kv('เลขที่ไดคัท', e(v('diecut_no')), {cls:'num'})}${kv('มุมไดคัท', e(v('diecut_corner')) + (v('corner_radius') !== '' ? ` <b class="red">R${n(v('corner_radius'))}</b>` : ''))}
+        ${kv('เครื่องไดคัท', e(v('diecut_machine')))}${kv('เครื่อง Slitter', e(v('slitter')))}
+        ${kv('ชนิดฟอยล์', `${cb(has('foil_type_check'))} ${e(v('foil_type'))}`)}${kv('สีฟอยล์', `${cb(has('foil_color_check'))} ${e(v('foil_color'))}`)}
+        ${kv('หมายเหตุเทคนิค', `${cb(has('no_perf'))} ไม่มีปรุ &nbsp; ${cb(has('perf'))} มีปรุ ${e(v('perf_spec'))}`, {span:2})}</div>`)}
+    </div>
+    <div class="t2-cr">
+      ${sec(5, 'การส่งมอบ (Packaging)', `
+        <div class="t2-sub first">${cb(has('is_roll'))} ระบบม้วน</div>
+        <div class="t2-rollhead"><span>${cb(has('roll_outer'))} ม้วนนอก</span><span>${cb(has('roll_inner'))} ม้วนใน</span></div>
+        <div class="t2-rolls">${['A','E','B','F','C','G','D','H'].map(L => `<div class="${dir === L ? 'on' : ''}"><img src="${ROLL_IMG[L]}" alt="${L}">${cb(dir === L)}</div>`).join('')}</div>
+        <div class="kvg one">
+          ${kv('แกนกระดาษ', n(v('core_size')), {unit:'มม.', cls:'num'})}${kv('ช่องไฟ', e(v('roll_gap')), {unit:'มม.'})}
+          ${kv('จำนวน/แถว', n(v('roll_across')), {unit:'ดวง'})}${kv('จำนวน/ม้วน', n(v('per_roll')), {unit:'ดวง', cls:'num red'})}
+          ${kv('จำนวน/เมตร', n(v('per_meter')))}${kv('ขอบซ้าย / ขวา', `${e(v('margin_left')) || '-'} / ${e(v('margin_right')) || '-'}`, {unit:'มม.'})}
+          ${kv('ปรุ (งานม้วน)', `${cb(has('roll_no_perf'))} ไม่มี ${cb(has('roll_perf'))} มี ${e(v('roll_perf_mm'))}`)}
+        </div>
+        <div class="t2-sub">${cb(has('is_sheet'))} งานแผ่น &nbsp; ${cb(has('is_continuous'))} คอมต่อเนื่อง</div>
+        <div class="kvg one">
+          ${kv('การจัดวาง (นอน × ตั้ง)', `${n(v('layout_h')) || '-'} × ${n(v('layout_v')) || '-'}`)}${kv('ช่องไฟ (Gap)', e(v('sheet_gap')), {unit:'มม.'})}
+          ${kv('จำนวนบรรจุ', n(v('pack_qty')), {unit:'ดวง/แพ็ค'})}${kv('ขนาดสำเร็จ', e(v('finished_size')), {unit:'มม.'})}
+          ${kv('พับหน้าละ', n(v('fold_per_page')), {unit:'ดวง'})}
+          <div class="t2-cut"><span>${cb(has('cut_flush'))}ตัดชิดดวง</span><span>${cb(has('leave_edge'))}เหลือขอบ</span><span>${cb(has('sprocket'))}รูหนามเตย</span><span>${cb(has('sheet_perf'))}มีปรุ ${e(v('sheet_perf_mm'))}</span></div>
+        </div>`, 'pk')}
+    </div>
+  </div>
+
+  <div class="t2-foot">
+    ${sec(6, 'บันทึกเพิ่มเติม / QC (The Daily Tracker)', `<div class="t2-f6">
+      <div class="kvg one">
+        ${kv('ยอดคงเหลือยกมา', carry, {cls: +v('carry_forward_qty') > 0 ? 'num red' : 'red'})}
+        ${kv('ยอดผลิตจริง', n(v('actual_qty')), {unit:'ดวง'})}${kv('ยอดหลังจาก QC', n(v('after_qc_qty')), {unit:'ดวง'})}
+        ${kv('LOT Number', e(v('lot_no')))}
+      </div>
+      <div class="t2-note"><div class="nh">หมายเหตุ</div>${notes.map(x => `<div class="nl">${e(x) || '&nbsp;'}</div>`).join('')}</div>
+      <div class="t2-sign">${[['ช่างพิมพ์','printer_name'],['ช่างไดคัท','diecut_name'],['QC','qc_name'],['Artwork','art_name'],['ผู้สั่งงาน','ordered_by']].map(([l,k]) =>
+        `<div><span>${l}</span><b>${e(v(k) || (k === 'ordered_by' ? orderBy : '')) || '&nbsp;'}</b></div>`).join('')}</div>
+      <div class="t2-paper">กระดาษ : &nbsp;${cb(has('has_paper'))} มีกระดาษแล้ว &nbsp;&nbsp; ${cb(has('paper_ordered'))} สั่งกระดาษแล้ว</div>
+    </div>`)}
+    <div class="t2-qr q2"><div class="qh">ฝ่าย QC</div><div class="q" id="tkq_qc"></div><div class="qf">สแกนตรวจ QC / ส่งยอด</div></div>
+  </div>
+</div>`;
+}
+
+const WO_FIELDS = [["customer_name", "text"], ["product_name", "text"], ["product_code", "text"], ["job_ticket", "text"], ["doc_date", "date"], ["po_no", "text"], ["so_no", "text"], ["due_date", "date"], ["other_job", "boolean"], ["width_mm", "numeric"], ["height_mm", "numeric"], ["across", "numeric"], ["die_rows", "numeric"], ["order_qty", "numeric"], ["length_rows", "numeric"], ["repeat_mm", "numeric"], ["machine", "text"], ["supplier", "text"], ["paper_code", "text"], ["paper_name", "text"], ["paper_type", "text"], ["adhesive", "text"], ["liner", "text"], ["web_width_mm", "numeric"], ["run_m", "numeric"], ["setup_waste_m", "numeric"], ["total_m", "numeric"], ["ink_type", "text"], ["color_count", "numeric"], ["special_color", "boolean"], ["pantone", "text"], ["coating", "text"], ["coating_code", "text"], ["paper_face_mm", "numeric"], ["spot_uv", "boolean"], ["diecut_no", "text"], ["diecut_corner", "text"], ["corner_radius", "numeric"], ["diecut_machine", "text"], ["slitter", "text"], ["foil_type", "text"], ["foil_color", "text"], ["no_perf", "boolean"], ["perf", "boolean"], ["perf_spec", "text"], ["is_roll", "boolean"], ["roll_outer", "boolean"], ["roll_inner", "boolean"], ["core_size", "numeric"], ["roll_gap", "text"], ["roll_across", "numeric"], ["per_roll", "text"], ["per_meter", "text"], ["margin_left", "text"], ["margin_right", "text"], ["layout_h", "numeric"], ["layout_v", "numeric"], ["pack_qty", "text"], ["finished_size", "text"], ["cut_flush", "boolean"], ["leave_edge", "boolean"], ["fold_per_page", "numeric"], ["sprocket", "boolean"], ["sheet_perf", "boolean"], ["sheet_perf_mm", "text"], ["is_sheet", "boolean"], ["is_continuous", "boolean"], ["job_label", "text"], ["mto", "boolean"], ["mts", "boolean"], ["roll_direction", "text"], ["remark", "text"], ["due_note", "text"], ["foil_type_check", "boolean"], ["foil_color_check", "boolean"], ["roll_perf", "boolean"], ["roll_perf_mm", "text"], ["roll_no_perf", "boolean"], ["sheet_gap", "text"], ["adhesive_kill", "text"], ["adhesive_kill_note", "text"], ["carry_forward_qty", "numeric"], ["actual_qty", "numeric"], ["after_qc_qty", "numeric"], ["lot_no", "text"], ["has_paper", "boolean"], ["paper_ordered", "boolean"], ["printer_name", "text"], ["diecut_name", "text"], ["qc_name", "text"], ["art_name", "text"], ["ordered_by", "text"]];
 const DEMO_LOOKUPS = {"spec": {"machine": ["Rotary Sanki-6", "Rotary Sanki-7", "Intermittent BangSung", "Intermittent Sanki-6", "Letterpress Iwasaki", "Letterpress Onda", "Letterpress Label man", "Silk Screen", "Ricoh Pro C7200x", "Die-1", "Die BangSung", "Die Hikari"], "diecut_machine": ["Die-1", "Die BangSung", "Die Hikari", "Graphtec CE7000", "Rotary Sanki-6", "Rotary Sanki-7", "Intermittent Sanki-6"], "paper_type": ["กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "ขาวด้าน (Matte Paper)", "กระดาษคราฟท์ (Kraft Paper)", "PP ขาวเงา (PP White Gloss)", "PP ขาวด้าน (PP White Matt)", "PP ใส (Clear / Transparent PP)", "PP มุก (Pearlescent PP)", "PE (ยืดหยุ่น) (Polyethylene (PE))", "PET ทนความร้อน (Polyester (PET))", "PVC ใส (PVC Clear)", "PVC ขาวเงา (Glossy White PVC)", "Direct Thermal (DT) ฉีกขาด", "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "Direct Thermal Paper (DT-RM)", "Direct Thermal Paper (DT-TOP)", "Direct Thermal Paper", "Thermal Transfer (TT)", "เปลือกไข่ (Destructible Vinyl)", "วอยด์เงิน (ทิ้งคราบ) (Silver VOID)", "สุญญากาศ (Static Clad / Window Decal)", "PP SILVER", "PET SILVER MAT (เงินด้าน)", "PE ขาวด้าน (PE White Matt)", "การ์ดสี", "กระดาษกล่องแป้งหลังเทา", "Co-Ex ขาวด้าน"], "adhesive": ["กาวรีมูฟ (Remove Adhesive)", "กาวธรรมดา (Permanent Adhesive)", "กาวห้องเย็น (Freezer Grade Adhesive)", "กาวเหนียวพิเศษ (High Tack Adhesive)", "สุญญากาศ (Vacuum Sticker)", "กาวทนความร้อน (Heat Resistant Adhesive)", "กาวดำ"], "liner": ["หลังคราฟท์", "หลังปอนด์", "กลาสซีน", "หลังปอนด์ (เหลือง)", "หลังใส (PET Liner)"], "ink_type": ["สีน้ำมัน", "สี UV", "สี CMYK"], "coating": ["OPP ใส", "OPP ด้าน", "UV เงา", "UV ด้าน", "วานิช (Varnish)"], "coating_code": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_type": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_color": ["ทอง", "เงิน", "ฟ้า"], "diecut_corner": ["มุมแหลม", "วงกลม", "วงรี", "แบบพิเศษ", "มุมมน R"], "job_label": ["FORECAST:", "PROOFS:", "ครั้งที่ Revised", "เคลมสินค้า"], "diecut_no": ["R3-(68x90)-2/1", "S-(68x75)-2/1", "S-(35x35)-4/1", "C15-5F/2F", "RB00005", "S-(203.2x193.4)-4/1", "B01099", "R2-(210x115)-1", "R4-(120x164)-1", "S-(100x100)-2/1", "A01155", "A00681", "B00366", "A00043-44", "B01009", "R2-(105x130)-1", "RB00008", "A01164", "R1.5-(55x35)-2F", "SP-(65x100)-2F", "A01120", "R5-(280x135)-1", "S-(70x80)-2/1", "SP-(63x88)-2/1", "S-(63x88)-2/1", "R15.5-(46x46)-3/3"]}, "customers": ["ควอลิตี้ ลาเบล โปรดักส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ควาร์ค ซิสเต็ม จำกัด (สำนักงานใหญ่)", "ซานโต ไฟร์ โปรดักท์ จำกัด (สำนักงานใหญ่)", "มนต์นมสด", "ร้านเพ็ญนภา", "ลีดเดอร์ ไฟร์ เซฟตี้ จำกัด (สำนักงานใหญ่)", "สหโชค แฟคทอรี่ 2560 จำกัด (สำนักงานใหญ่)", "เคแอนด์เจ พับลิชิ่ง จำกัด (สำนักงานใหญ่)", "แอล แอนด์ อี โซลิด สเตท จำกัด (สำนักงานใหญ่)", "โคมาร์ค (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ไทย ยูเนียน อโกรเคมีเคิล จำกัด (สำนักงานใหญ่)", "ไทยซินอุตสาหกรรม จำกัด (สำนักงานใหญ่)", "ไทยลามิเนต แมนูแฟคเจอเรอร์ จำกัด (สำนักงานใหญ่)", "ไทยเมอร์รี่ จำกัด (สำนักงานใหญ่)", "ไร้ซ์แลนด์ อินเตอร์เนชั่นแนล จำกัด (สำนักงานใหญ่)"], "products": [["pen-40x40-PVC-G", "สติกเกอร์ PVC ขาวเงา วงกลม ขนาด 4x4cm. 3ดวง/แถว HYDRO STATION THAILAND"], ["qs-95x30-PPWMRM-2S", "ST-PP-RM ขาวด้าน  Size 95x30mm; Dai.3\" 1,500pcs/Roll กรีดในดวง 2 ข้าง"], ["qs-102x75-STDTBL-2K", "ST-DT ฉีกไม่ขาด หลังฟ้า Size 102x75mm. Dia.3\" ; 2,000pcs/roll"], ["qs-100x35-DTSBL-1000", "ST-DT หลังฟ้า ฉีกไม่ขาด Size 100x35mm; Dia.1.5:; 1,000pcs/roll"], ["qs-102x152.4-DTTC-PK", "DT Paper Topcoat 80g.w/BM Size 102x152.4mm.250/roll แถบชมพู"], ["qs-102x152.4-DTTCBLP", "DT Paper Topcoat 80g w/BM Size 102x152.4mm.250/Roll แถบฟ้า ปรุกลางดวง"], ["qlp-45x280-PPWG-MML", "สติกเกอร์ PP ขาวเงา ขนาด 45x280mm. พิมพ์ 4 สี+OPP ใส มาชเมลโล่ว เคลือบช็อกโกแลต"], ["qlp-45x250-PPWG-PAN", "สติกเกอร์ PP ขาวเงา ขนาด 45x250mm. มินิเบอร์เกอร์ สังขยาใบเตย"], ["kmt-s-0002-PCL", "พิมพ์เคเงิน สติ๊กเกอร์ Zincomin Zinc, Vitamins&Minerals 60'S MDC (PCL)"], ["tlm-s-4MT108-4001", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10x3cm. (500 Pcs/Roll) MSUMT4001"], ["tmr-80x60-PP-WM", "สติกเกอร์ Direct Thermal PP ขาวด้าน ขนาด 8x6cm. พิมพ์ 1 สีดำ 3,000 ดวง/ม้วน"], ["egat-35x35-LED-PPRM ID24790", "ฉลาก หลอด LED ขนาด 35x35mm. ID24790 L&E LED-T8 16 วัตต์ เดย์ไลท์"], ["qs-76x126-SGTT-1000", "ST-TT Size 76x126mm. Dia.3\" 1,000pcs/roll"], ["qs-4x4\"-DTBM", "DT Paper w/BM Size 4\" x 4\" กระดาษต่อเนื่องแบบมีปรุ"], ["qs-s-102x75-100x40", "DT Paper w/BM Size: 102x75mm; 525pcs/roll ดวงเปล่า"], ["ldf-s-STKPOI-NL", "สติกเกอร์ชี้จุดเครื่องดับเพลิง รูปถังดับเพลิง มีเบอร์โทร"], ["egat-45x45-POT-PET ID 6242", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm ID 6242 NIKKO DAILY LIFE COLLECTION 1.2"], ["egat-45x45-POT-PET ID 6243", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6243 NIKKO DAILY LIFE COLLECTION 1.5"], ["egat-45x45-POT-PET ID 6244", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6244 NIKKO DAILY LIFE COLLECTION 1.8"], ["qlp-65x290-PPC-CCNC", "สติกเกอร์ PP ใส ขนาด 65x290mm พิมพ์ 4 สี+รองขาว เค้กมะพร้าว Coconut"], ["santo-95x65-PVCC", "สติ๊กเกอร์วิธีใช้เครื่องดับเพลิง (แผ่นใส) ขนาด 9.5x6.5cm."], ["santo-89x47-PVCWG-Y", "สติ๊กเกอร์ชื่อบริษัทฯ (สีเหลือง) ขนาด 8.9x4.7cm."], ["shc-s-20x30", "สติกเกอร์ชี้จุดติดตั้ง+วิธีใช้เครื่องดับเพลิง ขนาด 20x30cm. (ดึงสลัก)"], ["kj-s-12C1031-PJTA165", "12C1031 NAME PLATE PJ-TA165 (SHEET) SIZE 40x80MM."], ["kj-s-12G1031-PJWA182", "12G1031 NAME PLATE PJ-WA182 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-10M1035-PJSL163", "10M1035 NAME PLATE PJ-SL163 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-31D1045-SBC9W3", "31D1045 NAME PLATE SB-C9W3 SIZE 105x165MM."], ["kj-s-10B114-PJSL161", "10B114 CAUTION LABEL PJ-SL161 SIZE 14x55MM."], ["qs-40x20-PPUPO", "ST-UPO (Fasson) Size: 40x20mm; Dia.3\"; 5,000/roll 2 ดวงชิด"], ["mont-58x58-PPWM-HL", "สติกเกอร์วงกลม PP ขาวด้าน ขนาด 58x58mm. โยเกิร์ต น้ำผึ้งผสมมะนาว"], ["tlm-s-4MT041-4002", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10.1x7.5cm. (500Pcs/Roll) MSUMT4002"], ["kj-s-11D1401V", "11D1401V GUARRANTY STICKER SIZE 70x100MM."], ["kj-s-2K123VTNR191STV", "2K123VT NAME PLATE KS-NR191STV SIZE 23x65MM."], ["tuac-PPWG-290x160", "สติกเกอร์ PP ขาวเงา ขนาด 290x106mm พิมพ์ 5 สี เคลือบ UV อีมา-เอส 1000  มิลลิลิตร"], ["rl-34x64-PPCL", "สติกเกอร์ PP ใส ขนาด 34x64mm Resealable for KROGER 2Lbs. พิมพ์ 4 สี"]], "raw": [{"code": "SVLW", "name": "SVLW (ROLL-SQM) Gloss PVC/White", "paper_type": "PVC ขาวเงา (Glossy White PVC)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SY7050N.1000-AAG730", "name": "SY7050N.1000(AAG730) SYNTHETIC PAPER/R480/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 208}, {"code": "HBTLA-BL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 220}, {"code": "OJI-THL-O", "name": "Direct Thermal Paper TOP 76 GSM", "paper_type": "Direct Thermal Paper", "supplier": "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "width_mm": 216}, {"code": "KP1429", "name": "สติกเกอร์ PP ขาวเงา 60 ไมครอน กาว Hotmelt หลังกลาสซีส 60 แกรม", "paper_type": "PP ขาวเงา (PP White Gloss)", "supplier": "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "width_mm": 115}, {"code": "AW0331P-AAH099", "name": "AW0331P(AAH099) FASTCOAT 2 PEFC/S1010/ BG40WH IMP FSC (PEFC)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 110}, {"code": "HBTLS-WL-HL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 176}, {"code": "HMCL-AG-WERM", "name": "HMCL-AG-WERM 106CM.(ROLL-SQM) Cast Coated/White Removable", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 330}, {"code": "FLD/RPC5/GZD", "name": "EAN8324400 FLD/RPC5/GZD RAFLACOAT FIT-FSC RPC5 WHITE GLASS C5-FSC", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 165}, {"code": "HTLW#45-W", "name": "Gloss white PET (TC) 45/Solvent/White glassine 60", "paper_type": "PET ทนความร้อน (Polyester (PET))", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 111}, {"code": "HPPTL-WE", "name": "GLOSS CLEAR TOP COATED POLYPROPYLENE LABEL", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SVLT-Y", "name": "SVLT-Y Gloss PVC/Transparent PVC ใส/หลังเหลือง", "paper_type": "PVC ใส (PVC Clear)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 80}, {"code": "FGSL-ALMH", "name": "ADCEL-Semigloss paper 80G.(Hotmelt Glue)(LAMH60)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "SCX80W-WG", "name": "สติกเกอร์กึ่งมันกึ่งด้าน หลังกลาสซีนขาว", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "DJP/RP37/GZI/H0", "name": "PP SILVER TC 50 FIT RP37 WHITE GLASSINE 65-FSC RTAC BACKPRINT", "paper_type": "PP SILVER ", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 100}, {"code": "BW0153-AAD953", "name": "BW0153 (AAD953) SYNTHETIC PAPER/S4700N/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 175}, {"code": "MZ0152-W-AAH706", "name": "MZ0152-W(AAH706) 1M Matte ChromePET TC/S333/BG50Wh", "paper_type": "PET SILVER MAT (เงินด้าน)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 80}, {"code": "AW0271-AAG535", "name": "AW0271 High Gloss Paper/S1010/BG40 Wht Imp FSC", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 130}, {"code": "BW0266A-AAG573", "name": "BW0266A(AAG573) PP50 TCClear/S692N/BG40Wh Imp FSC", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 220}], "suppliers": ["Avery Dennison (Thailand) Ltd. (Head Office)", "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "UPM Raflatac Co., Ltd. (Head Office)", "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)"]};
 /* ================== ใบสั่งผลิต (แทน ProductionOrder / EDITORDER) ================== */
 const WO_BOOL = new Set(WO_FIELDS.filter(f => f[1] === 'boolean').map(f => f[0]));
 const WO_NUM  = new Set(WO_FIELDS.filter(f => f[1] === 'numeric').map(f => f[0]));
+const NUM_LIKE = new Set(['per_roll','per_meter','pack_qty']);   // ช่องข้อความที่มักเป็นตัวเลข
+const fmtIn = v => { if (v === null || v === undefined || v === '') return ''; const s = String(v).replace(/,/g,'');
+  if (!/^-?\d*\.?\d*$/.test(s)) return String(v); const [i, d] = s.split('.'); const neg = i.startsWith('-'), ii = i.replace('-','');
+  return (neg ? '-' : '') + (ii ? Number(ii).toLocaleString('en-US') : (d !== undefined ? '0' : '')) + (d !== undefined ? '.' + d : ''); };
+const isNumF = c => WO_NUM.has(c) || NUM_LIKE.has(c);
 const WO_DATE = new Set(WO_FIELDS.filter(f => f[1] === 'date').map(f => f[0]));
 const todayISO = () => { const d = new Date(Date.now() + 7*3600e3); return d.toISOString().slice(0,10); };
 function blankWO(){ const o = {}; WO_FIELDS.forEach(([c,t]) => o[c] = t === 'boolean' ? false : null); o.doc_date = todayISO(); o.mto = true; return o; }
@@ -881,7 +1157,8 @@ const WOForm = {
       ${Object.entries(L.spec).map(([k, arr]) => `<datalist id="dl_${k}">${arr.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
       <datalist id="dl_jobs"></datalist>
       <div class="wo-bar">
-        <div class="wo-id"><span id="woMode" class="pill"></span><b id="woJob"></b><span id="woDirty" class="hint"></span></div>
+        <div class="wo-id"><span id="woMode" class="pill"></span><div><b id="woJob"></b><div id="stockBadge" class="stock-badge"></div></div><span id="woDirty" class="hint"></span></div>
+        <div class="wo-legend"><i class="lg-k"></i>คีย์เอง <i class="lg-p"></i>ดึงจากฐานข้อมูล <i class="lg-c"></i>คำนวณอัตโนมัติ</div>
         <div class="wo-fold"><button class="btn ghost sm" id="foldAll">ย่อทั้งหมด</button><button class="btn ghost sm" id="openAll">ขยายทั้งหมด</button></div>
         <div class="wo-open"><input id="woOpen" class="field" placeholder="เปิดใบเดิม: เลข JOB" list="dl_jobs" autocomplete="off"><button class="btn ghost sm" id="woOpenBtn">เปิด</button><button class="btn ghost sm" id="woNew">+ ใบใหม่</button></div>
       </div>
@@ -911,13 +1188,21 @@ const WOForm = {
     $('#woMode').textContent = mode === 'new' ? 'ใบใหม่' : (wo.closed ? 'ปิดจ๊อบแล้ว' : 'แก้ไข');
     $('#woJob').textContent = mode === 'new' ? 'เลข JOB จะออกตอนบันทึก' : wo.job_ticket;
     if (mode === 'new') { try { const nx = await API.nextJobTicket(); $('#woJob').textContent = `JOB ถัดไป: ${nx}`; } catch {} }
-    this.pull = undefined; this.carry = null;
+    this.pull = undefined; this.carry = null; this.carryManual = false;
     this.render(); this.setDirty(this.dirty);
-    if (mode === 'new') this.checkStock();
+    this.checkStock();
   },
   setDirty(v){ this.dirty = v; const d = $('#woDirty'); if (d) d.textContent = v ? '● ยังไม่ได้บันทึก' : ''; },
 
   /* --- field helpers --- */
+  ctl(c, o = {}){   // เฉพาะช่องกรอก (ไม่มีป้ายชื่อ)
+    const v = this.wo[c], val = v === null || v === undefined ? '' : v;
+    const cls = `field ${o.calc ? 'calc' : ''} ${o.big ? 'big' : ''} ${o.pull || o.lk ? 'pulled' : ''} ${o.red ? 'red' : ''}`;
+    if (o.lk) return `<span class="dwrap"><input type="text" class="${cls} lkf" data-c="${c}" data-lk="${o.lk}" value="${esc(val)}" autocomplete="off" placeholder="${o.ph || 'พิมพ์เพื่อค้นหา…'}">
+      <button type="button" class="dbtn" data-lkb="${c}" title="ค้นหาจากฐานข้อมูล (F2)">🔍</button></span>`;
+    return `<input type="text" class="${cls}" data-c="${c}" value="${esc(isNumF(c) ? fmtIn(val) : val)}" ${WO_NUM.has(c) ? 'inputmode="decimal"' : ''} ${o.list ? `list="${o.list}"` : ''} ${o.ph ? `placeholder="${o.ph}"` : ''} ${o.calc ? 'readonly tabindex="-1"' : ''} autocomplete="off">`;
+  },
+  pair(label, html, o = {}){ return `<div class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}</span><div class="pair ${o.cls || ''}">${html}</div></div>`; },
   f(c, label, o = {}){
     const v = this.wo[c]; const t = 'text';
     if (WO_DATE.has(c)) return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}</span>
@@ -925,14 +1210,12 @@ const WOForm = {
       <button type="button" class="dbtn" data-dp="${c}" title="เลือกจากปฏิทิน">📅</button><input type="date" class="dhidden" data-dn="${c}" value="${v || ''}" tabindex="-1"></span></label>`;
     const im = WO_NUM.has(c) ? 'inputmode="decimal"' : '';
     const list = o.list ? `list="${o.list}"` : '';
-    const cls = `field ${o.calc ? 'calc' : ''} ${o.big ? 'big' : ''}`;
+    const cls = `field ${o.calc ? 'calc' : ''} ${o.big ? 'big' : ''} ${o.pull ? 'pulled' : ''} ${o.red ? 'red' : ''}`;
     const val = v === null || v === undefined ? '' : v;
-    if (o.lk) return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}</span>
-      <span class="dwrap"><input type="text" class="field lkf" data-c="${c}" data-lk="${o.lk}" value="${esc(val)}" autocomplete="off" placeholder="พิมพ์เพื่อค้นหา…">
-      <button type="button" class="dbtn" data-lkb="${c}" title="ค้นหาจากฐานข้อมูล (F2)">🔍</button></span></label>`;
+    if (o.lk) return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}</span>${this.ctl(c, o)}</label>`;
     const ctl = o.area ? `<textarea class="${cls}" data-c="${c}" rows="${o.rows||3}">${esc(val)}</textarea>`
-      : `<input type="${t}" class="${cls}" data-c="${c}" value="${esc(val)}" ${im} ${list} ${o.calc ? 'readonly tabindex="-1"' : ''} autocomplete="off">`;
-    return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}${o.unit ? ` <small>(${o.unit})</small>` : ''}${o.calc ? ' <small class="auto">คำนวณอัตโนมัติ</small>' : ''}</span>${ctl}</label>`;
+      : `<input type="${t}" class="${cls}" data-c="${c}" value="${esc(isNumF(c) ? fmtIn(val) : val)}" ${im} ${list} ${o.calc ? 'readonly tabindex="-1"' : ''} autocomplete="off">`;
+    return `<label class="wf ${o.span ? 'span' + o.span : ''}"><span>${label}${o.req ? ' <i>*</i>' : ''}${o.unit ? ` <small>(${o.unit})</small>` : ''}</span>${ctl}</label>`;
   },
   c(c, label){ return `<label class="wc ${this.wo[c] ? 'on' : ''}"><input type="checkbox" data-c="${c}" ${this.wo[c] ? 'checked' : ''}> ${label}</label>`; },
   sec(n, title, body, cls=''){ const k = 's' + (n || 0), shut = this.closedSecs.has(k);
@@ -944,72 +1227,80 @@ const WOForm = {
   render(){
     const g = (...x) => `<div class="wo-grid">${x.join('')}</div>`;
     const row = (...x) => `<div class="wc-row">${x.join('')}</div>`;
+    const split = (l, r) => `<div class="wo-split"><div class="wo-col">${l}</div><div class="wo-col">${r}</div></div>`;
     const dirs = ['A','B','C','D','E','F','G','H'];
     const rot = {A:90,B:-90,C:0,D:180,E:90,F:-90,G:0,H:180};
     const dirPick = `<div class="wf span2"><span>ทิศทางการม้วน <small>(A–D ม้วนนอก, E–H ม้วนใน)</small></span><div class="dirs">${['A','E','B','F','C','G','D','H'].map(d =>
       `<button type="button" class="dir ${this.wo.roll_direction === d ? 'on' : ''}" data-dir="${d}"><img src="${ROLL_IMG[d]}" alt="${d}"><span class="tick">${this.wo.roll_direction === d ? '✓' : ''}</span></button>`).join('')}</div></div>`;
     const ro = this.mode === 'edit' && this.wo.closed;
     $('#woForm').innerHTML = `<fieldset ${ro ? 'disabled' : ''} class="wo-fs">
-      ${this.sec('', 'ข้อมูลใบสั่งผลิต', g(
-        this.f('customer_name','ชื่อลูกค้า',{lk:'customers', req:1, span:2}),
-        this.f('product_code','รหัสงาน',{lk:'products'}),
-        this.f('doc_date','วันที่เอกสาร'),
-        this.f('product_name','ชื่อสินค้าที่ผลิต',{req:1, span:2, area:1, rows:2}),
-        this.f('po_no','P/O.No.'), this.f('so_no','S/O.No.'),
-        this.f('due_date','กำหนดส่ง'), this.f('due_note','กำหนดส่ง (ข้อความ)',{}),
-        this.f('job_label','งาน (PROOFS/FORECAST/เคลม)',{list:'dl_job_label'}),
-        `<div class="wf"><span>&nbsp;</span>${row(this.c('other_job','งานอื่นๆ'))}</div>`,
-        `<div class="wf span2"><span>ประเภทการผลิต</span>${row(this.c('mto','Made to Order (MTO)'), this.c('mts','Made to Stock (MTS)'))}</div>`))}
-      ${this.sec(1, 'ข้อมูลเบื้องต้น (Input)', g(
-        this.f('width_mm','กว้าง',{unit:'มม.'}), this.f('height_mm','สูง',{unit:'มม.'}),
-        this.f('across','จำนวนดวงต่อแถว (Across)',{unit:'ดวง/แถว'}), this.f('die_rows','จำนวนแถวในบล็อกมีด',{unit:'แถว'}),
-        this.f('order_qty','จำนวนที่สั่งผลิตรวม',{unit:'ดวง', req:1, big:1}), this.f('length_rows','จำนวนแถวแนวยาว',{calc:1}),
-        this.f('repeat_mm','ระยะตั้งงาน',{unit:'มม.'}), this.f('machine','เครื่องพิมพ์',{list:'dl_machine'})))}
-      ${this.sec(2, 'วัตถุดิบ (Material)', g(
-        this.f('supplier','วัตถุดิบของ (Supplier)',{lk:'suppliers', span:2}),
-        this.f('paper_code','รหัสกระดาษ',{lk:'raw_materials'}), this.f('paper_name','ชื่อกระดาษ',{}),
-        this.f('paper_type','ประเภทกระดาษ',{list:'dl_paper_type'}), this.f('adhesive','ประเภทกาว',{list:'dl_adhesive'}),
-        this.f('liner','หลังกระดาษ',{list:'dl_liner'}), this.f('web_width_mm','ความกว้างหน้าม้วน Web Width',{unit:'มม.'}),
-        this.f('run_m','ระยะยาวงานจริง',{unit:'เมตร', calc:1}), this.f('setup_waste_m','ระยะเผื่อตั้งเครื่อง Setup Waste',{unit:'เมตร'}),
-        this.f('total_m','รวมเมตรที่ต้องใช้',{unit:'เมตร', calc:1})))}
+      ${this.sec('', 'ข้อมูลใบสั่งผลิต', split(
+        this.f('customer_name','ชื่อลูกค้า',{lk:'customers', req:1}) +
+        this.f('product_code','รหัสงาน',{lk:'products'}) +
+        this.f('product_name','ชื่อสินค้าที่ผลิต',{req:1, area:1, rows:2, pull:1}) +
+        this.pair('งาน', this.ctl('job_label',{list:'dl_job_label', ph:'PROOFS / FORECAST / เคลมสินค้า'}) + this.c('other_job','งานอื่นๆ'), {cls:'p-chk-r'}) +
+        this.pair('ประเภทการผลิต', this.c('mto','Made to Order (MTO)') + this.c('mts','Made to Stock (MTS)'), {cls:'p-chips'}),
+        this.f('doc_date','วันที่เอกสาร') + this.f('po_no','P/O.No.') + this.f('so_no','S/O.No.') +
+        this.f('due_date','กำหนดส่ง') + this.f('due_note','กำหนดส่ง (ข้อความ)')))}
+      ${this.sec(1, 'ข้อมูลเบื้องต้น (Input)', split(
+        `<div class="wo-col two">${this.f('width_mm','กว้าง',{unit:'มม.'})}${this.f('height_mm','สูง',{unit:'มม.'})}
+          ${this.f('across','ดวง/แถว (Across)')}${this.f('die_rows','แถวในบล็อกมีด',{unit:'แถว'})}</div>`,
+        this.f('order_qty','จำนวนที่สั่งผลิตรวม',{unit:'ดวง', req:1, big:1}) + this.f('length_rows','จำนวนแถวแนวยาว',{calc:1}) +
+        this.f('repeat_mm','ระยะตั้งงาน',{unit:'มม.'}) +
+        `<div class="wf"><span>ช่องไฟแนวยาว (Gap) <small>(มม.)</small></span><input class="field calc" id="gapCalc" readonly tabindex="-1" title="= ระยะตั้งงาน − สูง"></div>` +
+        this.f('machine','เครื่องพิมพ์',{list:'dl_machine', red:1})))}
+      ${this.sec(2, 'วัตถุดิบ (Material)', split(
+        this.f('supplier','วัตถุดิบของ (Supplier)',{lk:'suppliers'}) +
+        this.f('paper_code','รหัสกระดาษ',{lk:'raw_materials'}) + this.f('paper_name','ชื่อกระดาษ',{pull:1}) +
+        this.f('paper_type','ประเภทกระดาษ',{list:'dl_paper_type', pull:1}) + this.f('adhesive','ประเภทกาว',{list:'dl_adhesive'}) +
+        this.f('liner','หลังกระดาษ',{list:'dl_liner'}),
+        this.f('web_width_mm','หน้ากว้าง Web Width',{unit:'มม.'}) + this.f('run_m','ระยะยาวงานจริง',{unit:'เมตร', calc:1}) +
+        this.f('setup_waste_m','เผื่อตั้งเครื่อง Setup',{unit:'เมตร'}) + this.f('total_m','รวมเมตรที่ต้องใช้',{unit:'เมตร', calc:1}) +
+        `<div class="wf"><span>รวมพื้นที่ที่ต้องใช้ <small>(ตร.ม.)</small></span><input class="field calc" id="sqm" readonly tabindex="-1" title="= รวมเมตร × หน้ากว้าง ÷ 1000"></div>`))}
       ${this.sec(3, 'ข้อมูลการพิมพ์ (Printing)', g(
         this.f('ink_type','ชนิดสี',{list:'dl_ink_type'}), this.f('color_count','จำนวนสี',{unit:'สี'}),
-        `<div class="wf"><span>สีพิเศษ</span>${row(this.c('special_color','มีสีพิเศษ'))}</div>`, this.f('pantone','รหัส Pantone'),
-        this.f('coating','การเคลือบ / กระดาษเคลือบ',{list:'dl_coating'}), this.f('coating_code','รหัสเคลือบ',{list:'dl_coating_code'}),
-        `<div class="wf"><span>Spot UV</span>${row(this.c('spot_uv','Spot UV'))}</div>`, this.f('paper_face_mm','หน้ากระดาษ',{unit:'มม.'})))}
+        this.pair('สีพิเศษ / Pantone', this.c('special_color','มี') + this.ctl('pantone',{ph:'รหัส Pantone'}), {cls:'p-chk-l'}),
+        this.f('coating','การเคลือบ',{list:'dl_coating'}), this.f('coating_code','รหัสเคลือบ',{list:'dl_coating_code'}),
+        this.f('paper_face_mm','หน้ากระดาษ',{unit:'มม.'}),
+        this.pair('Spot UV', this.c('spot_uv','Spot UV'), {cls:'p-chips'}),
+        this.pair('ฆ่ากาว', ['ไม่มี','บางส่วน','ทั้งหมด'].map(v => `<button type="button" class="rchip ${this.wo.adhesive_kill === v ? 'on' : ''}" data-oc="adhesive_kill" data-ov="${v}">${v === 'ไม่มี' ? 'ไม่ฆ่ากาว' : 'ฆ่ากาว' + v}</button>`).join('') +
+          this.ctl('adhesive_kill_note',{ph:'ตำแหน่ง/พื้นที่ เช่น ฆ่ากาวขอบซ้าย 5 มม.'}), {cls:'p-ak', span:2})))}
       ${this.sec(4, 'การจบงาน (Finishing) ไดคัท / Hot Stamping', g(
         this.f('diecut_no','เลขที่ไดคัท',{list:'dl_diecut_no'}), this.f('diecut_corner','มุมไดคัท',{list:'dl_diecut_corner'}),
-        this.f('corner_radius','ขนาดมุมมน',{unit:'มม.'}), this.f('diecut_machine','เครื่องไดคัท',{list:'dl_diecut_machine'}),
-        `<div class="wf"><span>ชนิดฟอยล์</span>${row(this.c('foil_type_check','ติ๊ก'))}</div>`, this.f('foil_type','ชนิดฟอยล์',{list:'dl_foil_type'}),
-        `<div class="wf"><span>สีฟอยล์</span>${row(this.c('foil_color_check','ติ๊ก'))}</div>`, this.f('foil_color','สีฟอยล์',{list:'dl_foil_color'}),
-        `<div class="wf span2"><span>หมายเหตุเทคนิค</span>${row(this.c('no_perf','ไม่มีปรุ'), this.c('perf','มีปรุ'))}</div>`,
-        this.f('perf_spec','ปรุกี่ (มม.)',{}), this.f('slitter','เครื่อง Slitter',{list:'dl_slitter'})))}
-      ${this.sec(5, 'รูปแบบการส่งมอบ (Packaging)', `
-        <div class="wc-row" style="margin-bottom:12px">${this.c('is_roll','ระบบม้วน')}${this.c('is_sheet','งานแผ่น')}${this.c('is_continuous','คอมต่อเนื่อง')}</div>
-        <div class="wo-two">
-          <div><h4>รายละเอียดงานม้วน</h4>${g(
-            `<div class="wf span2"><span>&nbsp;</span>${row(this.c('roll_outer','ม้วนนอก'), this.c('roll_inner','ม้วนใน'))}</div>`, dirPick,
-            this.f('core_size','แกนกระดาษ',{unit:'มม.'}), this.f('roll_gap','ช่องไฟ',{unit:'มม.'}),
-            this.f('roll_across','จำนวน/แถว',{unit:'ดวง/แถว'}), this.f('per_roll','จำนวน/ม้วน',{unit:'ดวง/ม้วน'}),
-            this.f('per_meter','จำนวน/เมตร'), this.f('margin_left','ขอบซ้าย',{unit:'มม.'}), this.f('margin_right','ขอบขวา',{unit:'มม.'}),
-            `<div class="wf"><span>ปรุ (งานม้วน)</span>${row(this.c('roll_perf','มีปรุ'), this.c('roll_no_perf','ไม่มีปรุ'))}</div>`,
-            this.f('roll_perf_mm','มีปรุกี่มม. (งานม้วน)'))}</div>
-          <div><h4>รายละเอียดงานแผ่น / คอมต่อเนื่อง</h4>${g(
-            this.f('layout_h','การจัดวาง (แนวนอน)',{unit:'ดวง/แถว'}), this.f('layout_v','การจัดวาง (แนวตั้ง)',{unit:'ดวง/แถว'}),
-            this.f('sheet_gap','ช่องไฟ (Gap)',{unit:'มม.'}), this.f('pack_qty','จำนวนบรรจุ',{unit:'ดวง/แพ็ค'}),
-            this.f('finished_size','ขนาดสำเร็จ',{unit:'มม.'}), this.f('fold_per_page','พับหน้าละ',{unit:'ดวง'}),
-            `<div class="wf span2"><span>&nbsp;</span>${row(this.c('cut_flush','ตัดชิดดวง'), this.c('leave_edge','เหลือขอบ'), this.c('sprocket','รูหนามเตย'), this.c('sheet_perf','มีปรุ'))}</div>`,
-            this.f('sheet_perf_mm','ปรุกี่ (มม.) งานแผ่น'))}</div>
-        </div>`)}
-      ${this.sec(6, 'บันทึกเพิ่มเติม / QC', g(
-        this.mode === 'new'
-          ? `<div class="wf span2"><span>ยอดคงเหลือยกมา <small>(ดึงจากสต็อกอัตโนมัติ)</small></span><div class="carry" id="carryBox">เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้</div></div>`
-          : this.f('carry_forward_qty','ยอดคงเหลือยกมา',{unit:'ดวง'}), this.f('actual_qty','ยอดผลิตจริง',{unit:'ดวง'}),
-        this.f('after_qc_qty','ยอดหลังจาก QC',{unit:'ดวง'}), this.f('lot_no','LOT Number'),
-        `<div class="wf span2"><span>กระดาษ</span>${row(this.c('has_paper','มีกระดาษแล้ว'), this.c('paper_ordered','สั่งกระดาษแล้ว'))}</div>`,
-        this.f('remark','หมายเหตุ',{area:1, rows:4, span:2}),
-        this.f('printer_name','ช่างพิมพ์'), this.f('diecut_name','ช่างไดคัท'), this.f('qc_name','QC'), this.f('art_name','Art'),
-        this.f('ordered_by','ผู้สั่งงาน')))}
+        this.f('diecut_machine','เครื่องไดคัท',{list:'dl_diecut_machine'}),
+        this.pair('ขนาดมุมมน (มม.)', ['0.5','1','1.5','2','3','4','5'].map(r => `<button type="button" class="rchip ${+this.wo.corner_radius === +r ? 'on' : ''}" data-r="${r}">R${r}</button>`).join('') + this.ctl('corner_radius',{ph:'อื่นๆ'}), {cls:'p-r', span:2}),
+        this.f('slitter','เครื่อง Slitter',{list:'dl_slitter'}),
+        this.pair('ชนิดฟอยล์', this.c('foil_type_check','') + this.ctl('foil_type',{list:'dl_foil_type'}), {cls:'p-chk-l'}),
+        this.pair('สีฟอยล์', this.c('foil_color_check','') + this.ctl('foil_color',{list:'dl_foil_color'}), {cls:'p-chk-l'}),
+        `<div></div>`,
+        this.pair('หมายเหตุเทคนิค', this.c('no_perf','ไม่มีปรุ') + this.c('perf','มีปรุ') + this.ctl('perf_spec',{ph:'ปรุกี่ มม. เช่น 3:1'}), {cls:'p-perf', span:2})))}
+      ${this.sec(5, 'รูปแบบการส่งมอบ (Packaging)', (() => {
+        const w = this.wo, none = !w.is_roll && !w.is_sheet && !w.is_continuous;
+        const dirBtn = d => `<button type="button" class="dir ${w.roll_direction === d ? 'on' : ''}" data-dir="${d}"><img src="${ROLL_IMG[d]}" alt="${d}"><span class="tick">${w.roll_direction === d ? '✓' : ''}</span></button>`;
+        return `<div class="pk-types">${this.c('is_roll','ระบบม้วน')}${this.c('is_sheet','งานแผ่น')}${this.c('is_continuous','คอมต่อเนื่อง')}
+            ${none ? '<span class="hint">เลือกรูปแบบงาน เพื่อซ่อนส่วนที่ไม่ใช้</span>' : ''}</div>
+          ${w.is_roll || none ? `<div class="pk-block"><h4>รายละเอียดงานม้วน</h4>
+            <div class="rollrow"><div class="rl">${this.c('roll_outer','ม้วนนอก')}</div>${['A','B','C','D'].map(dirBtn).join('')}</div>
+            <div class="rollrow"><div class="rl">${this.c('roll_inner','ม้วนใน')}</div>${['E','F','G','H'].map(dirBtn).join('')}</div>
+            ${g(this.f('core_size','แกนกระดาษ',{unit:'มม.'}), this.f('roll_gap','ช่องไฟ',{unit:'มม.'}), this.f('roll_across','จำนวน/แถว',{unit:'ดวง/แถว'}),
+              this.f('per_roll','จำนวน/ม้วน',{unit:'ดวง/ม้วน'}), this.f('per_meter','จำนวน/เมตร'), this.f('margin_left','ขอบซ้าย',{unit:'มม.'}),
+              this.f('margin_right','ขอบขวา',{unit:'มม.'}),
+              this.pair('ปรุ (งานม้วน)', this.c('roll_no_perf','ไม่มีปรุ') + this.c('roll_perf','มีปรุ') + this.ctl('roll_perf_mm',{ph:'กี่ มม.'}), {cls:'p-chk-l', span:2}))}</div>` : ''}
+          ${w.is_sheet || w.is_continuous || none ? `<div class="pk-block"><h4>รายละเอียดงานแผ่น / คอมต่อเนื่อง</h4>
+            ${g(this.f('layout_h','การจัดวาง (แนวนอน)',{unit:'ดวง/แถว'}), this.f('layout_v','การจัดวาง (แนวตั้ง)',{unit:'ดวง/แถว'}), this.f('sheet_gap','ช่องไฟ (Gap)',{unit:'มม.'}),
+              this.f('pack_qty','จำนวนบรรจุ',{unit:'ดวง/แพ็ค'}), this.f('finished_size','ขนาดสำเร็จ',{unit:'มม.'}), this.f('fold_per_page','พับหน้าละ',{unit:'ดวง'}),
+              this.pair('การตัด / ปรุ', this.c('cut_flush','ตัดชิดดวง') + this.c('leave_edge','เหลือขอบ') + this.c('sprocket','รูหนามเตย') + this.c('sheet_perf','มีปรุ') + this.ctl('sheet_perf_mm',{ph:'ปรุกี่ มม.'}), {cls:'p-chk-l', span:3}))}</div>` : ''}`;
+      })())}
+      ${this.sec(6, 'บันทึกเพิ่มเติม / QC', split(
+        (this.mode === 'new'
+          ? `<div class="wf"><span>ยอดคงเหลือยกมา</span><div class="carry" id="carryBox">เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้</div></div>`
+          : this.f('carry_forward_qty','ยอดคงเหลือยกมา',{unit:'ดวง'})) +
+        `<div class="wo-col two">${this.f('actual_qty','ยอดผลิตจริง',{unit:'ดวง'})}${this.f('after_qc_qty','ยอดหลังจาก QC',{unit:'ดวง'})}</div>` +
+        this.f('lot_no','LOT Number') +
+        this.f('remark','หมายเหตุ',{area:1, rows:3}),
+        this.f('printer_name','ช่างพิมพ์') + this.f('diecut_name','ช่างไดคัท') + this.f('qc_name','QC') + this.f('art_name','Artwork') +
+        this.f('ordered_by','ผู้สั่งงาน')) +
+        `<div class="wo-split" style="margin-top:0"><div class="wo-col">${this.pair('กระดาษ', this.c('has_paper','มีกระดาษแล้ว') + this.c('paper_ordered','สั่งกระดาษแล้ว'), {cls:'p-chips'})}</div></div>`)}
     </fieldset>`;
     // actions
     const A = this.mode === 'new'
@@ -1020,11 +1311,19 @@ const WOForm = {
          <button class="btn ghost" id="aPrint">พิมพ์ใบสั่งผลิต</button>
          <label class="wc ${this.wo.closed ? 'on' : ''}" style="margin-left:auto"><input type="checkbox" id="aClosed" ${this.wo.closed ? 'checked' : ''}> ปิดจ๊อบ</label>`;
     $('#woActions').innerHTML = A;
-    this.bind();
+    this.bind(); this.updSqm();
+    if (this.mode === 'new' && $('#carryBox') && this.carry !== undefined) this.checkStock();
   },
   bind(){
     const form = $('#woForm');
     form.querySelectorAll('[data-toggle]').forEach(h => h.onclick = () => this.toggleSec(h.dataset.toggle));
+    form.querySelectorAll('[data-oc]').forEach(b => b.onclick = () => {
+      const c = b.dataset.oc, on = this.wo[c] === b.dataset.ov; this.wo[c] = on ? null : b.dataset.ov; this.setDirty(true);
+      form.querySelectorAll(`[data-oc="${c}"]`).forEach(x => x.classList.toggle('on', !on && x === b)); });
+    form.querySelectorAll('.rchip[data-r]').forEach(b => b.onclick = () => {
+      const on = +this.wo.corner_radius === +b.dataset.r; this.setVal('corner_radius', on ? null : +b.dataset.r);
+      if (!on && !this.wo.diecut_corner) this.setVal('diecut_corner', 'มุมมน R');
+      form.querySelectorAll('.rchip[data-r]').forEach(x => x.classList.toggle('on', !on && x === b)); this.setDirty(true); });
     form.querySelectorAll('.lkf').forEach(el => {
       el.addEventListener('keydown', e => {
         if (e.key === 'F2' || e.key === 'Enter' && !el.value || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey)) {
@@ -1057,6 +1356,12 @@ const WOForm = {
       const ev = el.type === 'checkbox' ? 'change' : 'input';
       el.addEventListener(ev, () => {
         if (el.type === 'checkbox') { this.wo[c] = el.checked; el.parentElement.classList.toggle('on', el.checked); }
+        else if (isNumF(c) && el.type === 'text' && /^[\d,.\-]*$/.test(el.value)) {
+          const pos = el.selectionStart, before = el.value.slice(0, pos).replace(/,/g,'').length;
+          const raw = el.value.replace(/,/g,''); el.value = fmtIn(raw); this.wo[c] = raw === '' ? null : raw;
+          let n = 0, k = 0; while (k < el.value.length && n < before) { if (el.value[k] !== ',') n++; k++; }
+          try { el.setSelectionRange(k, k); } catch {}
+        }
         else this.wo[c] = el.value === '' ? null : el.value;
         this.setDirty(true);
         this.onChange(c);
@@ -1085,6 +1390,7 @@ const WOForm = {
   pick(c, t, r){
     if (t === 'customers') this.setVal('customer_name', r.short_name);
     if (t === 'suppliers') this.setVal('supplier', r.short_name);
+    if (t === 'products' && this.mode === 'new') setTimeout(() => this.copyLastSpec(r.code), 100);
     if (t === 'products') { this.setVal('product_code', r.code); this.setVal('product_name', r.name);
       if (!this.wo.width_mm && r.width_mm) this.setVal('width_mm', r.width_mm);
       if (!this.wo.height_mm && r.height_mm) this.setVal('height_mm', r.height_mm);
@@ -1097,21 +1403,56 @@ const WOForm = {
     const nxt = { customers:'product_code', products:'doc_date', suppliers:'paper_code', raw_materials:'paper_type' }[t];
     setTimeout(() => $(`#woForm [data-c="${nxt}"], #woForm [data-d="${nxt}"]`)?.focus(), 50);
   },
-  setVal(c, v){ this.wo[c] = v; const el = $(`#woForm [data-c="${c}"]`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } },
-  async checkStock(){
-    const box = $('#carryBox'); if (!box) return;
-    const cu = (this.wo.customer_name||'').trim(), pr = (this.wo.product_name||'').trim();
-    if (!cu || !pr) { this.carry = null; box.innerHTML = 'เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้'; return; }
-    let rows = []; try { rows = await API.stockFor(cu, pr); } catch {}
-    const total = rows.reduce((s,r) => s + (+r.stock_qty||0), 0); this.carry = {total, rows};
-    if (this.pull === undefined) this.pull = true;
-    box.innerHTML = total > 0
-      ? `<b class="ok-t">มีสต็อก ${fmtN(total)} ดวง</b> <small>จาก ${rows.map(r => `${esc(r.job_ticket)} (${fmtN(r.stock_qty)})`).join(', ')}</small>
-         <label class="wc ${this.pull ? 'on' : ''}" style="margin-top:4px"><input type="checkbox" id="pullChk" ${this.pull ? 'checked' : ''}> ดึงเป็นยอดยกมาอัตโนมัติเมื่อบันทึก</label>`
-      : `<span class="muted-t">ไม่มีสต็อก</span>`;
-    $('#pullChk')?.addEventListener('change', e => { this.pull = e.target.checked; e.target.parentElement.classList.toggle('on', this.pull); });
+  // ดึงสเปกจากใบสั่งผลิตล่าสุดของรหัสงานเดียวกัน (ไม่ดึง วันที่/PO/SO/จำนวน/ยอดยกมา/ส่วนที่ 6)
+  SKIP_COPY: new Set(['job_ticket','doc_date','po_no','so_no','due_date','due_note','order_qty','other_job','job_label',
+    'carry_forward_qty','actual_qty','after_qc_qty','lot_no','has_paper','paper_ordered','printer_name','diecut_name','qc_name','art_name','ordered_by','remark',
+    'length_rows','run_m','total_m']),
+  async copyLastSpec(code){
+    if (!code) return;
+    let last; try { last = await API.lastJobFor(code); } catch { return; }
+    if (!last) { toast('รหัสงานนี้ยังไม่เคยเปิดใบสั่งผลิต — กรอกสเปกใหม่'); return; }
+    if (!(await Office.confirm(`รหัสงานนี้เคยผลิตแล้ว ล่าสุด JOB ${last.job_ticket}${last.doc_date ? ' (' + isoToTh(last.doc_date) + ')' : ''}\nดึงสเปกจากใบนั้นมาใช้ไหม? (กระดาษ ขนาด สี ไดคัท การม้วน ฯลฯ)\n\nไม่ดึง: วันที่ PO/SO จำนวนสั่งผลิต และส่วนที่ 6`))) return;
+    WO_FIELDS.forEach(([c]) => { if (!this.SKIP_COPY.has(c) && last[c] !== undefined && c !== 'customer_name') this.wo[c] = last[c]; });
+    if (!this.wo.customer_name) this.wo.customer_name = last.customer_name;
+    this.copiedFrom = last.job_ticket;
+    this.setDirty(true); this.render(); this.onChange('order_qty');
+    toast(`ดึงสเปกจาก ${last.job_ticket} แล้ว — ตรวจทานและใส่จำนวนสั่งผลิต`);
   },
+  setVal(c, v){ this.wo[c] = v; const el = $(`#woForm [data-c="${c}"]`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = isNumF(c) ? fmtIn(v) : (v ?? ''); } },
+  async checkStock(){
+    const box = $('#carryBox'), badge = $('#stockBadge');
+    const cu = (this.wo.customer_name||'').trim(), pr = (this.wo.product_name||'').trim();
+    if (!cu || !pr) { this.carry = null; if (badge) badge.innerHTML = ''; if (box) box.innerHTML = 'เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้'; return; }
+    let rows = []; try { rows = await API.stockFor(cu, pr); } catch {}
+    if (this.mode === 'edit') rows = rows.filter(r => r.job_ticket !== this.wo.job_ticket);
+    const total = rows.reduce((s,r) => s + (+r.stock_qty||0), 0); this.carry = {total, rows};
+    if (badge) badge.innerHTML = total > 0
+      ? `<span class="sb-yes">📦 มีสต็อก ${fmtN(total)} ดวง</span> <small>(${rows.map(r => `${esc(r.job_ticket)}: ${fmtN(r.stock_qty)}`).join(', ')})</small>`
+      : `<span class="sb-no">ไม่มีสต็อก — ผลิตใหม่</span>`;
+    if (!box) return;
+    if (this.pull === undefined) this.pull = true;
+    if (this.carryManual) {
+      box.innerHTML = `<input class="field" id="carryIn" inputmode="decimal" style="width:140px" value="${fmtIn(this.wo.carry_forward_qty)}" placeholder="ใส่ยอดเอง"> <small>ดวง (คีย์เอง ไม่ตัดสต็อกจาก JOB เก่า)</small>
+        <button type="button" class="btn ghost sm" id="carryAuto">↺ ใช้ยอดจากระบบ</button>`;
+      $('#carryIn').oninput = e => { const raw = e.target.value.replace(/[^\d.]/g,''); e.target.value = fmtIn(raw); const n = parseFloat(raw); this.wo.carry_forward_qty = isNaN(n) ? null : n; this.setDirty(true); };
+      $('#carryAuto').onclick = () => { this.carryManual = false; this.wo.carry_forward_qty = null; this.checkStock(); };
+      return;
+    }
+    box.innerHTML = (total > 0
+      ? `<b class="ok-t">มีสต็อก ${fmtN(total)} ดวง</b> <small>จาก ${rows.map(r => `${esc(r.job_ticket)} (${fmtN(r.stock_qty)})`).join(', ')}</small>
+         <label class="wc ${this.pull ? 'on' : ''}"><input type="checkbox" id="pullChk" ${this.pull ? 'checked' : ''}> ดึงเป็นยอดยกมาเมื่อบันทึก</label>`
+      : `<span class="muted-t">ไม่มีสต็อก</span>`) + ` <button type="button" class="btn ghost sm" id="carryEdit">✏️ แก้เอง</button>`;
+    $('#pullChk')?.addEventListener('change', e => { this.pull = e.target.checked; e.target.parentElement.classList.toggle('on', this.pull); });
+    $('#carryEdit').onclick = () => { this.carryManual = true; if (this.wo.carry_forward_qty == null && total > 0) this.wo.carry_forward_qty = total; this.checkStock(); setTimeout(() => $('#carryIn')?.focus(), 30); };
+  },
+  updGap(){ const el = $('#gapCalc'); if (!el) return; const r = parseFloat(String(this.wo.repeat_mm ?? '').replace(/,/g,'')), h = parseFloat(String(this.wo.height_mm ?? '').replace(/,/g,''));
+    el.value = r > 0 && h > 0 ? +(r - h).toFixed(2) : ''; },
+  updSqm(){ this.updGap(); const el = $('#sqm'); if (!el) return; const m = parseFloat(String(this.wo.total_m ?? '').replace(/,/g,'')), w = parseFloat(String(this.wo.web_width_mm ?? '').replace(/,/g,''));
+    el.value = m > 0 && w > 0 ? (m * w / 1000).toLocaleString('en-US', {maximumFractionDigits: 2}) : ''; },
   onChange(c){
+    if (['total_m','web_width_mm','order_qty','across','die_rows','repeat_mm','setup_waste_m','height_mm'].includes(c)) setTimeout(() => this.updSqm());
+    if (['is_roll','is_sheet','is_continuous'].includes(c)) setTimeout(() => this.render());
+    if (c === 'corner_radius') $('#woForm').querySelectorAll('.rchip[data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r === +this.wo.corner_radius));
     if (['customer_name','product_name','product_code'].includes(c)) { clearTimeout(this._st); this._st = setTimeout(() => this.checkStock(), 400); }
     const w = this.wo, N = x => { const n = parseFloat(String(x ?? '').replace(/,/g,'')); return isNaN(n) ? null : n; };
     if (['order_qty','across','die_rows','repeat_mm','setup_waste_m'].includes(c)) {
@@ -1157,8 +1498,9 @@ const WOForm = {
       if (kind === 'update') { await API.updateWorkOrder(this.wo.job_ticket, p); job = this.wo.job_ticket; }
       let carry = null;
       if (kind !== 'update') {
-        const pull = kind === 'revise' ? false : (kind === 'copy' ? true : this.pull !== false);
-        if (kind !== 'revise') p.carry_forward_qty = null;   // ระบบคำนวณยอดยกมาจากสต็อกให้
+        let pull = kind === 'revise' ? false : (kind === 'copy' ? true : this.pull !== false);
+        if (kind === 'new' && this.carryManual) { pull = false; }   // คีย์ยอดยกมาเอง
+        else if (kind !== 'revise') p.carry_forward_qty = null;   // ระบบคำนวณยอดยกมาจากสต็อกให้
         const res = await API.createWorkOrder(p, kind === 'revise' ? 'revise' : 'new', this.wo.job_ticket, pull);
         job = res.job_ticket; carry = res.carry;
       }
@@ -1230,6 +1572,7 @@ const MasterPage = {
         <td><div class="rowact"><button class="btn ghost sm" data-e="${i}">แก้ไข</button><button class="btn ghost sm" data-d="${i}" style="color:var(--bad)">ลบ</button></div></td></tr>`).join('')}
       </tbody></table>${this.more ? `<div class="hint" style="padding:10px 14px">แสดง 100 รายการแรก — พิมพ์ค้นหาเพื่อหาเฉพาะรายการ</div>` : ''}` : `<div class="empty">ไม่พบข้อมูล</div>`;
     $('#mtList').querySelectorAll('[data-e]').forEach(b => b.onclick = () => this.edit(this.rows[+b.dataset.e]));
+    $('#mtList').querySelectorAll('tbody tr').forEach((tr, i) => tr.ondblclick = () => this.edit(this.rows[i]));
     $('#mtList').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
       const r = this.rows[+b.dataset.d];
       if (!(await Office.confirm(`ลบ ${M.title} "${r.short_name || r.name || r.code}"? (ใบสั่งผลิตเดิมที่ใช้ชื่อนี้จะไม่ถูกลบ)`))) return;
@@ -1378,7 +1721,7 @@ const Office = {
           <button class="tab" data-t="inbox">ตรวจข้อมูลสแกน <span class="badge hidden" id="badge"></span></button>
           <button class="tab" data-t="progress">ติดตามงาน</button>
           <button class="tab" data-t="qr">พิมพ์ใบสั่งผลิต</button>
-          <button class="tab" data-t="master">ข้อมูลหลัก</button>
+          <button class="tab" data-t="master">ฐานข้อมูล</button>
           <button class="tab" data-t="emp">พนักงาน</button>
         </nav>
         <div class="who">${esc(s.email)} ${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
@@ -1592,6 +1935,7 @@ const Office = {
     $('#page').innerHTML = `<div class="toolbar noprint">
         <input id="qj" class="field" style="max-width:280px;padding:9px 12px" placeholder="เลขที่ JOB เช่น 6910/30" list="jobList" autocomplete="off" value="${esc(store.get('vp_lastjob',''))}">
         <datalist id="jobList"></datalist>
+        <div class="seg" id="tplSeg"><button data-v="1">แบบเดิม (Excel)</button><button data-v="2">แบบระบบ</button></div>
         <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint" disabled>พิมพ์ A4</button>
         <div class="sp"></div>
         <label class="hint">ผู้สั่งงาน <input id="qby" class="field" style="padding:5px 9px;width:120px;display:inline-block" value="${esc(store.get('vp_orderby',''))}"></label>
@@ -1610,7 +1954,7 @@ const Office = {
       store.set('vp_lastjob', wo.job_ticket);
       const b = $('#qbase').value.trim();
       const url = d => `${b}?scan=${d}&job=${encodeURIComponent(wo.job_ticket)}`;
-      $('#qout').innerHTML = jobTicketHTML(wo, $('#qby').value.trim());
+      $('#qout').innerHTML = (store.get('vp_tpl', '1') === '2' ? jobTicketHTML2 : jobTicketHTML)(wo, $('#qby').value.trim());
       ['prod','qc'].forEach(d => new QRCode($('#tkq_' + d), {text: url(d), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M}));
       $('#qprint').disabled = false;
       if (Office.autoPrint === wo.job_ticket) {   // มาจากปุ่ม "บันทึก + พิมพ์"
@@ -1620,6 +1964,9 @@ const Office = {
         setTimeout(() => window.print(), 400);
       }
     };
+    const tseg = () => document.querySelectorAll('#tplSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === store.get('vp_tpl', '1')));
+    document.querySelectorAll('#tplSeg button').forEach(b => b.onclick = () => { store.set('vp_tpl', b.dataset.v); tseg(); if ($('#qj').value) gen(); });
+    tseg();
     $('#qgo').onclick = gen; $('#qj').onkeydown = e => { if (e.key === 'Enter') gen(); };
     if ($('#qj').value) gen();
   },
