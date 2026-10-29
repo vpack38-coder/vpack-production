@@ -686,6 +686,16 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .pv-bar{height:12px;background:#f1f5f9;border-radius:6px;overflow:hidden}.pv-bar i{display:block;height:100%;border-radius:6px}.pv-bar.waste i{background:linear-gradient(90deg,#f59e0b,#dc2626)}.pv-bar.mat i{background:linear-gradient(90deg,#38bdf8,#0369a1)}
 /* ---------- รายงานสต็อก ---------- */
 #printArea{display:none}
+#rvSeg{flex-wrap:wrap}
+.kp-bar .kp-s{width:auto;padding:4px 8px}.kp-bar .kp-d{width:118px;padding:4px 8px;display:inline-block}
+.kp-h{margin:14px 0 6px;color:#1f3a68}
+.kp-cb{display:flex;align-items:center;gap:8px;justify-content:flex-end}.kp-cb span{min-width:52px}.kp-cb .pv-bar{flex:1;min-width:80px}
+.pv-bar.kp i{background:#2563eb}.pv-bar.good i{background:#16a34a}.pv-bar.mid i{background:#f59e0b}.pv-bar.bad i{background:#dc2626}.pv-bar.lead i{background:linear-gradient(90deg,#38bdf8,#2563eb)}
+th.kp-w{min-width:170px} td.kp-b{font-weight:700}
+.kp-tabs{margin:0 0 10px;flex-wrap:wrap}.kp-tabs button{font-size:15px;padding:7px 16px}
+.spec-old td,.spec-old th{text-align:left;vertical-align:middle;padding:5px 8px}.spec-old td.num,.spec-old th.num{text-align:right}.spec-old td:first-child{background:none;font-weight:600}
+a.kp-due{color:inherit;text-decoration:none;border-bottom:1px dashed #94a3b8;white-space:nowrap;cursor:pointer}.md-due[data-due]{cursor:pointer}
+.de-q{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}.de-q .btn{display:inline-flex;flex-direction:column;align-items:center;line-height:1.2;min-width:64px}.de-q .btn small{font-size:10.5px;opacity:.75}.de-q .btn.on{background:var(--ink);color:#fff}
 .rp-cols{display:flex;flex-wrap:wrap;gap:6px}
 #dlg:has(.rp-cols){max-width:620px}
 .rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}
@@ -882,6 +892,9 @@ const Demo = {
     if (Object.keys(ch).length) (d.clog ||= []).push({tbl: 'work_orders', rec_key: job, action: 'update', changes: ch, changed_by: 'ทดลอง', changed_at: new Date().toISOString()});
     Object.assign(w, p); w.updated_at = new Date().toISOString(); this.save(); },
   async progressAll(){ return this.calc(); },
+  async kpiJobs(){ return this.calc(); },
+  async kpiLogs(from, to){ const d = this.db(), f = x => { const y = Kpi.dayOf(x.logged_at); return y >= from && y <= to; }; return {prod: d.prod_logs.filter(f), qc: d.qc_logs.filter(f)}; },
+  async kpiFirstProd(jobs){ const out = {}, J = new Set(jobs); this.db().prod_logs.forEach(x => { if (J.has(x.job_ticket) && x.logged_at && (!out[x.job_ticket] || x.logged_at < out[x.job_ticket])) out[x.job_ticket] = x.logged_at; }); return out; },
   async changeLog(tbl, key){ return (this.db().clog || []).filter(x => x.tbl === tbl && x.rec_key === key).reverse(); },
   async recentChanges(n){ return (this.db().clog || []).slice(-(n || 150)).reverse(); },
   qsDb(){ const d = this.db(); d.fc ||= []; d.dlv ||= []; return d; },
@@ -983,6 +996,8 @@ const Demo = {
     if (orig === null) { if (m.lookups.some(x => x.category === cat && x.value === value)) throw new Error('duplicate'); m.lookups.push({category:cat, value, sort}); }
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
+  async woValueCounts(col){ const m = {}; this.db().wo.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
+  async woRename(col, olds, nv){ let n = 0; this.db().wo.forEach(x => { if (olds.includes(x[col])) { x[col] = nv; n++; } }); this.save(); return n; },
   async lastJobFor(code){ return [...this.db().wo].filter(w => (w.product_code||'').trim() === (code||'').trim()).sort((a,b) => b.job_ticket.localeCompare(a.job_ticket))[0] || null; },
   async getWorkOrder(job){ return this.db().wo.find(w => w.job_ticket === job.trim()) || null; },
   async searchJobs(s){ s = (s||'').toLowerCase(); return this.db().wo.filter(w => !s || (w.job_ticket+w.customer_name+w.product_name).toLowerCase().includes(s)).slice(0,30); },
@@ -1049,6 +1064,9 @@ const Live = {
     else this.chk(await this.sb.from('lookups').update({value, sort}).eq('category', cat).eq('value', orig));
   },
   async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
+  async woValueCounts(col){ const r = await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,' + col).order('job_ticket')), m = {};
+    r.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
+  async woRename(col, olds, nv){ const r = this.chk(await this.sb.from('work_orders').update({[col]: nv}).in(col, olds).select('job_ticket')); return r.length; },
   async nextJobTicket(){ return this.chk(await this.sb.rpc('next_job_ticket')); },
   async createWorkOrder(p, mode, base, pull){ return this.chk(await this.sb.rpc('create_work_order', {p, p_mode: mode, p_base: base || null, p_pull: !!pull})); },
   async stockView(s){
@@ -1108,6 +1126,18 @@ const Live = {
     for (const u of plan.upd) this.chk(await this.sb.from('deliveries').update({...u.patch, updated_at: now}).eq('id', u.id));
     return plan.stats; },
   async progressAll(){ return this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,customer_name,product_name,product_code,machine,printer,diecutter,paper_type,paper_code,eff_prod,eff_qc,waste_qty,order_qty,cancelled,closed').order('job_ticket')); },
+  async kpiJobs(){ const [p, w] = await Promise.all([
+      this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,customer_name,product_name,product_code,machine,order_qty,due_date,closed,cancelled,created_at,eff_prod,eff_qc,print_status,diecut_status,qc_status,last_prod_at,last_qc_at,ready_qty,backlog_qty,stock_qty').order('job_ticket')),
+      this.pageAll(() => this.sb.from('work_orders').select('job_ticket,doc_date,due_note').order('job_ticket'))]);
+    const m = new Map(w.map(x => [x.job_ticket, x])); p.forEach(r => { const x = m.get(r.job_ticket); r.doc_date = x?.doc_date || null; r.due_note = x?.due_note || null; }); return p; },
+  async kpiLogs(from, to){ const a = from + 'T00:00:00+07:00', b = to + 'T23:59:59.999+07:00', sel = 'job_ticket,employee_name,status,qty,note,logged_at';
+    const [prod, qc] = await Promise.all([this.pageAll(() => this.sb.from('production_logs').select(sel + ',step').gte('logged_at', a).lte('logged_at', b).order('id')),
+      this.pageAll(() => this.sb.from('qc_logs').select(sel).gte('logged_at', a).lte('logged_at', b).order('id'))]);
+    return {prod, qc}; },
+  async kpiFirstProd(jobs){ const out = {};
+    for (let k = 0; k < jobs.length; k += 150) { const r = await this.pageAll(() => this.sb.from('production_logs').select('job_ticket,logged_at').in('job_ticket', jobs.slice(k, k + 150)).order('id'));
+      r.forEach(x => { if (x.logged_at && (!out[x.job_ticket] || Date.parse(x.logged_at) < Date.parse(out[x.job_ticket]))) out[x.job_ticket] = x.logged_at; }); }
+    return out; },
   async changeLog(tbl, key){ try { return this.chk(await this.sb.from('change_log').select('*').eq('tbl', tbl).eq('rec_key', key).order('changed_at', {ascending: false}).limit(200)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
   async recentChanges(n){ try { return this.chk(await this.sb.from('change_log').select('*').order('changed_at', {ascending: false}).limit(n || 150)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
   async fetchTable(t, order){ let out = [], from = 0;
@@ -2105,7 +2135,9 @@ const MasterPage = {
         ${vals.map((v,i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(v.value)}</td><td><span class="rowact">
         <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''} title="เลื่อนขึ้น">↑</button><button class="btn ghost sm" data-rn="${i}">แก้ไข</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">ยังไม่มีรายการ</div>'}
-      <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบแล้วใบสั่งผลิตเดิมไม่เปลี่ยน</div>`;
+      <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบหรือเปลี่ยนชื่อที่นี่ ใบสั่งผลิตเดิมไม่เปลี่ยน (ใช้ส่วนด้านล่างเพื่อเปลี่ยนในใบเก่า)</div>
+      <div id="specOld"></div>`;
+    this.drawOld(vals.map(v => v.value), label);
     const add = async () => { const v = $('#specNew').value.trim(); if (!v) return;
       try { await API.specSave(this.cat, v, null, vals.length); WOForm.L = null; this.drawSpec(); } catch (e) { toast(/duplicate|unique/i.test(e.message) ? 'มีรายการนี้อยู่แล้ว' : e.message); } };
     $('#specAdd').onclick = add; $('#specNew').onkeydown = e => { if (e.key === 'Enter') add(); };
@@ -2115,12 +2147,39 @@ const MasterPage = {
     document.querySelectorAll('#specList tr[data-i]').forEach(tr => tr.ondblclick = () => tr.querySelector('[data-rn]').click());
     document.querySelectorAll('[data-rn]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.rn];
       const nv = await this.ask(`แก้ไขรายการใน ${label}`, v.value); if (!nv || nv === v.value) return;
-      try { await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; this.drawSpec(); } catch (e) { toast(e.message); } });
+      try { await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; } catch (e) { return toast(e.message); }
+      try { const cnt = (await API.woValueCounts(this.cat))[v.value] || 0;
+        if (cnt && await Office.confirm(`มีใบสั่งผลิตเก่า ${fmtN(cnt)} ใบที่ใช้ "${v.value}"\nเปลี่ยนเป็น "${nv}" ด้วยไหม?`)) { const n = await API.woRename(this.cat, [v.value], nv); toast(`เปลี่ยนในใบสั่งผลิตแล้ว ${fmtN(n)} ใบ`); Kpi._jobs = null; } } catch (e) { toast('เปลี่ยนในใบเก่าไม่ได้: ' + e.message); }
+      this.drawSpec(); });
     document.querySelectorAll('[data-up]').forEach(b => b.onclick = async () => { const i = +b.dataset.up; if (!i) return;
       const a = vals[i-1], c = vals[i];
       await API.specSave(this.cat, c.value, c.value, i - 1); await API.specSave(this.cat, a.value, a.value, i);
       // ให้เลขลำดับต่อเนื่อง
       WOForm.L = null; this.drawSpec(); });
+  },
+  // ชื่อที่ยังใช้อยู่ในใบสั่งผลิตเก่า แต่ไม่มีในรายการแล้ว → เปลี่ยนเป็นชื่อใหม่ทีเดียว
+  async drawOld(cur, label){
+    let m; try { m = await API.woValueCounts(this.cat); } catch (e) { return; }
+    const tok = v => String(v).toLowerCase().split(/[\s\-_/().]+/).filter(Boolean);
+    const guess = o => { const a = tok(o), c = cur.filter(v => a.every(t => tok(v).includes(t))).sort((x, y) => x.length - y.length);
+      return c[0] || cur.find(v => v.toLowerCase().replace(/\s+/g, '') === String(o).toLowerCase().replace(/\s+/g, '')) || ''; };
+    const olds = Object.keys(m).filter(v => !cur.includes(v)).sort((a, b) => m[b] - m[a]);
+    if (!olds.length) { $('#specOld').innerHTML = cur.length ? `<div class="hint" style="padding:0 14px 12px">✅ ใบสั่งผลิตเก่าทุกใบใช้ชื่อ${esc(label)}ตรงกับรายการแล้ว</div>` : ''; return; }
+    $('#specOld').innerHTML = `<div style="border-top:2px solid var(--line);padding:10px 14px">
+      <b>🔁 ชื่อ${esc(label)}ในใบสั่งผลิตเก่า ที่ไม่มีในรายการด้านบน (${olds.length} ชื่อ)</b>
+      <div class="hint" style="margin:2px 0 8px">เลือกชื่อใหม่ที่ต้องการ แล้วกด "เปลี่ยน" — ระบบเดาให้แล้ว ตรวจก่อนกด · การเปลี่ยนจะเก็บในประวัติการแก้ไขของแต่ละใบ</div>
+      <table class="spec-old"><thead><tr><th>ชื่อเดิมในใบสั่งผลิต</th><th class="num" style="width:90px">จำนวนใบ</th><th>เปลี่ยนเป็น</th><th style="width:90px"></th></tr></thead><tbody>
+      ${olds.map((o, i) => `<tr><td>${esc(o)}</td><td class="num">${fmtN(m[o])}</td><td><select class="field so-new" data-i="${i}" style="padding:4px 8px;width:100%"><option value="">— ไม่เปลี่ยน —</option>${cur.map(v => `<option ${v === guess(o) ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></td>
+        <td><button class="btn sm" data-ren="${i}">เปลี่ยน</button></td></tr>`).join('')}</tbody></table>
+      <div style="margin-top:8px"><button class="btn sm" id="soAll">🔁 เปลี่ยนทุกแถวที่เลือกชื่อใหม่ไว้</button></div></div>`;
+    const run = async idx => { const pairs = idx.map(i => [olds[i], document.querySelector(`.so-new[data-i="${i}"]`).value]).filter(([, n]) => n);
+      if (!pairs.length) return toast('เลือกชื่อใหม่ก่อน');
+      const tot = pairs.reduce((a, [o]) => a + m[o], 0);
+      if (!(await Office.confirm(`เปลี่ยนชื่อในใบสั่งผลิตเก่า ${fmtN(tot)} ใบ?\n\n${pairs.map(([o, n]) => `${o} → ${n}  (${m[o]} ใบ)`).join('\n')}`))) return;
+      let n = 0; try { for (const [o, nv] of pairs) n += await API.woRename(this.cat, [o], nv); } catch (e) { toast('เปลี่ยนไม่สำเร็จ: ' + e.message); }
+      toast(`เปลี่ยนแล้ว ${fmtN(n)} ใบ`); Kpi._jobs = null; this.drawSpec(); };
+    document.querySelectorAll('[data-ren]').forEach(b => b.onclick = () => run([+b.dataset.ren]));
+    $('#soAll').onclick = () => run(olds.map((_, i) => i));
   },
   ask(title, val){ return new Promise(res => {
     $('#dlgBody').innerHTML = `<h3>${esc(title)}</h3><input id="a_v" class="field" value="${esc(val)}"><div class="acts"><button class="btn ghost" id="a_n">ยกเลิก</button><button class="btn" id="a_y">บันทึก</button></div>`;
@@ -3105,7 +3164,7 @@ const MachineDash = {
       return `<div class="md-card ${run ? 'busy' : 'idle'}"><div class="md-h"><b>${esc(m)}</b><span class="md-badge">${run ? `🟢 กำลังทำ ${run} งาน` : '⚪ ว่าง'}</span></div>
         <div class="md-sub">คิวรอผลิต ${q} งาน · รวมยอดสั่งที่แสดง ${fmtN(js.reduce((a, r) => a + (+r.order_qty || 0), 0))} ดวง</div>
         ${js.length ? js.map(r => `<div class="md-job" data-open="${esc(r.job_ticket)}">
-          <div class="md-j1"><a href="#" class="jl">${esc(r.job_ticket)}</a><span class="st ${/กำลัง|ทยอย/.test(r.print_status) ? 'st-run' : /ยังไม่เริ่ม/.test(r.print_status) ? 'st-no' : 'st-ok'}">${esc(r.print_status)}</span>${r.due_date ? `<span class="md-due ${r.due_date < todayISO() ? 'late' : ''}">ส่ง ${fmtD(r.due_date)}</span>` : ''}</div>
+          <div class="md-j1"><a href="#" class="jl">${esc(r.job_ticket)}</a><span class="st ${/กำลัง|ทยอย/.test(r.print_status) ? 'st-run' : /ยังไม่เริ่ม/.test(r.print_status) ? 'st-no' : 'st-ok'}">${esc(r.print_status)}</span><span class="md-due ${r.due_date && r.due_date < todayISO() ? 'late' : ''}" data-due="${esc(r.job_ticket)}" title="แตะเพื่อแก้กำหนดส่ง">${r.due_date ? 'ส่ง ' + fmtD(r.due_date) : 'ไม่ระบุวันส่ง'} ✏️</span></div>
           <div class="md-c">${esc(r.customer_name || '')}</div><div class="md-p">${esc(r.product_name || '')}</div>
           <div class="md-bar"><i style="width:${pct(r)}%"></i></div>
           <div class="md-n"><span>ผลิตแล้ว ${fmtN(Math.max(+r.prod_qty || 0, +r.print_qty || 0))} / ${fmtN(r.order_qty)} (${pct(r)}%)</span><span>${r.printer && r.printer !== '-' ? '👷 ' + esc(r.printer) : ''}${r.last_prod_at ? ' · ' + fmtT(r.last_prod_at) : ''}</span></div></div>`).join('')
@@ -3118,7 +3177,8 @@ const MachineDash = {
       ${machines.filter(m => by(m).length).map(m => by(m).map((r, i) => `<tr><td>${i ? '' : `<b>${esc(m)}</b>`}</td><td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td class="num">${fmtN(r.order_qty)}</td></tr>`).join('')
         + (by(m).length > 1 ? `<tr class="md-subt"><td></td><td colspan="4">รวม ${esc(m)}</td><td class="num"><b>${fmtN(by(m).reduce((a, r) => a + (+r.order_qty || 0), 0))}</b></td></tr>` : '')).join('')}
       <tr class="md-tot"><td colspan="5"><b>ผลรวมทั้งหมด</b></td><td class="num"><b>${fmtN(tot)}</b></td></tr></tbody></table></div>`;
-    $('#mdBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+    $('#mdBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { if (e.target.closest('[data-due]')) return; e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+    $('#mdBody').querySelectorAll('[data-due]').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); const r = rows.find(x => x.job_ticket === a.dataset.due); DueEdit.open([r], () => this.load()); });
   }
 };
 
@@ -3317,13 +3377,351 @@ const PivotRpt = {
   }
 };
 
+
+/* ---------- แก้กำหนดส่งแบบเร็ว (1 JOB หรือหลาย JOB พร้อมกัน) ---------- */
+const DueEdit = {
+  open(list, onDone){   // list = [{job_ticket, due_date, customer_name, product_name}]
+    const one = list.length === 1, w = list[0], t = todayISO();
+    const add = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString().slice(0, 10);
+    $('#dlgBody').innerHTML = `<h3>📅 แก้กำหนดส่ง ${one ? 'JOB ' + esc(w.job_ticket) : list.length + ' JOB'}</h3>
+      ${one ? `<div class="hint" style="margin-bottom:8px">${esc(w.customer_name || '')}<br>${esc(w.product_name || '')}<br>กำหนดส่งเดิม: <b>${w.due_date ? fmtD(w.due_date) : 'ไม่ระบุ'}</b></div>`
+        : `<div class="hint" style="margin-bottom:8px;max-height:120px;overflow:auto">${list.map(x => `${esc(x.job_ticket)} · เดิม ${x.due_date ? fmtD(x.due_date) : '–'}`).join('<br>')}</div>`}
+      <div class="seg" style="flex-wrap:wrap;margin-bottom:8px"><button data-m="set" class="on">ตั้งวันใหม่</button><button data-m="shift">เลื่อนจากวันเดิม</button></div>
+      <div id="de_set"><label>กำหนดส่งใหม่</label><input id="de_d" class="field" placeholder="วว/ดด/ปปปป" value="${one && w.due_date ? isoToTh(w.due_date) : ''}" style="max-width:180px">
+        <div class="de-q">${[['พรุ่งนี้', 1], ['+3 วัน', 3], ['+7 วัน', 7], ['+14 วัน', 14]].map(([l, n]) => `<button class="btn ghost sm" data-d="${add(t, n)}">${l}<small>${isoToTh(add(t, n)).slice(0, 5)}</small></button>`).join('')}<button class="btn ghost sm" data-d="">ไม่ระบุ</button></div>
+        <div class="hint">ปุ่มลัดนับจากวันนี้ (${isoToTh(t)})</div></div>
+      <div id="de_shift" class="hidden"><label>เลื่อนออกไปอีก</label><div class="de-q">${[1, 2, 3, 5, 7, 14].map(n => `<button class="btn ghost sm" data-s="${n}">+${n} วัน</button>`).join('')}<button class="btn ghost sm" data-s="-1">−1 วัน</button></div>
+        <div class="hint" id="de_prev">เลือกจำนวนวัน แล้วกดบันทึก (JOB ที่ไม่มีวันเดิม จะนับจากวันนี้)</div></div>
+      <div class="acts"><button class="btn ghost" id="de_x">ยกเลิก</button><button class="btn" id="de_ok">💾 บันทึก</button></div>`;
+    const d = $('#dlg'); if (!d.open) d.showModal();
+    let mode = 'set', shift = 0;
+    document.querySelectorAll('#dlgBody .seg button').forEach(b => b.onclick = () => { mode = b.dataset.m; document.querySelectorAll('#dlgBody .seg button').forEach(x => x.classList.toggle('on', x === b));
+      $('#de_set').classList.toggle('hidden', mode !== 'set'); $('#de_shift').classList.toggle('hidden', mode !== 'shift'); });
+    document.querySelectorAll('#dlgBody [data-d]').forEach(b => b.onclick = () => { $('#de_d').value = b.dataset.d ? isoToTh(b.dataset.d) : ''; document.querySelectorAll('#dlgBody [data-d]').forEach(x => x.classList.toggle('on', x === b)); });
+    document.querySelectorAll('#dlgBody [data-s]').forEach(b => b.onclick = () => { shift = +b.dataset.s; document.querySelectorAll('#dlgBody [data-s]').forEach(x => x.classList.toggle('on', x === b));
+      $('#de_prev').innerHTML = list.slice(0, 6).map(x => `${esc(x.job_ticket)}: ${x.due_date ? fmtD(x.due_date) : 'วันนี้'} → <b>${fmtD(add(x.due_date || t, shift))}</b>`).join('<br>') + (list.length > 6 ? '<br>…' : ''); });
+    $('#de_x').onclick = () => d.close();
+    $('#de_ok').onclick = async () => {
+      let nd = null;
+      if (mode === 'set') { const v = $('#de_d').value.trim(); if (v) { nd = thToIso(v); if (!nd) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); } }
+      else if (!shift) return toast('เลือกจำนวนวันที่จะเลื่อนก่อน');
+      $('#de_ok').disabled = true; let n = 0;
+      try { for (const x of list) { const p = {due_date: mode === 'set' ? nd : add(x.due_date || t, shift)}; await API.updateWorkOrder(x.job_ticket, p); n++; } }
+      catch (e) { $('#de_ok').disabled = false; return toast(`บันทึกได้ ${n} JOB แล้วติดปัญหา: ${e.message}`); }
+      d.close(); toast(`แก้กำหนดส่งแล้ว ${n} JOB`); onDone && onDone();
+    };
+  }
+};
+
+/* ================== รายงานผู้บริหาร 5 ตัว: ส่งตรงเวลา / งานค้างตามกำหนดส่ง / สต็อกค้างนาน / ผลผลิตรายวัน / Lead time ================== */
+const Kpi = {
+  dayOf: t => t ? new Date(new Date(t).getTime() + 7*3600e3).toISOString().slice(0, 10) : null,
+  diff: (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5),
+  done(r){ return !r.cancelled && (r.closed || r.qc_status === 'ส่งยอดสุดท้าย (จบ JOB)' || (+r.order_qty > 0 && +r.ready_qty >= +r.order_qty)); },
+  old: r => /ใบงานเก่า/.test(r.diecut_status || ''),   // ใบงานเก่าที่ย้ายมาจากกระดาษ วันที่ไม่ใช่วันจริง
+  finish(r){ return this.done(r) ? (this.dayOf(r.last_qc_at) || this.dayOf(r.last_prod_at)) : null; },
+  ymOf: iso => iso ? iso.slice(0, 7) : '',
+  ymTh(ym){ return ym ? `${TH_MON[+ym.slice(5) - 1]} ${String(+ym.slice(0, 4) + 543).slice(2)}` : '(ไม่ระบุ)'; },
+  pct: (a, b) => b ? (a / b * 100) : 0,
+  avg: a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null,
+  med(a){ if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; },
+  f1: v => v === null || v === undefined || isNaN(v) ? '–' : (Math.round(v * 10) / 10).toLocaleString('th-TH'),
+  async jobs(force){
+    if (!force && this._jobs && Date.now() - this._at < 120000) return this._jobs;
+    this._jobs = await API.kpiJobs(); this._at = Date.now(); return this._jobs; },
+  VIEWS: {
+    ontime:  {t: 'รายงานส่งงานตรงเวลา', range: true,  dims: [['ym','เดือน (ที่เสร็จ)'], ['customer_name','ลูกค้า'], ['machine','เครื่องพิมพ์']]},
+    backlog: {t: 'รายงานงานค้างตามกำหนดส่ง', range: false, dims: [['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]},
+    aging:   {t: 'รายงานสต็อกค้างนาน', range: false, dims: [['product','ลูกค้า + สินค้า'], ['customer_name','ลูกค้า']]},
+    daily:   {t: 'รายงานการผลิต/QC ประจำวัน', range: true, dims: [['prod','🖨️ ฝ่ายผลิต'], ['qc','✅ QC'], ['machine','📊 สรุปรายวัน × เครื่อง'], ['employee','👷 สรุปรายวัน × พนักงาน']]},
+    lead:    {t: 'รายงานระยะเวลาผลิต (Lead time)', range: true, dims: [['ym','เดือน (ที่เสร็จ)'], ['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]}
+  },
+  preset(k){ const t = todayISO(), y = +t.slice(0, 4), m = +t.slice(5, 7), iso = (Y, M, D) => `${Y}-${pad2(M)}-${pad2(D)}`, last = (Y, M) => new Date(Date.UTC(Y, M, 0)).getUTCDate();
+    if (k === 'm0') return [iso(y, m, 1), t];
+    if (k === 'm1') { const Y = m === 1 ? y - 1 : y, M = m === 1 ? 12 : m - 1; return [iso(Y, M, 1), iso(Y, M, last(Y, M))]; }
+    if (k === 'm3') { const d = new Date(Date.UTC(y, m - 3, 1)); return [iso(d.getUTCFullYear(), d.getUTCMonth() + 1, 1), t]; }
+    if (k === 'd7') return [new Date(Date.parse(t) - 6 * 864e5).toISOString().slice(0, 10), t];
+    if (k === 'd0') return [t, t];
+    if (k === 'y0') return [iso(y, 1, 1), t];
+    if (k === 'all') return ['2020-01-01', t];
+    return null; },
+  opts(v){ const V = this.VIEWS[v], def = {dim: V.dims[0][0], pre: v === 'daily' ? 'd7' : 'm3', from: '', to: '', step: 'พิมพ์', minAge: 0, fs: 9, orient: v === 'daily' || v === 'backlog' ? 'landscape' : 'portrait'};
+    const o = {...def, ...store.get('vp_kpi_' + v, {})}; if (!V.dims.some(d => d[0] === o.dim)) o.dim = def.dim;
+    const p = this.preset(o.pre); if (p) [o.from, o.to] = p; return o; },
+
+  /* ---------- หน้าจอ ---------- */
+  async page(v){
+    this.v = v; const V = this.VIEWS[v], o = this.opts(v);
+    const PRE = [['d0','วันนี้'], ['d7','7 วันล่าสุด'], ['m0','เดือนนี้'], ['m1','เดือนก่อน'], ['m3','3 เดือนล่าสุด'], ['y0','ปีนี้'], ['all','ทั้งหมด'], ['c','กำหนดเอง']];
+    $('#rpBody').innerHTML = `<div class="toolbar kp-bar" style="margin:0 0 8px">
+        ${V.range ? `<select id="kpPre" class="field kp-s">${PRE.map(([k, l]) => `<option value="${k}" ${k === o.pre ? 'selected' : ''}>📅 ${l}</option>`).join('')}</select>
+          <input id="kpFrom" class="field kp-d" value="${isoToTh(o.from)}" placeholder="วว/ดด/ปปปป"> ถึง <input id="kpTo" class="field kp-d" value="${isoToTh(o.to)}" placeholder="วว/ดด/ปปปป">` : `<span class="hint">ข้อมูล ณ วันนี้ ${isoToTh(todayISO())}</span>`}
+        ${v === 'daily' ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
+        ${v === 'daily' ? `<input id="kpQ" class="field kp-d ${['prod', 'qc'].includes(o.dim) ? '' : 'hidden'}" style="width:150px" placeholder="🔍 ค้นหา JOB" value="${esc(this.q || '')}">` : ''}
+        ${v === 'daily' ? `<select id="kpStep" class="field kp-s ${['prod', 'qc'].includes(o.dim) ? 'hidden' : ''}">${['พิมพ์', 'ไดคัท', 'QC'].map(s => `<option ${s === o.step ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
+        ${v === 'aging' ? `<select id="kpAge" class="field kp-s">${[[0,'ทุกอายุ'], [30,'ค้างเกิน 30 วัน'], [90,'ค้างเกิน 90 วัน'], [180,'ค้างเกิน 180 วัน'], [365,'ค้างเกิน 1 ปี']].map(([n, l]) => `<option value="${n}" ${+o.minAge === n ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+        <button class="btn ghost sm" id="kpRe" title="โหลดข้อมูลใหม่">↻</button>
+        <span class="sp"></span>
+        <select id="kpOr" class="field kp-s"><option value="portrait" ${o.orient !== 'landscape' ? 'selected' : ''}>📄 แนวตั้ง</option><option value="landscape" ${o.orient === 'landscape' ? 'selected' : ''}>📃 แนวนอน</option></select>
+        ${fontSel('kpFont', o.font)}${fsSel('kpFs', o.fs)}
+        <button class="btn sm" id="kpImg" style="background:#06c755">🖼 รูปภาพ</button><button class="btn ghost sm" id="kpPrint">🖨 พิมพ์</button><button class="btn ghost sm" id="kpCsv">⬇ Excel (CSV)</button></div>
+      ${v === 'daily' ? `<div class="seg kp-tabs" id="kpTabs">${V.dims.map(([k, l]) => `<button data-v="${k}" class="${k === o.dim ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
+      <div id="kpBody"><div class="empty">กำลังโหลด…</div></div>`;
+    document.querySelectorAll('#kpTabs button').forEach(b => b.onclick = () => { $('#kpDim').value = b.dataset.v; this.flt = {}; this.fsort = null;
+      document.querySelectorAll('#kpTabs button').forEach(x => x.classList.toggle('on', x === b)); redraw(); });
+    if ($('#kpQ')) { let tq; $('#kpQ').oninput = e => { clearTimeout(tq); tq = setTimeout(() => { this.q = e.target.value.trim(); if (this.R) this.draw(o); }, 250); }; }
+    const read = () => { const n = {...o, dim: $('#kpDim').value, orient: $('#kpOr').value, font: $('#kpFont').value, fs: +$('#kpFs').value};
+      if (V.range) { n.pre = $('#kpPre').value; const a = thToIso($('#kpFrom').value.trim()), b = thToIso($('#kpTo').value.trim());
+        if (!a || !b) { toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป เช่น 01/10/2569'); return null; }
+        n.from = a <= b ? a : b; n.to = a <= b ? b : a; }
+      if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value;
+      Object.assign(o, n); store.set('vp_kpi_' + v, n); return n; };
+    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L); await this.run(n, force); };
+    if (this._fv !== v) { this.flt = {}; this.fsort = null; this._fv = v; }
+    if (V.range) {
+      $('#kpPre').onchange = () => { const p = this.preset($('#kpPre').value); if (p) { $('#kpFrom').value = isoToTh(p[0]); $('#kpTo').value = isoToTh(p[1]); redraw(); } };
+      ['kpFrom', 'kpTo'].forEach(id => { $('#' + id).onchange = () => { $('#kpPre').value = 'c'; redraw(); }; $('#' + id).onkeydown = e => { if (e.key === 'Enter') e.target.blur(); }; }); }
+    ['kpDim', 'kpStep', 'kpAge'].forEach(id => { if ($('#' + id)) $('#' + id).onchange = () => redraw(); });
+    $('#kpOr').onchange = $('#kpFont').onchange = $('#kpFs').onchange = read;
+    $('#kpRe').onclick = () => redraw(true);
+    $('#kpPrint').onclick = () => { if (read() && this.R) this.print(o); };
+    $('#kpImg').onclick = () => { if (read() && this.R) { RptPrint._img = true; this.print(o); } };
+    $('#kpCsv').onclick = () => { if (read() && this.R) this.csv(); };
+    redraw();
+  },
+  async run(o, force){
+    try { this.R = await this[this.v](o, force); } catch (e) { $('#kpBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; this.R = null; return; }
+    this.draw(o);
+  },
+  // cell: number → จัดรูปแบบ, string → แสดงตามนั้น, {t, n, c, bar} → ข้อความ/ค่าดิบ/คลาส/แท่ง %
+  cv(c){ return c === null || c === undefined ? '' : typeof c === 'object' ? c.t : typeof c === 'number' ? fmtN(c) : String(c); },
+  craw(c){ return c === null || c === undefined ? '' : typeof c === 'object' ? (c.n ?? c.t) : c; },
+  // แถบสีอ่อนแต่ละคอลัมน์ [สีพื้น, สีขีดใต้หัวตาราง]
+  BAND: [['#eef5ff','#60a5fa'], ['#effbf3','#4ade80'], ['#fffbea','#facc15'], ['#fff4ec','#fb923c'], ['#fdf1f7','#f472b6'], ['#f4f1ff','#a78bfa'], ['#ebfbfd','#22d3ee'], ['#f3f6ee','#a3b86c']],
+  tbl(T, screen){
+    if (!T) return '';
+    const B = T.head.map((h, k) => h.band || (k === 0 ? null : this.BAND[(k - 1) % this.BAND.length]));
+    const F = screen && T.filter, fl = this.flt || {};
+    const head = T.head.map((h, k) => `<th class="${h.num ? 'num' : ''} ${F && fl[k] ? 'f-on' : ''}" style="${B[k] ? (screen ? `box-shadow:inset 0 -4px 0 ${B[k][1]}` : `border-bottom:3px solid ${B[k][1]}`) : ''}">${F ? `<div class="h"><span>${esc(h.l)}${this.fsort?.k === k ? (this.fsort.dir > 0 ? ' ▲' : ' ▼') : ''}</span><button class="fb" data-kf="${k}" title="กรอง / เรียง">${fl[k] ? '⧩' : '▼'}</button></div>` : esc(h.l)}</th>`).join('');
+    const td = (c, h, k) => { const bar = c && typeof c === 'object' && c.bar !== undefined, st = B[k] ? ` style="background:${B[k][0]}"` : '';
+      if (screen && c && c.due) return `<td class="${h.cls || ''}"${st}><a href="#" class="kp-due" data-due="${esc(c.due)}">${esc(c.t)} ✏️</a></td>`;
+      return `<td${st} class="${h.num ? 'num' : ''} ${h.cls || ''} ${c && c.c || ''}">${screen && bar ? `<div class="kp-cb"><span>${esc(this.cv(c))}</span><div class="pv-bar kp ${c.bc || ''}"><i style="width:${Math.max(0, Math.min(100, c.bar))}%"></i></div></div>` : esc(this.cv(c))}</td>`; };
+    const body = T.rows.map((r, i) => `<tr ${screen && T.lists ? `class="pv-r" data-i="${i}"` : ''}>${r.map((c, k) => td(c, T.head[k], k)).join('')}</tr>`).join('')
+      || `<tr><td colspan="${T.head.length}" class="wt-info" style="text-align:center;padding:16px">ไม่มีข้อมูล</td></tr>`;
+    const tot = T.total ? `<tr class="${screen ? 'md-tot' : 'sub'}">${T.total.map((c, k) => `<td class="${T.head[k].num ? 'num' : ''}" style="text-align:${T.head[k].num ? 'right' : 'left'}"><b>${esc(this.cv(c))}</b></td>`).join('')}</tr>` : '';
+    return `<table class="${screen ? 'trk kp-t' + (F ? ' xl' : '') : ''}"><thead><tr>${head}</tr></thead><tbody>${body}${tot}</tbody></table>`;
+  },
+  // ตัวกรองแบบ Excel สำหรับตารางที่มี mainAll (รายการสแกน)
+  applyF(){ const R = this.R, T = R.mainAll; if (!T) return;
+    const q = (this.q || '').toLowerCase(), jk = T.head.findIndex(h => h.job);
+    let rows = T.rows.filter(r => (!q || jk < 0 || String(this.cv(r[jk])).toLowerCase().includes(q)) && Object.entries(this.flt || {}).every(([k, set]) => set.has(this.cv(r[k]))));
+    if (this.fsort) { const {k, dir} = this.fsort; rows = [...rows].sort((a, b) => { const x = this.craw(a[k]), y = this.craw(b[k]);
+      return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'th', {numeric: true})) * dir; }); }
+    R.main = {...T, rows, total: T.totalFn(rows), title: T.titleFn(rows)}; },
+  draw(o){
+    const R = this.R; this.applyF();
+    $('#kpBody').innerHTML = `${R.cards ? `<div class="hr-cards">${R.cards.map(([l, v, s, c]) => `<div class="hc" style="--c:${c}"><span>${esc(l)}</span><b>${v}</b><small>${esc(s || '')}</small></div>`).join('')}</div>` : ''}
+      ${R.main ? `${R.main.title ? `<h4 class="kp-h">${esc(R.main.title)}</h4>` : ''}<div class="card tbl-wrap trk-wrap">${this.tbl(R.main, true)}</div>` : ''}
+      ${(R.extra || []).map(T => `<h4 class="kp-h">${esc(T.title)}</h4><div class="card tbl-wrap" style="max-height:60vh">${this.tbl(T, true)}</div>`).join('')}
+      <div class="hint" style="margin-top:8px;line-height:1.6">${R.note || ''}${R.main?.lists ? ' · คลิกแถวเพื่อดูรายการ JOB' : ''}</div>`;
+    $('#kpBody').querySelectorAll('.kp-t .pv-r').forEach(tr => tr.onclick = () => this.detail(R.main.rows[+tr.dataset.i][0], R.main.lists[+tr.dataset.i]));
+    $('#kpBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+    $('#kpBody').querySelectorAll('[data-due]').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); this.editDue([a.dataset.due]); });
+    $('#kpBody').querySelectorAll('[data-kf]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = +b.dataset.kf, T = R.mainAll, h = T.head[k];
+      const q = (this.q || '').toLowerCase(), jk = T.head.findIndex(x => x.job);
+      const others = T.rows.filter(r => (!q || jk < 0 || String(this.cv(r[jk])).toLowerCase().includes(q)) && Object.entries(this.flt || {}).every(([kk, set]) => +kk === k || set.has(this.cv(r[kk]))));
+      ColFilter.pop({btn: b, label: h.l, type: h.num ? 'numeric' : h.date ? 'date' : 'text', values: others.map(r => this.cv(r[k])), current: (this.flt || {})[k],
+        onSort: dir => { this.fsort = {k, dir}; this.draw(o); },
+        onApply: set => { this.flt ||= {}; if (set) this.flt[k] = set; else delete this.flt[k]; this.draw(o); } }); });
+    if (R.mainAll && Object.keys(this.flt || {}).length) { const c = document.createElement('div'); c.className = 'pf-bar'; c.innerHTML = `⧩ กรองอยู่ ${Object.keys(this.flt).length} คอลัมน์ · แสดง ${fmtN(R.main.rows.length)} จาก ${fmtN(R.mainAll.rows.length)} รายการ <button class="btn ghost sm" id="kfClr">ล้างตัวกรองทั้งหมด</button>`;
+      $('#kpBody .trk-wrap')?.before(c); $('#kfClr').onclick = () => { this.flt = {}; this.fsort = null; this.draw(o); }; }
+  },
+  editDue(jobs){ const m = new Map((this._jobs || []).map(r => [r.job_ticket, r])); DueEdit.open(jobs.map(j => m.get(j) || {job_ticket: j}), () => { this._jobs = null; this.page(this.v); }); },
+  detail(key, list){
+    const c = this.R.detailCols || this.DCOLS, B = this.v === 'backlog';
+    $('#dlgBody').innerHTML = `<h3>${esc(this.cv(key))} · ${list.length} JOB</h3><div class="tbl-wrap" style="max-height:62vh"><table class="trk"><thead><tr>${B ? '<th><input type="checkbox" id="kd_all" title="เลือกทั้งหมด"></th>' : ''}${c.map(([, l, n]) => `<th class="${n ? 'num' : ''}">${l}</th>`).join('')}</tr></thead><tbody>
+      ${list.map(r => `<tr>${B ? `<td><input type="checkbox" class="kd_c" value="${esc(r.job_ticket)}"></td>` : ''}${c.map(([k, , n, f]) => k === 'job_ticket' ? `<td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td>`
+        : k === 'due_date' && B ? `<td><a href="#" class="kp-due" data-due="${esc(r.job_ticket)}">${esc(f ? f(r) : r[k] ?? '')} ✏️</a></td>`
+        : `<td class="${n ? 'num' : ''} ${k === 'customer_name' ? 'cu' : k === 'product_name' ? 'pn' : ''}">${esc(f ? f(r) : r[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <div class="acts">${B ? '<button class="btn ghost" id="kd_due" disabled>📅 แก้กำหนดส่ง JOB ที่เลือก</button>' : ''}<button class="btn" id="kd_x">ปิด</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#kd_x').onclick = () => d.close();
+    if (B) { const sel = () => [...document.querySelectorAll('#dlgBody .kd_c:checked')].map(x => x.value);
+      const upd = () => { const n = sel().length; $('#kd_due').disabled = !n; $('#kd_due').textContent = n ? `📅 แก้กำหนดส่ง ${n} JOB ที่เลือก` : '📅 แก้กำหนดส่ง JOB ที่เลือก'; };
+      $('#kd_all').onchange = e => { document.querySelectorAll('#dlgBody .kd_c').forEach(x => x.checked = e.target.checked); upd(); };
+      document.querySelectorAll('#dlgBody .kd_c').forEach(x => x.onchange = upd);
+      $('#kd_due').onclick = () => this.editDue(sel());
+      document.querySelectorAll('#dlgBody [data-due]').forEach(a => a.onclick = e => { e.preventDefault(); this.editDue([a.dataset.due]); }); }
+    $('#dlgBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); d.close(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+  },
+  DCOLS: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['machine','เครื่อง'], ['order_qty','สั่งผลิต', 1, r => fmtN(r.order_qty)], ['due_date','กำหนดส่ง', 0, r => fmtD(r.due_date)]],
+  rangeTxt(o){ return this.VIEWS[this.v].range ? `ช่วงวันที่ ${isoToTh(o.from)} – ${isoToTh(o.to)}` : `ข้อมูล ณ วันที่ ${isoToTh(todayISO())}`; },
+  print(o){
+    const R = this.R, V = this.VIEWS[this.v];
+    const cards = R.cards ? `<table style="margin-bottom:3mm"><tr>${R.cards.map(([l, v, s]) => `<td style="border:.5px solid #cbd5e1;padding:1.5mm 2mm;vertical-align:top"><div style="font-size:.85em;color:#475569">${esc(l)}</div><div style="font-size:1.35em;font-weight:700;color:#1f3a68">${String(v).replace(/<em>/g, '<span style="font-size:.7em;font-weight:400;color:#475569">').replace(/<\/em>/g, '</span>')}</div><div style="font-size:.8em;color:#64748b">${esc(s || '')}</div></td>`).join('')}</tr></table>` : '';
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(V.t)}</h2></div><div class="rpt-meta">${esc(this.rangeTxt(o))}<br>${esc(R.sub || '')}<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
+      ${cards}${R.main ? (R.main.title ? `<div style="font-weight:700;color:#1f3a68;margin:2mm 0 1mm">${esc(R.main.title)}</div>` : '') + this.tbl(R.main, false) : ''}
+      ${(R.extra || []).map(T => `<div style="font-weight:700;color:#1f3a68;margin:4mm 0 1mm">${esc(T.title)}</div>${this.tbl(T, false)}`).join('')}
+      ${R.note ? `<div class="rpt-note" style="color:#64748b">${R.note.replace(/<[^>]+>/g, '')}</div>` : ''}</div>`;
+    RptPrint.go({title: V.t, orient: o.orient, fs: o.fs, font: o.font}, html);
+  },
+  csv(){
+    const R = this.R, V = this.VIEWS[this.v], rows = [], Ts = [R.main, ...(R.extra || [])].filter(Boolean);
+    Ts.forEach((T, i) => { if (i) rows.push([], [T.title], T.head.map(h => h.l));
+      T.rows.forEach(r => rows.push(r.map(c => this.craw(c)))); if (T.total) rows.push(T.total.map(c => this.craw(c))); });
+    QSPage.csv(`${V.t}_${isoToTh(todayISO()).replace(/\//g, '-')}`, Ts[0].head.map(h => h.l), rows);
+  },
+
+  /* ---------- 1) ส่งงานตรงเวลา ---------- */
+  async ontime(o, force){
+    const J = (await this.jobs(force)).map(r => ({...r, _fin: this.finish(r)})).filter(r => r._fin && r._fin >= o.from && r._fin <= o.to && !this.old(r));
+    const noDue = J.filter(r => !r.due_date).length, D = J.filter(r => r.due_date).map(r => ({...r, _late: this.diff(r.due_date, r._fin)}));
+    const key = r => o.dim === 'ym' ? this.ymOf(r._fin) : (String(r[o.dim] || '').trim() || '(ไม่ระบุ)');
+    const g = new Map(); D.forEach(r => { const k = key(r); (g.get(k) || g.set(k, []).get(k)).push(r); });
+    let keys = [...g.keys()]; keys.sort(o.dim === 'ym' ? undefined : (a, b) => g.get(b).length - g.get(a).length || a.localeCompare(b, 'th'));
+    const stat = L => { const late = L.filter(r => r._late > 0), on = L.length - late.length, p = this.pct(on, L.length);
+      return [L.length, on, late.length, {t: p.toFixed(1) + '%', n: +p.toFixed(1), bar: p, bc: p >= 90 ? 'good' : p >= 75 ? 'mid' : 'bad', c: p < 75 ? 'stock-neg' : ''}, this.f1(this.avg(late.map(r => r._late))), late.length ? Math.max(...late.map(r => r._late)) : '–']; };
+    const lateAll = D.filter(r => r._late > 0).sort((a, b) => b._late - a._late), pAll = this.pct(D.length - lateAll.length, D.length);
+    return {
+      sub: `${D.length} JOB ที่มีกำหนดส่ง`,
+      cards: [['ส่งตรงเวลา', `${pAll.toFixed(1)}<em>%</em>`, `${fmtN(D.length - lateAll.length)} จาก ${fmtN(D.length)} JOB`, pAll >= 90 ? '#16a34a' : pAll >= 75 ? '#d97706' : '#dc2626'],
+        ['งานที่เสร็จในช่วงนี้', `${fmtN(J.length)}<em> JOB</em>`, noDue ? `ไม่มีกำหนดส่ง ${fmtN(noDue)} JOB (ไม่นำมาคิด)` : 'ทุก JOB มีกำหนดส่ง', '#2563eb'],
+        ['ส่งช้า', `${fmtN(lateAll.length)}<em> JOB</em>`, lateAll.length ? `ช้าเฉลี่ย ${this.f1(this.avg(lateAll.map(r => r._late)))} วัน` : 'ไม่มีงานส่งช้า 👍', '#dc2626'],
+        ['ช้าสุด', lateAll.length ? `${fmtN(lateAll[0]._late)}<em> วัน</em>` : '–', lateAll.length ? `${lateAll[0].job_ticket} · ${lateAll[0].customer_name || ''}` : '', '#7c3aed']],
+      main: {head: [{l: this.VIEWS.ontime.dims.find(d => d[0] === o.dim)[1]}, {l: 'JOB ที่เสร็จ', num: 1}, {l: 'ตรงเวลา', num: 1}, {l: 'ส่งช้า', num: 1}, {l: '% ตรงเวลา', num: 1, cls: 'kp-w'}, {l: 'ช้าเฉลี่ย (วัน)', num: 1}, {l: 'ช้าสุด (วัน)', num: 1}],
+        rows: keys.map(k => [o.dim === 'ym' ? this.ymTh(k) : k, ...stat(g.get(k))]), total: ['รวมทั้งหมด', ...stat(D).map(c => typeof c === 'object' ? {...c, bar: undefined} : c)], lists: keys.map(k => g.get(k))},
+      extra: [{title: `งานที่ส่งช้า (${lateAll.length} JOB)`, head: [{l: 'JOB'}, {l: 'ลูกค้า', cls: 'cu'}, {l: 'สินค้า', cls: 'pn'}, {l: 'เครื่อง'}, {l: 'กำหนดส่ง'}, {l: 'เสร็จ (QC จบ)'}, {l: 'ช้า (วัน)', num: 1}],
+        rows: lateAll.slice(0, 300).map(r => [r.job_ticket, r.customer_name || '', r.product_name || '', r.machine || '', fmtD(r.due_date), fmtD(r._fin), {t: fmtN(r._late), n: r._late, c: 'stock-neg'}])}],
+      detailCols: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['machine','เครื่อง'], ['due_date','กำหนดส่ง', 0, r => fmtD(r.due_date)], ['_fin','เสร็จ', 0, r => fmtD(r._fin)], ['_late','ช้า (วัน)', 1, r => r._late > 0 ? r._late : 'ตรงเวลา']],
+      note: 'วันที่เสร็จ = วันที่ QC ส่งยอดล่าสุดของ JOB ที่จบแล้ว (QC "ส่งยอดสุดท้าย", ปิดจ๊อบ หรือ QC ครบยอดสั่ง) · ตรงเวลา = เสร็จไม่เกินวันกำหนดส่ง · ไม่รวมใบที่ยกเลิก ใบงานเก่าที่ย้ายมาจากกระดาษ และ JOB ที่ไม่มีกำหนดส่ง'
+    };
+  },
+
+  /* ---------- 2) งานค้างตามกำหนดส่ง ---------- */
+  BK: [['late','เลยกำหนด','#dc2626',['#fef1f1','#f87171']], ['today','วันนี้','#ea580c',['#fff4ec','#fb923c']], ['d3','1–3 วัน','#d97706',['#fffbea','#facc15']], ['d7','4–7 วัน','#ca8a04',['#f6fbe9','#a3e635']], ['d14','8–14 วัน','#2563eb',['#eef5ff','#60a5fa']], ['dx','เกิน 14 วัน','#0f766e',['#ebfbfd','#22d3ee']], ['none','ไม่ระบุวันส่ง','#64748b',['#f4f5f7','#94a3b8']]],
+  async backlog(o, force){
+    const t = todayISO(), J = (await this.jobs(force)).filter(r => !r.cancelled && !r.closed && !this.done(r));
+    const bk = r => { if (!r.due_date) return 'none'; const d = this.diff(t, r.due_date); return d < 0 ? 'late' : d === 0 ? 'today' : d <= 3 ? 'd3' : d <= 7 ? 'd7' : d <= 14 ? 'd14' : 'dx'; };
+    J.forEach(r => { r._bk = bk(r); r._days = r.due_date ? this.diff(t, r.due_date) : null; r._left = Math.max(0, (+r.order_qty || 0) - (+r.ready_qty || 0)); });
+    const key = r => String(r[o.dim] || '').trim() || '(ไม่ระบุ)', g = new Map(); J.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
+    const keys = [...g.keys()].sort((a, b) => g.get(b).filter(r => r._bk === 'late').length - g.get(a).filter(r => r._bk === 'late').length || g.get(b).length - g.get(a).length);
+    const cell = (L, b) => { const n = L.filter(r => r._bk === b).length; return n ? {t: `${n}`, n, c: b === 'late' ? 'stock-neg kp-b' : 'kp-b'} : ''; };
+    const late = J.filter(r => r._bk === 'late').sort((a, b) => a._days - b._days), week = J.filter(r => ['today', 'd3', 'd7'].includes(r._bk));
+    const sumL = L => L.reduce((s, r) => s + r._left, 0);
+    return {
+      sub: `${J.length} JOB ที่ยังไม่เสร็จ`,
+      cards: [['งานค้างทั้งหมด', `${fmtN(J.length)}<em> JOB</em>`, `ยอดค้างผลิต ${fmtN(sumL(J))} ดวง`, '#2563eb'],
+        ['เลยกำหนดส่งแล้ว', `${fmtN(late.length)}<em> JOB</em>`, late.length ? `เก่าสุดเลยมา ${fmtN(-late[0]._days)} วัน` : 'ไม่มีงานเลยกำหนด 👍', '#dc2626'],
+        ['ต้องส่งภายใน 7 วัน', `${fmtN(week.length)}<em> JOB</em>`, `ยอดค้าง ${fmtN(sumL(week))} ดวง`, '#d97706'],
+        ['ยังไม่เริ่มผลิต', `${fmtN(J.filter(r => /ยังไม่เริ่ม/.test(r.print_status || '')).length)}<em> JOB</em>`, 'ยังไม่มีสแกนพิมพ์', '#64748b']],
+      main: {head: [{l: this.VIEWS.backlog.dims.find(d => d[0] === o.dim)[1]}, ...this.BK.map(([, l, , band]) => ({l, num: 1, band})), {l: 'รวม JOB', num: 1}, {l: 'ยอดค้างผลิต (ดวง)', num: 1}],
+        rows: keys.map(k => [k, ...this.BK.map(([b]) => cell(g.get(k), b)), g.get(k).length, sumL(g.get(k))]),
+        total: ['รวมทั้งหมด', ...this.BK.map(([b]) => J.filter(r => r._bk === b).length || ''), J.length, sumL(J)],
+        lists: keys.map(k => g.get(k).sort((a, b) => (a._days ?? 1e9) - (b._days ?? 1e9)))},
+      extra: [{title: `งานที่เลยกำหนดส่ง (${late.length} JOB)`, head: [{l: 'JOB'}, {l: 'ลูกค้า', cls: 'cu'}, {l: 'สินค้า', cls: 'pn'}, {l: 'เครื่อง'}, {l: 'กำหนดส่ง'}, {l: 'เลยมา (วัน)', num: 1}, {l: 'สถานะพิมพ์'}, {l: 'QC แล้ว / สั่ง', num: 1}],
+        rows: late.map(r => [r.job_ticket, r.customer_name || '', r.product_name || '', r.machine || '', {t: fmtD(r.due_date), due: r.job_ticket}, {t: fmtN(-r._days), n: -r._days, c: 'stock-neg'}, r.print_status || '', `${fmtN(r.ready_qty || 0)} / ${fmtN(r.order_qty)}`])}],
+      detailCols: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['machine','เครื่อง'], ['due_date','กำหนดส่ง', 0, r => r.due_date ? fmtD(r.due_date) + (r._days < 0 ? ` (เลย ${-r._days} วัน)` : '') : (r.due_note || '–')], ['print_status','สถานะพิมพ์'], ['_left','ค้างผลิต', 1, r => fmtN(r._left)]],
+      note: 'งานค้าง = ใบสั่งผลิตที่ยังไม่ปิด ยังไม่ยกเลิก และ QC ยังไม่ส่งยอดสุดท้าย · ช่องตาราง = จำนวน JOB · ยอดค้างผลิต = ยอดสั่ง − (ผ่าน QC + ยอดยกมา)'
+    };
+  },
+
+  /* ---------- 3) สต็อกค้างนาน ---------- */
+  AG: [[30,'≤ 30 วัน',['#effbf3','#4ade80']], [90,'31–90 วัน',['#f6fbe9','#a3e635']], [180,'91–180 วัน',['#fffbea','#facc15']], [365,'181–365 วัน',['#fff4ec','#fb923c']], [1e9,'เกิน 1 ปี',['#fef1f1','#f87171']]],
+  async aging(o, force){
+    const t = todayISO(), all = (await this.jobs(force)).filter(r => !r.cancelled);
+    const net = new Map(); all.forEach(r => { const k = (r.customer_name || '').trim() + '|' + (r.product_name || '').trim(); net.set(k, (net.get(k) || 0) + (+r.stock_qty || 0)); });
+    const lots = all.filter(r => +r.stock_qty > 0 && net.get((r.customer_name || '').trim() + '|' + (r.product_name || '').trim()) > 0)
+      .map(r => { const since = this.dayOf(r.last_qc_at) || r.doc_date || this.dayOf(r.created_at); return {...r, _since: since, _age: since ? this.diff(since, t) : 0}; });
+    const key = r => o.dim === 'product' ? `${(r.customer_name || '').trim()} · ${(r.product_name || '').trim()}` : (r.customer_name || '').trim() || '(ไม่ระบุ)';
+    const g = new Map(); lots.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
+    const keys = [...g.keys()].filter(k => !+o.minAge || g.get(k).some(r => r._age > +o.minAge));
+    keys.sort((a, b) => Math.max(...g.get(b).map(r => r._age)) - Math.max(...g.get(a).map(r => r._age)));
+    const bi = a => this.AG.findIndex(([m]) => a <= m), qty = L => L.reduce((s, r) => s + (+r.stock_qty || 0), 0);
+    const row = L => { const b = this.AG.map(() => 0); L.forEach(r => b[bi(r._age)] += +r.stock_qty); return b; };
+    const shown = keys.flatMap(k => g.get(k)), TB = row(shown), old = TB[3] + TB[4], tot = qty(shown);
+    const oldest = shown.reduce((m, r) => r._age > (m?._age ?? -1) ? r : m, null);
+    return {
+      sub: `${keys.length} รายการ`,
+      cards: [['สต็อกคงเหลือรวม', `${fmtN(tot)}<em> ดวง</em>`, `${fmtN(keys.length)} ${o.dim === 'product' ? 'สินค้า' : 'ลูกค้า'} · ${fmtN(shown.length)} JOB`, '#2563eb'],
+        ['ค้างเกิน 180 วัน', `${fmtN(old)}<em> ดวง</em>`, `${this.pct(old, tot).toFixed(1)}% ของสต็อกทั้งหมด`, '#dc2626'],
+        ['ค้าง 91–180 วัน', `${fmtN(TB[2])}<em> ดวง</em>`, `${this.pct(TB[2], tot).toFixed(1)}%`, '#d97706'],
+        ['ค้างนานสุด', oldest ? `${fmtN(oldest._age)}<em> วัน</em>` : '–', oldest ? `${oldest.job_ticket} · ${(oldest.product_name || '').slice(0, 40)}` : '', '#7c3aed']],
+      main: {head: [{l: o.dim === 'product' ? 'ลูกค้า · สินค้า' : 'ลูกค้า', cls: 'pn'}, ...this.AG.map(([, l, band]) => ({l, num: 1, band})), {l: 'รวมสต็อก (ดวง)', num: 1}, {l: 'ค้างนานสุด (วัน)', num: 1}, {l: 'อยู่ที่ JOB'}],
+        rows: keys.map(k => { const L = g.get(k), b = row(L), mx = Math.max(...L.map(r => r._age));
+          return [k, ...b.map((v, i) => v ? {t: fmtN(v), n: v, c: i >= 3 ? 'stock-neg' : ''} : ''), qty(L), {t: fmtN(mx), n: mx, c: mx > 180 ? 'stock-neg' : ''}, L.sort((a, b) => b._age - a._age).map(r => r.job_ticket).join(', ')]; }),
+        total: ['รวมทั้งหมด', ...TB.map(v => v || ''), tot, '', ''], lists: keys.map(k => g.get(k))},
+      detailCols: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['stock_qty','สต็อก (ดวง)', 1, r => fmtN(r.stock_qty)], ['_since','เข้าสต็อก', 0, r => fmtD(r._since)], ['_age','อายุ (วัน)', 1, r => fmtN(r._age)]],
+      note: 'สต็อก = ยอดคงเหลือต่อ JOB (เหมือนหน้า "สต็อกตามสินค้า") · อายุนับจากวันที่ QC ส่งยอดล่าสุดของ JOB นั้น (ถ้าไม่มีใช้วันที่เอกสาร) ถึงวันนี้ · แสดงเฉพาะสินค้าที่สต็อกรวมเป็นบวก'
+    };
+  },
+
+  /* ---------- 4) ผลผลิตรายวัน (Report_Daily) ---------- */
+  async daily(o, force){
+    const [J, L] = await Promise.all([this.jobs(force), API.kpiLogs(o.from, o.to)]), jm = new Map(J.map(r => [r.job_ticket, r]));
+    const P = L.prod.map(x => ({...x, _src: 'PROD', _d: this.dayOf(x.logged_at)})), Q = L.qc.map(x => ({...x, step: 'QC', _src: 'QC', _d: this.dayOf(x.logged_at)}));
+    [...P, ...Q].forEach(x => { const w = jm.get(x.job_ticket) || {}; x.customer_name = w.customer_name; x.product_name = w.product_name; x.machine = w.machine; });
+    const S = s => [...P, ...Q].filter(x => x.step === s).reduce((a, x) => a + (+x.qty || 0), 0), fin = Q.filter(x => x.status === 'ส่งยอดสุดท้าย (จบ JOB)').length;
+    const days = new Set([...P, ...Q].map(x => x._d)).size;
+    const cards = [['ยอดพิมพ์', `${fmtN(S('พิมพ์'))}<em> ดวง</em>`, days ? `เฉลี่ย ${fmtN(Math.round(S('พิมพ์') / days))} ดวง/วัน (${days} วันที่มีงาน)` : '', '#0f6cbd'],
+      ['ยอดไดคัท', `${fmtN(S('ไดคัท'))}<em> ดวง</em>`, '', '#7c3aed'], ['ยอดผ่าน QC', `${fmtN(S('QC'))}<em> ดวง</em>`, `JOB ที่ QC ส่งยอดสุดท้าย ${fin} JOB`, '#16a34a'],
+      ['จำนวนรายการสแกน', `${fmtN(P.length + Q.length)}<em> ครั้ง</em>`, `ผลิต ${P.length} · QC ${Q.length} (อนุมัติแล้ว)`, '#64748b']];
+    const note = 'ข้อมูลจากสแกนที่อนุมัติแล้วเท่านั้น (รายการที่ยังรอตรวจไม่นับ) · วันที่ตามเวลาที่สแกน';
+    if (o.dim === 'prod' || o.dim === 'qc') {
+      const QC = o.dim === 'qc', A = (QC ? Q : P).sort((a, b) => String(a.logged_at).localeCompare(String(b.logged_at)));
+      const head = [{l: 'วันที่', date: 1}, {l: 'เวลา'}, {l: 'เลขที่ JOB', job: 1}, {l: QC ? 'ชื่อ QC' : 'ชื่อช่าง'}, ...(QC ? [] : [{l: 'ขั้นตอน'}]), {l: 'สถานะ'}, {l: 'จำนวน', num: 1}, {l: 'หมายเหตุ'}, {l: 'เครื่อง'}, {l: 'ชื่อลูกค้า', cls: 'cu'}, {l: 'ชื่อสินค้า', cls: 'pn'}];
+      const qi = QC ? 5 : 6, hm = t => fmtT(t).split(' ')[1] || '';
+      const rows = A.map(x => [{t: fmtD(x._d), n: x.logged_at || ''}, {t: hm(x.logged_at), n: x.logged_at || ''}, x.job_ticket, x.employee_name || '', ...(QC ? [] : [x.step || '']), x.status || '', x.qty === null || x.qty === undefined || x.qty === '' ? '' : +x.qty, x.note || '', x.machine || '', x.customer_name || '', x.product_name || '']);
+      return {sub: `${QC ? 'QC' : 'ฝ่ายผลิต'} ${A.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel · ช่องค้นหา JOB พิมพ์บางส่วนได้ เช่น 6910/3',
+        mainAll: {filter: true, head, rows, titleFn: R => `${QC ? '✅ QC' : '🖨️ ฝ่ายผลิต'} (${fmtN(R.length)} รายการ)`,
+          totalFn: R => head.map((h, k) => k === 0 ? 'รวม' : k === qi ? R.reduce((a, r) => a + (+this.craw(r[k]) || 0), 0) : '')}};
+    }
+    const src = [...P, ...Q].filter(x => x.step === o.step), col = x => (o.dim === 'machine' ? x.machine : x.employee_name) || '(ไม่ระบุ)';
+    const cols = [...new Set(src.map(col))].sort((a, b) => src.filter(x => col(x) === b).reduce((s, x) => s + (+x.qty || 0), 0) - src.filter(x => col(x) === a).reduce((s, x) => s + (+x.qty || 0), 0));
+    const dlist = []; if (this.diff(o.from, o.to) > 92) dlist.push(...[...new Set(src.map(x => x._d))].sort()); else for (let d = o.from; d <= o.to; d = new Date(Date.parse(d) + 864e5).toISOString().slice(0, 10)) dlist.push(d);
+    const sum = (d, c) => src.filter(x => (!d || x._d === d) && (!c || col(x) === c)).reduce((s, x) => s + (+x.qty || 0), 0);
+    const WD = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+    const rows = dlist.map(d => [`${WD[new Date(d).getUTCDay()]} ${isoToTh(d)}`, ...cols.map(c => sum(d, c) || ''), sum(d) || '']).filter((r, i) => r[r.length - 1] || new Date(dlist[i]).getUTCDay() !== 0);
+    return {sub: `ขั้นตอน ${o.step}`, cards, note: note + ' · วันอาทิตย์ที่ไม่มีงานจะไม่แสดง',
+      main: {title: `ยอด${o.step} (ดวง) รายวัน × ${o.dim === 'machine' ? 'เครื่องพิมพ์' : 'พนักงาน'}`, head: [{l: 'วันที่'}, ...cols.map(c => ({l: c, num: 1})), {l: 'รวม', num: 1}], rows, total: ['รวมทั้งหมด', ...cols.map(c => sum(null, c)), sum()]}};
+  },
+
+  /* ---------- 5) Lead time ---------- */
+  async lead(o, force){
+    const J = (await this.jobs(force)).map(r => ({...r, _fin: this.finish(r)})).filter(r => r._fin && r._fin >= o.from && r._fin <= o.to && r.doc_date && !/-R\d+$/.test(r.job_ticket) && !this.old(r));
+    const first = await API.kpiFirstProd(J.map(r => r.job_ticket));
+    J.forEach(r => { r._lead = this.diff(r.doc_date, r._fin); const f = this.dayOf(first[r.job_ticket]);
+      r._start = f; r._wait = f ? this.diff(r.doc_date, f) : null; r._make = f ? this.diff(f, r._fin) : null; });
+    const D = J.filter(r => r._lead >= 0 && r._lead <= 365), bad = J.length - D.length;
+    const key = r => o.dim === 'ym' ? this.ymOf(r._fin) : (String(r[o.dim] || '').trim() || '(ไม่ระบุ)');
+    const g = new Map(); D.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
+    const keys = [...g.keys()]; keys.sort(o.dim === 'ym' ? undefined : (a, b) => g.get(b).length - g.get(a).length);
+    const mx = Math.max(1, ...keys.map(k => this.avg(g.get(k).map(r => r._lead))));
+    const st = (L, bar) => { const a = L.map(r => r._lead), w = L.filter(r => r._wait !== null && r._wait >= 0).map(r => r._wait), m = L.filter(r => r._make !== null && r._make >= 0).map(r => r._make), av = this.avg(a);
+      return [L.length, bar ? {t: this.f1(av), n: av === null ? '' : Math.round(av * 10) / 10, bar: av / mx * 100, bc: 'lead'} : this.f1(av), this.f1(this.med(a)), a.length ? Math.min(...a) : '–', a.length ? Math.max(...a) : '–', this.f1(this.avg(w)), this.f1(this.avg(m))]; };
+    const A = D.map(r => r._lead), slow = [...D].sort((a, b) => b._lead - a._lead).slice(0, 15);
+    return {
+      sub: `${D.length} JOB ที่เสร็จในช่วงนี้`,
+      cards: [['Lead time เฉลี่ย', `${this.f1(this.avg(A))}<em> วัน</em>`, `มัธยฐาน ${this.f1(this.med(A))} วัน · จาก ${fmtN(D.length)} JOB`, '#2563eb'],
+        ['รอเริ่มผลิต (เฉลี่ย)', `${this.f1(this.avg(D.filter(r => r._wait >= 0 && r._wait !== null).map(r => r._wait)))}<em> วัน</em>`, 'เปิดใบสั่งผลิต → สแกนผลิตครั้งแรก', '#d97706'],
+        ['ผลิตจนเสร็จ (เฉลี่ย)', `${this.f1(this.avg(D.filter(r => r._make >= 0 && r._make !== null).map(r => r._make)))}<em> วัน</em>`, 'สแกนผลิตครั้งแรก → QC จบ', '#16a34a'],
+        ['นานสุด', slow.length ? `${fmtN(slow[0]._lead)}<em> วัน</em>` : '–', slow.length ? `${slow[0].job_ticket} · ${slow[0].customer_name || ''}` : '', '#7c3aed']],
+      main: {head: [{l: this.VIEWS.lead.dims.find(d => d[0] === o.dim)[1]}, {l: 'JOB', num: 1}, {l: 'เฉลี่ย (วัน)', num: 1, cls: 'kp-w'}, {l: 'มัธยฐาน', num: 1}, {l: 'เร็วสุด', num: 1}, {l: 'นานสุด', num: 1}, {l: 'รอเริ่มผลิต', num: 1}, {l: 'ผลิต→เสร็จ', num: 1}],
+        rows: keys.map(k => [o.dim === 'ym' ? this.ymTh(k) : k, ...st(g.get(k), true)]), total: ['รวมทั้งหมด', ...st(D)], lists: keys.map(k => g.get(k).sort((a, b) => b._lead - a._lead))},
+      extra: [{title: 'JOB ที่ใช้เวลานานสุด 15 อันดับ', head: [{l: 'JOB'}, {l: 'ลูกค้า', cls: 'cu'}, {l: 'สินค้า', cls: 'pn'}, {l: 'เครื่อง'}, {l: 'เปิดใบ'}, {l: 'เริ่มผลิต'}, {l: 'เสร็จ'}, {l: 'รวม (วัน)', num: 1}],
+        rows: slow.map(r => [r.job_ticket, r.customer_name || '', r.product_name || '', r.machine || '', fmtD(r.doc_date), fmtD(r._start), fmtD(r._fin), r._lead])}],
+      detailCols: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['doc_date','เปิดใบ', 0, r => fmtD(r.doc_date)], ['_start','เริ่มผลิต', 0, r => fmtD(r._start)], ['_fin','เสร็จ', 0, r => fmtD(r._fin)], ['_lead','รวม (วัน)', 1, r => fmtN(r._lead)]],
+      note: `Lead time = วันที่เอกสารในใบสั่งผลิต → วันที่ QC ส่งยอดล่าสุด (นับวันปฏิทิน) · ไม่นับใบ Revised ใบที่ยกเลิก และใบงานเก่าที่ย้ายมาจากกระดาษ${bad ? ` · ตัด ${bad} JOB ที่วันที่เอกสารผิดปกติออก (หลังวันเสร็จ หรือห่างเกิน 1 ปี — น่าจะคีย์ผิด)` : ''}`
+    };
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
+    if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
 };
@@ -3346,7 +3744,9 @@ const HomePage = {
       { k:'waste',   ic:'♻️', c:'#b45309', t:'รายงานของเสีย', go:() => { Reports.view = 'waste'; store.set('vp_rview','waste'); Office.go('reports'); } },
       { k:'mat',     ic:'🧻', c:'#0369a1', t:'รายงานการใช้กระดาษ', go:() => { Reports.view = 'mat'; store.set('vp_rview','mat'); Office.go('reports'); } },
       { k:'qs',      ic:'🗂️', c:'#4338ca', t:'PO / Forecast / ส่งของ (ควาร์ค)', go:() => Office.go('qs') },
-      { k:'hist',    ic:'📑', c:'#0f766e', t:'ประวัติการเปิดใบสั่งผลิต', go:() => { Reports.view = 'history'; store.set('vp_rview','history'); Office.go('reports'); } } ]},
+      { k:'hist',    ic:'📑', c:'#0f766e', t:'ประวัติการเปิดใบสั่งผลิต', go:() => { Reports.view = 'history'; store.set('vp_rview','history'); Office.go('reports'); } },
+      ...[['ontime','✅','#16a34a','ส่งงานตรงเวลา (%)'], ['backlog','⏰','#dc2626','งานค้างตามกำหนดส่ง'], ['aging','📦','#7c3aed','สต็อกค้างนาน'], ['daily','📅','#0f6cbd','ผลผลิตรายวัน (Report_Daily)'], ['lead','⏱','#d97706','Lead time ระยะเวลาผลิต']]
+        .map(([k, ic, c, t]) => ({k: 'k_' + k, ic, c, t, go: () => { Reports.view = k; store.set('vp_rview', k); Office.go('reports'); }})) ]},
     { g:'ฐานข้อมูล', items:[
       { k:'m_cus',   ic:'🏢', c:'#7a3db8', t:'ลูกค้า', go:() => HomePage.master('customers') },
       { k:'m_prod',  ic:'🏷️', c:'#7a3db8', t:'สินค้า / รหัสงาน', go:() => HomePage.master('products') },
