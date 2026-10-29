@@ -2833,6 +2833,45 @@ const ChangeLog = {
   }
 };
 
+
+/* ================== พิมพ์ QR ชุด แปะใบสั่งผลิตเก่า (เปลี่ยนจาก MS Forms มาระบบใหม่) ================== */
+const QRSheet = {
+  async open(base){
+    $('#dlgBody').innerHTML = `<h3>🏷 พิมพ์ QR ชุด — แปะใบสั่งผลิตเก่าที่ยังไม่เสร็จ</h3>
+      <div class="hint">เลือก JOB ที่ยังผลิตไม่จบ แล้วพิมพ์เป็นแผ่น A4 (8 JOB/แผ่น) ตัดตามเส้นแล้วแปะบนใบเก่า · ช่างสแกน QR ใหม่ ยอดเข้าระบบใหม่ทันที</div>
+      <div class="toolbar" style="margin:8px 0"><input id="qs_q" class="field" style="max-width:260px;padding:5px 10px;font-size:13px" placeholder="ค้นหา JOB / ลูกค้า"><label class="wc on"><input type="checkbox" id="qs_all" checked> เลือกทั้งหมด</label><span class="sp"></span><span class="wt-info" id="qs_n"></span></div>
+      <div id="qs_l" class="ps-list"><div class="empty">กำลังโหลด…</div></div>
+      <div class="acts"><button class="btn ghost" id="qs_x">ยกเลิก</button><button class="btn" id="qs_p">🖨 พิมพ์ QR</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#qs_x').onclick = () => d.close();
+    let rows; try { rows = (await API.progress('', true, false)).filter(r => !r.closed && !r.cancelled); } catch (e) { $('#qs_l').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    rows.sort((a, b) => a.job_ticket.localeCompare(b.job_ticket, 'th', {numeric: true}));
+    const sel = new Set(rows.map(r => r.job_ticket));
+    const draw = () => { const q = $('#qs_q').value.trim().toLowerCase(), V = rows.filter(r => !q || (r.job_ticket + ' ' + r.customer_name + ' ' + r.product_name).toLowerCase().includes(q));
+      $('#qs_l').innerHTML = `<table class="so-t"><thead><tr><th></th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะผลิต</th><th>QC</th></tr></thead><tbody>${V.map(r => `<tr><td><input type="checkbox" data-j="${esc(r.job_ticket)}" ${sel.has(r.job_ticket) ? 'checked' : ''}></td><td><b>${esc(r.job_ticket)}</b></td><td>${esc(r.customer_name || '')}</td><td>${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td>${esc(r.qc_status || '')}</td></tr>`).join('')}</tbody></table>`;
+      $('#qs_l').querySelectorAll('[data-j]').forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.j) : sel.delete(c.dataset.j); cnt(); }); cnt(); };
+    const cnt = () => $('#qs_n').textContent = `เลือก ${sel.size} JOB · ${Math.ceil(sel.size / 8)} แผ่น`;
+    $('#qs_q').oninput = draw; $('#qs_all').onchange = e => { rows.forEach(r => e.target.checked ? sel.add(r.job_ticket) : sel.delete(r.job_ticket)); draw(); };
+    draw();
+    $('#qs_p').onclick = () => { const J = rows.filter(r => sel.has(r.job_ticket)); if (!J.length) return toast('เลือกอย่างน้อย 1 JOB'); d.close(); this.print(J, base); };
+  },
+  qr(text){ const box = document.createElement('div'); new QRCode(box, {text, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M});
+    const c = box.querySelector('canvas'); return c ? c.toDataURL('image/png') : box.querySelector('img')?.src || ''; },
+  print(J, base){
+    const url = (dpt, j) => `${base}?scan=${dpt}&job=${encodeURIComponent(j)}`;
+    const cell = r => `<div class="qc"><div class="qh"><b>${esc(r.job_ticket)}</b><span>${esc((r.customer_name || '').slice(0, 40))}</span></div><div class="qp">${esc((r.product_name || '').slice(0, 70))}</div>
+      <div class="qq"><div><img src="${this.qr(url('prod', r.job_ticket))}"><i class="p">ฝ่ายผลิต</i></div><div><img src="${this.qr(url('qc', r.job_ticket))}"><i class="q">QC</i></div></div></div>`;
+    const pages = []; for (let k = 0; k < J.length; k += 8) pages.push(J.slice(k, k + 8));
+    const css = `@page{size:A4;margin:8mm}body{margin:0;font-family:Tahoma,sans-serif}.pg{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:68mm;gap:0;page-break-after:always}.pg:last-child{page-break-after:auto}
+      .qc{border:1px dashed #94a3b8;padding:3mm 4mm;box-sizing:border-box;overflow:hidden}.qh{display:flex;justify-content:space-between;gap:3mm;align-items:baseline}.qh b{font-size:15pt;color:#1f3a68}.qh span{font-size:8pt;color:#334155;text-align:right}
+      .qp{font-size:8pt;color:#475569;height:9mm;overflow:hidden;margin:1mm 0}.qq{display:flex;justify-content:space-around}.qq div{text-align:center}.qq img{width:38mm;height:38mm;display:block}
+      .qq i{font-style:normal;font-weight:700;font-size:10pt;display:block;margin-top:1mm;padding:0.5mm 3mm;border-radius:2mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.qq i.p{background:#0f6cbd}.qq i.q{background:#15803d}`;
+    let fr = document.getElementById('rptFrame'); if (fr) fr.remove();
+    fr = document.createElement('iframe'); fr.id = 'rptFrame'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'; document.body.appendChild(fr);
+    const doc = fr.contentWindow.document; doc.open(); doc.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>QR ชุด</title><style>${css}</style></head><body>${pages.map(pg => `<div class="pg">${pg.map(cell).join('')}</div>`).join('')}</body></html>`); doc.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); }, 500);
+  }
+};
+
 /* ================== WORKORDER — ตารางแบบ Excel (กรองทีละคอลัมน์) ================== */
 const WO_LABELS = {"run_div": "ตัวหารระยะยาว", "cancelled": "ยกเลิก", "cancel_reason": "เหตุผลที่ยกเลิก", "customer_name": "ชื่อลูกค้า", "product_name": "ชื่อสินค้าที่ผลิต", "product_code": "รหัสงาน", "job_ticket": "JOB TICKET", "doc_date": "วันที่เอกสาร", "po_no": "P/O No.", "so_no": "S/O No.", "due_date": "กำหนดส่ง", "other_job": "งานอื่นๆ", "width_mm": "กว้าง(มม.)", "height_mm": "สูง(มม.)", "across": "จำนวนดวง/แถว (Across)", "die_rows": "จำนวนแถวในบล็อกมีด", "order_qty": "จำนวนที่สั่งผลิต(ดวง)", "length_rows": "จำนวนแถวแนวยาว(แถว)", "repeat_mm": "ระยะตั้งงาน (มม.)", "machine": "เครื่องพิมพ์", "supplier": "วัตถุดิบของ (Supplier)", "paper_code": "รหัสกระดาษ", "paper_name": "ชื่อกระดาษ", "paper_type": "ประเภทกระดาษ", "adhesive": "ประเภทกาว", "liner": "หลังกระดาษ", "web_width_mm": "กระดาษหน้ากว้าง(มม.)", "run_m": "ระยะยาวงานจริง(เมตร)", "setup_waste_m": "ระยะเผื่อตั้งงาน(เมตร)", "total_m": "รวมเมตรที่ต้องใช้(เมตร)", "ink_type": "ชนิดสี", "color_count": "จำนวนสี", "special_color": "สีพิเศษ", "pantone": "รหัส Pantone", "coating": "การเคลือบ", "coating_code": "รหัสเคลือบ", "paper_face_mm": "หน้ากระดาษ (mm.)", "spot_uv": "Spot UV", "diecut_no": "เลขที่ไดคัท", "diecut_corner": "มุมไดคัท", "corner_radius": "ขนาดมุมมน", "diecut_machine": "เครื่องไดคัท", "slitter": "เครื่อง Slitter", "foil_type": "ชนิดฟอยล์", "foil_color": "สีฟอยล์", "no_perf": "ไม่มีปรุ (หมายเหตุเทคนิค)", "perf": "มีปรุ (หมายเหตุเทคนิค)", "perf_spec": "ปรุกี่ (มม.) เช่น 3:1", "is_roll": "ระบบม้วน", "roll_outer": "ม้วนนอก", "roll_inner": "ม้วนใน", "core_size": "แกนกระดาษ", "roll_gap": "ช่องไฟ", "roll_across": "จำนวน/แถว (งานม้วน)", "per_roll": "จำนวนดวง/ม้วน", "per_meter": "จำนวน/เมตร", "margin_left": "ขอบซ้าย(มม.)", "margin_right": "ขอบขวา(มม.)", "layout_h": "การจัดวางแนวนอน", "layout_v": "การจัดวางแนวตั้ง", "pack_qty": "จำนวนบรรจุ", "finished_size": "ขนาดสำเร็จ(มม.)", "cut_flush": "ตัดชิดดวง", "leave_edge": "เหลือขอบ", "fold_per_page": "พับหน้าละ(ดวง)", "sprocket": "รูหนามเตย", "sheet_perf": "มีปรุ (งานแผ่น)", "sheet_perf_mm": "ปรุกี่(มม.) งานแผ่น", "is_sheet": "งานแผ่น", "is_continuous": "คอมต่อเนื่อง", "job_label": "งาน (PROOFS:/FORECAST:/เคลมสินค้า)", "mto": "Made to Order", "mts": "Made to Stock", "roll_direction": "ทิศทางการม้วน A-H", "remark": "หมายเหตุ (ส่วนที่ 6 บันทึกเพิ่มเติม/QC)", "foil_type_check": "ติ๊ก ชนิดฟอยล์", "foil_color_check": "ติ๊ก สีฟอยล์", "roll_perf": "มีปรุ (รายละเอียดงานม้วน)", "roll_perf_mm": "มีปรุกี่มม. (งานม้วน)", "roll_no_perf": "ไม่มีปรุ (รายละเอียดงานม้วน)", "sheet_gap": "ช่องไฟ (Gap) งานแผ่น", "adhesive_kill": "ฆ่ากาว: ไม่มี/บางส่วน/ทั้งหมด", "adhesive_kill_note": "รายละเอียดฆ่ากาว (ตำแหน่ง/พื้นที่)", "carry_forward_qty": "ยอดคงเหลือยกมา (ดวง)", "actual_qty": "ยอดผลิตจริง (ดวง)", "after_qc_qty": "ยอดหลังจาก QC (ดวง)", "lot_no": "LOT Number", "has_paper": "มีกระดาษแล้ว", "paper_ordered": "สั่งกระดาษแล้ว", "printer_name": "ลงชื่อ ช่างพิมพ์", "diecut_name": "ลงชื่อ ช่างไดคัท", "qc_name": "ลงชื่อ QC", "art_name": "ลงชื่อ Art", "ordered_by": "ผู้สั่งงาน", "closed": "ปิดจ๊อบ", "created_at": "วันที่บันทึก", "updated_at": "แก้ไขล่าสุด"};
 const WOTable = {
@@ -3788,6 +3827,7 @@ const Office = {
         <datalist id="jobList"></datalist>
         <div class="seg" id="tplSeg"><button data-v="1">แบบเดิม (Excel)</button><button data-v="2">แบบระบบ</button></div>
         <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint" disabled>พิมพ์ A4</button>
+        <button class="btn ghost sm" id="qsheet" title="พิมพ์ QR หลายใบในแผ่นเดียว ไว้ตัดแปะใบสั่งผลิตเก่า">🏷 พิมพ์ QR ชุด (แปะใบเก่า)</button>
         <div class="sp"></div>
         <label class="hint">ผู้สั่งงาน <input id="qby" class="field" style="padding:5px 9px;width:120px;display:inline-block" value="${esc(store.get('vp_orderby',''))}"></label>
       </div>
@@ -3796,6 +3836,7 @@ const Office = {
     let t; $('#qj').oninput = e => { clearTimeout(t); t = setTimeout(async () => {
       const list = await API.searchJobs(e.target.value); $('#jobList').innerHTML = list.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name)} · ${esc(j.product_name)}</option>`).join(''); }, 250); };
     $('#qbase').onchange = e => store.set('vp_base', e.target.value.trim());
+    $('#qsheet').onclick = () => QRSheet.open($('#qbase').value.trim() || base);
     $('#qby').onchange = e => { store.set('vp_orderby', e.target.value.trim()); gen(); };
     $('#qprint').onclick = () => window.print();
     const gen = async () => {
