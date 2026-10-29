@@ -507,6 +507,40 @@ table.trk tr:hover td{background:#eef4ff}
 .tile .tt{font-size:13.5px;font-weight:700;color:var(--tc);text-align:center;line-height:1.3}
 .tile .tb{position:absolute;top:8px;right:10px;background:var(--bad);color:#fff;border-radius:999px;font-size:12px;padding:1px 8px;font-weight:700}
 @media (max-width:900px){ .home{grid-template-columns:1fr} .home-side{display:none} .home-stats{grid-template-columns:repeat(2,1fr)} }
+
+/* ---------- WORKORDER (ตารางแบบ Excel) ---------- */
+.wt-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.wt-bar .field{height:32px;padding:4px 10px;font-size:13px;width:260px}
+.wt-info{font-size:12.5px;color:var(--muted)}
+.wt-wrap{overflow:auto;max-height:calc(100vh - 160px);background:#fff;border:1px solid var(--line);border-radius:10px}
+table.wt{border-collapse:separate;border-spacing:0;font-size:12px;font-family:Tahoma,Calibri,sans-serif}
+table.wt th{position:sticky;top:0;z-index:2;background:#1f5c3a;color:#fff;font-weight:700;font-size:11.5px;padding:0;white-space:nowrap;border-right:1px solid #ffffff33;text-align:left}
+table.wt th .h{display:flex;align-items:center;gap:4px;padding:5px 4px 5px 7px}
+table.wt th .h span{flex:1;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+table.wt th .fb{border:1px solid #ffffff66;background:#ffffff22;color:#fff;border-radius:3px;width:18px;height:18px;font-size:10px;line-height:1;cursor:pointer;padding:0;flex:none}
+table.wt th.f-on{background:#b7791f} table.wt th.f-on .fb{background:#fff;color:#b7791f}
+table.wt td{padding:3px 7px;border-bottom:1px solid #e5e7eb;border-right:1px solid #f0f1f3;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;height:22px}
+table.wt td.n{text-align:right}
+table.wt td.b{text-align:center;color:#1a7f4b;font-weight:700}
+table.wt tbody tr:nth-child(even) td{background:#f7faf8}
+table.wt tbody tr:hover td{background:#fff6d6;cursor:pointer}
+table.wt .st0{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 #cbd5e1}
+table.wt td.st0{background:#fff;font-weight:700;color:#0f3d24}
+table.wt th.st0{z-index:3}
+table.wt td.rn{color:#94a3b8;text-align:right;font-size:11px;background:#f8fafc;padding:3px 4px}
+table.wt .rn,table.wt th.rnh{width:34px;min-width:34px;max-width:34px;box-sizing:border-box}
+.wt-pop{position:fixed;z-index:50;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 10px 30px #0003;width:360px;font-size:13px;padding:8px}
+.wt-pop .srt{display:block;width:100%;text-align:left;background:none;border:0;padding:5px 6px;border-radius:5px;cursor:pointer;font-size:13px}
+.wt-pop .srt:hover{background:#eef2f7}
+.wt-pop hr{border:0;border-top:1px solid #e5e7eb;margin:6px 0}
+.wt-pop input.q{width:100%;height:30px;border:1px solid #cbd5e1;border-radius:6px;padding:3px 8px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.wt-pop .lst{max-height:240px;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;margin-top:6px;padding:4px 2px}
+.wt-pop .lst label{display:flex;gap:6px;align-items:center;padding:2px 6px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wt-pop .lst label:hover{background:#f1f5f9}
+.wt-pop .acts{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.wt-cols{columns:3;font-size:13px;max-height:55vh;overflow:auto}
+.wt-cols label{display:block;padding:2px 0;break-inside:avoid}
+#dlg:has(.wt-cols){max-width:820px}
 /* ---------- รายงานสต็อก ---------- */
 #printArea{display:none}
 .rp-cols{display:flex;flex-wrap:wrap;gap:6px}
@@ -693,12 +727,33 @@ const Demo = {
     let carry = {total:0, from:[]};
     if (pull && mode !== 'revise') { const w = d.wo.find(x => x.job_ticket === j);
       (await this.stockFor(w.customer_name, w.product_name)).filter(r => r.job_ticket !== j).forEach(r => {
-        const src = d.wo.find(x => x.job_ticket === r.job_ticket); src.stock_cut_qty = (+src.stock_cut_qty || 0) + r.stock_qty;
+        const src = d.wo.find(x => x.job_ticket === r.job_ticket); src.stock_cut_qty = (+src.stock_cut_qty || 0) + r.stock_qty; (d.carry_links ||= []).push({to_job:j, from_job:r.job_ticket, qty:r.stock_qty});
         carry.total += r.stock_qty; carry.from.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); });
       if (carry.total) w.carry_forward_qty = (+w.carry_forward_qty || 0) + carry.total; }
     this.save(); return {job_ticket: j, carry};
   },
   async updateWorkOrder(job, p){ const w = this.db().wo.find(x => x.job_ticket === job); Object.assign(w, p); this.save(); },
+  async allWorkOrders(){ return [...this.db().wo].sort((a, b) => b.job_ticket.localeCompare(a.job_ticket)); },
+  async deleteWorkOrder(job, reason){
+    const d = this.db(); job = job.trim(); const w = d.wo.find(x => x.job_ticket === job); const L = d.carry_links ||= [];
+    if (!w) throw new Error('ไม่พบ JOB ' + job);
+    const m = job.match(/^(.+)-R(\d+)$/);
+    if (m) { const mx = Math.max(...d.wo.map(x => x.job_ticket.match(new RegExp('^' + m[1].replace('/','\\/') + '-R(\\d+)$'))).filter(Boolean).map(x => +x[1]));
+      if (+m[2] !== mx) throw new Error(`ลบได้เฉพาะ Revised ล่าสุด (${m[1]}-R${mx}) — ใบเก่าให้เปิดมาแก้ไขแล้วบันทึกทับ`); }
+    else if (/^\d{4}\/\d+$/.test(job)) {
+      if (d.wo.some(x => x.job_ticket.startsWith(job + '-R'))) throw new Error(`JOB ${job} มีใบ Revised อยู่ ต้องลบใบ Revised ก่อน`);
+      const [pf, n] = job.split('/'); const mx = Math.max(...d.wo.map(x => x.job_ticket.match(/^(\d{4})\/(\d+)$/)).filter(x => x && x[1] === pf).map(x => +x[2]));
+      if (+n !== mx) throw new Error(`ลบได้เฉพาะใบล่าสุดของเดือน (${pf}/${String(mx).padStart(2,'0')}) — ใบที่ออกเลขไปแล้วให้เปิดมาแก้ไขแล้วบันทึกทับ`); }
+    if (d.prod_logs.some(x => x.job_ticket === job) || d.qc_logs.some(x => x.job_ticket === job)) throw new Error(`JOB ${job} มีข้อมูลผลิต/QC ที่อนุมัติแล้ว ลบไม่ได้ — ให้แก้ไขหรือปิดจ๊อบแทน`);
+    if (d.inbox.some(x => x.job_ticket === job && x.review_status === 'pending')) throw new Error(`JOB ${job} มีข้อมูลสแกนรอตรวจ — ไปที่ "ตรวจข้อมูลสแกน" กดปฏิเสธรายการนั้นก่อน แล้วค่อยลบ`);
+    if (L.some(x => x.from_job === job)) throw new Error(`สต็อกของ JOB ${job} ถูกยกไปให้ JOB อื่นแล้ว ลบไม่ได้`);
+    const returned = []; L.filter(x => x.to_job === job).forEach(x => { const s = d.wo.find(y => y.job_ticket === x.from_job);
+      if (s) { s.stock_cut_qty = ((+s.stock_cut_qty || 0) - x.qty) || null; returned.push(`${x.from_job} (${fmtN(x.qty)})`); } });
+    const warn = (+w.carry_forward_qty > 0 && !returned.length) ? `ใบนี้มียอดยกมา ${fmtN(w.carry_forward_qty)} ดวง แต่ระบบไม่มีบันทึกว่ามาจาก JOB ไหน — กรุณาตรวจช่อง "ตัดสต็อก" ของ JOB ต้นทางเอง` : null;
+    d.carry_links = L.filter(x => x.to_job !== job); d.inbox = d.inbox.filter(x => x.job_ticket !== job); d.wo = d.wo.filter(x => x !== w);
+    (d.deleted ||= []).push({job_ticket: job, data: w, reason, deleted_at: new Date().toISOString()});
+    this.save(); return {deleted: job, returned, warn, next: await this.nextJobTicket()};
+  },
   async rememberMasters(p, L){ const m = this.m();
     if (p.customer_name && !L.customers.includes(p.customer_name)) m.customers.push({code:'C-'+Date.now(), short_name:p.customer_name, name:p.customer_name});
     if (p.product_code && !L.products.some(([c]) => c === p.product_code)) m.products.push({code:p.product_code, name:p.product_name, short_name:p.product_name});
@@ -805,6 +860,11 @@ const Live = {
     return this.chk(await this.sb.from('v_job_progress').select('job_ticket,stock_qty').eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0));
   },
   async updateWorkOrder(job, p){ this.chk(await this.sb.from('work_orders').update(p).eq('job_ticket', job)); },
+  async allWorkOrders(){ let out = [], from = 0;
+    for (;;) { const r = this.chk(await this.sb.from('work_orders').select('*').order('job_ticket', {ascending: false}).range(from, from + 999));
+      out = out.concat(r); if (r.length < 1000) break; from += 1000; }
+    return out; },
+  async deleteWorkOrder(job, reason){ return this.chk(await this.sb.rpc('delete_work_order', {p_job: job, p_reason: reason || null})); },
   async rememberMasters(p, L){   // รหัสงาน/ลูกค้า/กระดาษใหม่ที่ยังไม่มีในข้อมูลหลัก → เพิ่มให้อัตโนมัติ
     try {
       if (p.product_code && !L.products.some(([c]) => c === p.product_code)) await this.sb.from('products').insert({code: p.product_code, name: p.product_name, short_name: p.product_name});
@@ -1372,6 +1432,7 @@ const WOForm = {
          <button class="btn ghost" id="aRevise">บันทึกเป็น Revised</button>
          <button class="btn ghost" id="aCopy">สร้าง JOB ใหม่จากใบนี้</button>
          <button class="btn ghost" id="aPrint">พิมพ์ใบสั่งผลิต</button>
+         <button class="btn ghost" id="aDelete" style="color:var(--bad);border-color:var(--bad)">🗑 ลบใบนี้</button>
          <label class="wc ${this.wo.closed ? 'on' : ''}" style="margin-left:auto"><input type="checkbox" id="aClosed" ${this.wo.closed ? 'checked' : ''}> ปิดจ๊อบ</label>`;
     $('#woActions').innerHTML = A;
     this.bind(); this.updSqm();
@@ -1445,6 +1506,7 @@ const WOForm = {
       if (this.dirty && !(await Office.confirm('ยังไม่ได้บันทึกการแก้ไข พิมพ์ตามข้อมูลที่บันทึกล่าสุด?'))) return;
       store.set('vp_lastjob', this.wo.job_ticket); Office.go('qr');
     });
+    $('#aDelete')?.addEventListener('click', () => this.del());
     $('#aClosed')?.addEventListener('change', async e => {
       try { await API.updateWorkOrder(this.wo.job_ticket, {closed: e.target.checked}); this.wo.closed = e.target.checked; toast(e.target.checked ? 'ปิดจ๊อบแล้ว — พนักงานจะสแกน JOB นี้ไม่ได้' : 'เปิดจ๊อบอีกครั้ง'); this.load(this.wo, 'edit', true); }
       catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
@@ -1549,6 +1611,32 @@ const WOForm = {
     });
     delete o.job_ticket;
     return o;
+  },
+  del(){
+    const w = this.wo, job = w.job_ticket;
+    $('#dlgBody').innerHTML = `<h3 style="color:var(--bad)">🗑 ลบใบสั่งผลิต ${esc(job)}</h3>
+      <div style="background:var(--bad-soft);border-radius:10px;padding:10px 12px;margin:6px 0 10px;line-height:1.6">
+        <b>ลูกค้า:</b> ${esc(w.customer_name || '-')}<br><b>สินค้า:</b> ${esc(w.product_name || '-')}<br><b>จำนวนสั่งผลิต:</b> ${fmtN(w.order_qty) || '-'}</div>
+      <div style="font-size:13px;color:#475569">• ลบได้เฉพาะใบล่าสุด — ลบแล้วเลข JOB จะกลับมาใช้เลขนี้ใหม่<br>• ถ้าใบนี้ดึงยอดยกมาจาก JOB อื่น ระบบจะคืนยอดให้ JOB ต้นทาง<br>• ลบแล้วกู้คืนจากหน้าจอไม่ได้ (มีสำเนาเก็บไว้ในฐานข้อมูล)</div>
+      <label>สาเหตุที่ลบ (ไม่บังคับ)</label><input id="d_r" class="field" placeholder="เช่น คีย์ผิด">
+      <label>พิมพ์เลข JOB <b>${esc(job)}</b> เพื่อยืนยัน</label><input id="d_j" class="field" autocomplete="off" placeholder="${esc(job)}">
+      <div id="d_e" class="err hidden" style="margin:10px 0 0"></div>
+      <div class="acts"><button class="btn ghost" id="d_n">ยกเลิก</button><button class="btn bad" id="d_y" disabled>ลบแน่นอน</button></div>`;
+    const dlg = $('#dlg'); dlg.showModal(); setTimeout(() => $('#d_j').focus(), 50);
+    $('#d_j').oninput = e => $('#d_y').disabled = e.target.value.trim() !== job;
+    $('#d_n').onclick = () => dlg.close();
+    $('#d_y').onclick = async () => {
+      $('#d_y').disabled = true;
+      try {
+        const r = await API.deleteWorkOrder(job, $('#d_r').value.trim()); dlg.close();
+        WOForm.L = null; store.set('vp_open_job', null); store.set('vp_lastjob', null);
+        this.setDirty(false); this.load(blankWO(), 'new');
+        let msg = `ลบ JOB ${job} แล้ว\nเลข JOB ถัดไป: ${r.next}`;
+        if (r.returned && r.returned.length) msg += `\n\nคืนยอดสต็อกให้: ${r.returned.join(', ')}`;
+        if (r.warn) msg += `\n\n⚠ ${r.warn}`;
+        await Office.confirm(msg, true);
+      } catch (e) { $('#d_y').disabled = false; const b = $('#d_e'); b.textContent = 'ลบไม่ได้: ' + e.message; b.classList.remove('hidden'); }
+    };
   },
   async save(kind, andPrint){
     const p = this.payload();
@@ -1770,12 +1858,154 @@ const Lookup = {
   }
 };
 
+
+/* ================== WORKORDER — ตารางแบบ Excel (กรองทีละคอลัมน์) ================== */
+const WO_LABELS = {"customer_name": "ชื่อลูกค้า", "product_name": "ชื่อสินค้าที่ผลิต", "product_code": "รหัสงาน", "job_ticket": "JOB TICKET", "doc_date": "วันที่เอกสาร", "po_no": "P/O No.", "so_no": "S/O No.", "due_date": "กำหนดส่ง", "other_job": "งานอื่นๆ", "width_mm": "กว้าง(มม.)", "height_mm": "สูง(มม.)", "across": "จำนวนดวง/แถว (Across)", "die_rows": "จำนวนแถวในบล็อกมีด", "order_qty": "จำนวนที่สั่งผลิต(ดวง)", "length_rows": "จำนวนแถวแนวยาว(แถว)", "repeat_mm": "ระยะตั้งงาน (มม.)", "machine": "เครื่องพิมพ์", "supplier": "วัตถุดิบของ (Supplier)", "paper_code": "รหัสกระดาษ", "paper_name": "ชื่อกระดาษ", "paper_type": "ประเภทกระดาษ", "adhesive": "ประเภทกาว", "liner": "หลังกระดาษ", "web_width_mm": "กระดาษหน้ากว้าง(มม.)", "run_m": "ระยะยาวงานจริง(เมตร)", "setup_waste_m": "ระยะเผื่อตั้งงาน(เมตร)", "total_m": "รวมเมตรที่ต้องใช้(เมตร)", "ink_type": "ชนิดสี", "color_count": "จำนวนสี", "special_color": "สีพิเศษ", "pantone": "รหัส Pantone", "coating": "การเคลือบ", "coating_code": "รหัสเคลือบ", "paper_face_mm": "หน้ากระดาษ (mm.)", "spot_uv": "Spot UV", "diecut_no": "เลขที่ไดคัท", "diecut_corner": "มุมไดคัท", "corner_radius": "ขนาดมุมมน", "diecut_machine": "เครื่องไดคัท", "slitter": "เครื่อง Slitter", "foil_type": "ชนิดฟอยล์", "foil_color": "สีฟอยล์", "no_perf": "ไม่มีปรุ (หมายเหตุเทคนิค)", "perf": "มีปรุ (หมายเหตุเทคนิค)", "perf_spec": "ปรุกี่ (มม.) เช่น 3:1", "is_roll": "ระบบม้วน", "roll_outer": "ม้วนนอก", "roll_inner": "ม้วนใน", "core_size": "แกนกระดาษ", "roll_gap": "ช่องไฟ", "roll_across": "จำนวน/แถว (งานม้วน)", "per_roll": "จำนวนดวง/ม้วน", "per_meter": "จำนวน/เมตร", "margin_left": "ขอบซ้าย(มม.)", "margin_right": "ขอบขวา(มม.)", "layout_h": "การจัดวางแนวนอน", "layout_v": "การจัดวางแนวตั้ง", "pack_qty": "จำนวนบรรจุ", "finished_size": "ขนาดสำเร็จ(มม.)", "cut_flush": "ตัดชิดดวง", "leave_edge": "เหลือขอบ", "fold_per_page": "พับหน้าละ(ดวง)", "sprocket": "รูหนามเตย", "sheet_perf": "มีปรุ (งานแผ่น)", "sheet_perf_mm": "ปรุกี่(มม.) งานแผ่น", "is_sheet": "งานแผ่น", "is_continuous": "คอมต่อเนื่อง", "job_label": "งาน (PROOFS:/FORECAST:/เคลมสินค้า)", "mto": "Made to Order", "mts": "Made to Stock", "roll_direction": "ทิศทางการม้วน A-H", "remark": "หมายเหตุ (ส่วนที่ 6 บันทึกเพิ่มเติม/QC)", "foil_type_check": "ติ๊ก ชนิดฟอยล์", "foil_color_check": "ติ๊ก สีฟอยล์", "roll_perf": "มีปรุ (รายละเอียดงานม้วน)", "roll_perf_mm": "มีปรุกี่มม. (งานม้วน)", "roll_no_perf": "ไม่มีปรุ (รายละเอียดงานม้วน)", "sheet_gap": "ช่องไฟ (Gap) งานแผ่น", "adhesive_kill": "ฆ่ากาว: ไม่มี/บางส่วน/ทั้งหมด", "adhesive_kill_note": "รายละเอียดฆ่ากาว (ตำแหน่ง/พื้นที่)", "carry_forward_qty": "ยอดคงเหลือยกมา (ดวง)", "actual_qty": "ยอดผลิตจริง (ดวง)", "after_qc_qty": "ยอดหลังจาก QC (ดวง)", "lot_no": "LOT Number", "has_paper": "มีกระดาษแล้ว", "paper_ordered": "สั่งกระดาษแล้ว", "printer_name": "ลงชื่อ ช่างพิมพ์", "diecut_name": "ลงชื่อ ช่างไดคัท", "qc_name": "ลงชื่อ QC", "art_name": "ลงชื่อ Art", "ordered_by": "ผู้สั่งงาน", "closed": "ปิดจ๊อบ", "created_at": "วันที่บันทึก", "updated_at": "แก้ไขล่าสุด"};
+const WOTable = {
+  rows: [], filters: {}, sort: null, q: '', limit: 300,
+  COLS(){ return [...WO_FIELDS.map(f => f[0]), 'closed', 'created_at']; },
+  type(c){ return c === 'closed' ? 'boolean' : c === 'created_at' ? 'date' : (WO_FIELDS.find(f => f[0] === c) || [, 'text'])[1]; },
+  hidden(){ return new Set(store.get('vp_wt_hide', [])); },
+  disp(r, c){ const v = r[c], t = this.type(c);
+    if (t === 'boolean') return v ? '✓' : '';
+    if (v === null || v === undefined || v === '') return '';
+    if (t === 'date') return isoToTh(v);
+    if (t === 'numeric') return Number(v).toLocaleString('en-US', {maximumFractionDigits: 3});
+    return String(v); },
+  async page(){
+    $('#page').innerHTML = `
+      <div class="wt-bar">
+        <b style="font-size:15px;color:#1f5c3a">📋 WORKORDER</b>
+        <input id="wtQ" class="field" placeholder="ค้นหาทุกช่อง (JOB / ลูกค้า / สินค้า …)" value="${esc(this.q)}">
+        <button class="btn ghost sm" id="wtClr">ล้างตัวกรองทั้งหมด</button>
+        <button class="btn ghost sm" id="wtCols">☰ เลือกคอลัมน์</button>
+        <button class="btn ghost sm" id="wtCsv">⬇ Excel (CSV)</button>
+        <button class="btn ghost sm" id="wtReload">↻ โหลดใหม่</button>
+        <span class="wt-info" id="wtInfo"></span>
+        <span class="wt-info" style="margin-left:auto">กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียง · ดับเบิลคลิกแถวเพื่อเปิดใบสั่งผลิต</span>
+      </div>
+      <div class="wt-wrap" id="wtWrap"><div class="empty">กำลังโหลด…</div></div>`;
+    let t; $('#wtQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.limit = 300; this.draw(); }, 200); };
+    $('#wtClr').onclick = () => { this.filters = {}; this.sort = null; this.q = ''; $('#wtQ').value = ''; this.limit = 300; this.draw(); };
+    $('#wtCols').onclick = () => this.colDlg();
+    $('#wtCsv').onclick = () => this.csv();
+    $('#wtReload').onclick = () => this.load();
+    await this.load();
+  },
+  async load(){
+    try { this.rows = await API.allWorkOrders(); }
+    catch (e) { $('#wtWrap').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    this.draw();
+  },
+  filtered(){
+    const q = this.q.trim().toLowerCase(), cols = this.COLS(), F = Object.entries(this.filters);
+    let rows = this.rows.filter(r => {
+      for (const [c, set] of F) if (!set.has(this.disp(r, c))) return false;
+      if (q && !cols.some(c => this.disp(r, c).toLowerCase().includes(q))) return false;
+      return true; });
+    if (this.sort) { const {c, dir} = this.sort, t = this.type(c);
+      rows = [...rows].sort((a, b) => { let x = a[c], y = b[c];
+        if (t === 'numeric') { x = x === null || x === '' ? -Infinity : +x; y = y === null || y === '' ? -Infinity : +y; return (x - y) * dir; }
+        if (t === 'boolean') return ((x ? 1 : 0) - (y ? 1 : 0)) * dir;
+        return String(x ?? '').localeCompare(String(y ?? ''), 'th', {numeric: true}) * dir; }); }
+    return rows;
+  },
+  draw(){
+    const H = this.hidden(), cols = this.COLS().filter(c => !H.has(c)), rows = this.filtered(), show = rows.slice(0, this.limit);
+    const th = cols.map((c, i) => `<th class="${this.filters[c] ? 'f-on' : ''} ${i === 0 ? 'st0' : ''}" style="${i === 0 ? 'left:34px' : ''}"><div class="h"><span title="${esc(WO_LABELS[c] || c)}">${esc(WO_LABELS[c] || c)}${this.sort?.c === c ? (this.sort.dir > 0 ? ' ▲' : ' ▼') : ''}</span><button class="fb" data-f="${c}" title="กรอง / เรียง">${this.filters[c] ? '⧩' : '▼'}</button></div></th>`).join('');
+    const body = show.map((r, k) => `<tr data-j="${esc(r.job_ticket)}"><td class="rn st0" style="left:0">${k + 1}</td>${cols.map((c, i) => {
+      const v = this.disp(r, c), t = this.type(c);
+      return `<td class="${t === 'numeric' ? 'n' : t === 'boolean' ? 'b' : ''} ${i === 0 ? 'st0' : ''}" style="${i === 0 ? 'left:34px' : ''}" title="${esc(v)}">${esc(v)}</td>`; }).join('')}</tr>`).join('');
+    $('#wtWrap').innerHTML = `<table class="wt"><thead><tr><th class="st0 rnh" style="left:0"><div class="h" style="padding-left:4px">#</div></th>${th}</tr></thead><tbody>${body}</tbody></table>
+      ${rows.length > this.limit ? `<div style="padding:10px;text-align:center"><button class="btn ghost sm" id="wtMore">แสดงเพิ่ม (${fmtN(rows.length - this.limit)} แถว)</button></div>` : ''}
+      ${!rows.length ? '<div class="empty">ไม่พบข้อมูลตามตัวกรอง</div>' : ''}`;
+    const nf = Object.keys(this.filters).length;
+    $('#wtInfo').textContent = `แสดง ${fmtN(rows.length)} จาก ${fmtN(this.rows.length)} ใบ${nf ? ` · กรองอยู่ ${nf} คอลัมน์` : ''}`;
+    $('#wtMore')?.addEventListener('click', () => { this.limit += 500; this.draw(); });
+    $('#wtWrap').querySelectorAll('.fb').forEach(b => b.onclick = e => { e.stopPropagation(); this.pop(b.dataset.f, b); });
+    $('#wtWrap').querySelectorAll('tbody tr').forEach(tr => tr.ondblclick = () => { store.set('vp_open_job', tr.dataset.j); Office.go('wo'); });
+  },
+  pop(c, btn){
+    document.querySelector('.wt-pop')?.remove();
+    // ค่าที่เลือกได้ = ค่าในแถวที่ผ่านตัวกรองคอลัมน์อื่น (เหมือน Excel)
+    const others = {...this.filters}; delete others[c];
+    const saved = this.filters; this.filters = others; const base = this.filtered(); this.filters = saved;
+    const cnt = new Map(); base.forEach(r => { const v = this.disp(r, c); cnt.set(v, (cnt.get(v) || 0) + 1); });
+    const t = this.type(c);
+    const vals = [...cnt.keys()].sort((a, b) => {
+      if (a === '') return 1; if (b === '') return -1;
+      if (t === 'numeric') return parseFloat(a.replace(/,/g,'')) - parseFloat(b.replace(/,/g,''));
+      if (t === 'date') { const k = s => s.split('/').reverse().join(''); return k(a).localeCompare(k(b)); }
+      return a.localeCompare(b, 'th', {numeric: true}); });
+    const cur = this.filters[c];
+    const p = document.createElement('div'); p.className = 'wt-pop';
+    p.innerHTML = `<div style="font-weight:700;color:#1f5c3a;margin:0 0 4px 4px">${esc(WO_LABELS[c] || c)}</div>
+      <button class="srt" data-d="1">↑ เรียงจาก น้อย → มาก / ก → ฮ</button><button class="srt" data-d="-1">↓ เรียงจาก มาก → น้อย / ฮ → ก</button>
+      <hr><input class="q" placeholder="ค้นหา…" autocomplete="off">
+      <div class="lst"></div>
+      <div class="acts"><button class="btn ghost sm" data-a="clr">ล้างตัวกรองนี้</button><button class="btn ghost sm" data-a="x">ยกเลิก</button><button class="btn sm" data-a="ok">ตกลง</button></div>`;
+    document.body.appendChild(p);
+    const r = btn.getBoundingClientRect(); p.style.top = Math.min(r.bottom + 4, innerHeight - p.offsetHeight - 8) + 'px'; p.style.left = Math.max(8, Math.min(r.left - 330, innerWidth - 370)) + 'px';
+    const checked = new Set(cur ? vals.filter(v => cur.has(v)) : vals);
+    const lst = p.querySelector('.lst'), qi = p.querySelector('.q');
+    const MAX = 400;
+    const vis = () => { const q = qi.value.trim().toLowerCase(); return q ? vals.filter(v => v.toLowerCase().includes(q)) : vals; };
+    const render = () => { const V = vis(), all = V.length && V.every(v => checked.has(v));
+      lst.innerHTML = `<label><input type="checkbox" data-all ${all ? 'checked' : ''}> <b>(เลือกทั้งหมด${qi.value ? 'ที่ค้นเจอ' : ''})</b></label>` +
+        V.slice(0, MAX).map((v, i) => `<label title="${esc(v)}"><input type="checkbox" data-i="${vals.indexOf(v)}" ${checked.has(v) ? 'checked' : ''}> ${v === '' ? '<i style="color:#94a3b8">(ว่าง)</i>' : esc(v)} <span style="color:#94a3b8;margin-left:auto">${cnt.get(v)}</span></label>`).join('') +
+        (V.length > MAX ? `<div style="color:#94a3b8;padding:4px 6px">…อีก ${V.length - MAX} ค่า พิมพ์ค้นหาเพื่อหาให้แคบลง</div>` : ''); };
+    render();
+    qi.oninput = () => { // พิมพ์ค้นหา = เลือกเฉพาะที่ค้นเจอ (แบบ Excel)
+      const V = new Set(vis()); checked.clear(); if (qi.value.trim()) V.forEach(v => checked.add(v)); else vals.forEach(v => checked.add(v)); render(); };
+    lst.onchange = e => { const el = e.target;
+      if (el.hasAttribute('data-all')) vis().forEach(v => el.checked ? checked.add(v) : checked.delete(v));
+      else { const v = vals[+el.dataset.i]; el.checked ? checked.add(v) : checked.delete(v); }
+      render(); };
+    const close = () => { p.remove(); document.removeEventListener('mousedown', out, true); };
+    const out = e => { if (!p.contains(e.target)) close(); };
+    setTimeout(() => document.addEventListener('mousedown', out, true), 0);
+    p.querySelectorAll('.srt').forEach(b => b.onclick = () => { this.sort = {c, dir: +b.dataset.d}; close(); this.draw(); });
+    p.querySelector('[data-a=x]').onclick = close;
+    p.querySelector('[data-a=clr]').onclick = () => { delete this.filters[c]; close(); this.draw(); };
+    const ok = () => { if (checked.size === vals.length) delete this.filters[c]; else this.filters[c] = new Set(checked); this.limit = 300; close(); this.draw(); };
+    p.querySelector('[data-a=ok]').onclick = ok;
+    qi.onkeydown = e => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') close(); };
+    qi.focus();
+  },
+  colDlg(){
+    const H = this.hidden(), cols = this.COLS();
+    const MAIN = ['customer_name','product_name','product_code','job_ticket','doc_date','po_no','so_no','due_date','order_qty','machine','paper_code','paper_name','width_mm','height_mm','remark','closed'];
+    $('#dlgBody').innerHTML = `<h3>เลือกคอลัมน์ที่จะแสดง</h3>
+      <div style="display:flex;gap:6px;margin-bottom:8px"><button class="btn ghost sm" id="cAll">แสดงทั้งหมด</button><button class="btn ghost sm" id="cMain">เฉพาะคอลัมน์หลัก</button><button class="btn ghost sm" id="cNone">ไม่เลือกเลย</button></div>
+      <div class="wt-cols">${cols.map(c => `<label><input type="checkbox" value="${c}" ${H.has(c) ? '' : 'checked'}> ${esc(WO_LABELS[c] || c)}</label>`).join('')}</div>
+      <div class="acts"><button class="btn ghost" id="cX">ยกเลิก</button><button class="btn" id="cOk">ตกลง</button></div>`;
+    const d = $('#dlg'); d.showModal();
+    const boxes = () => [...$('#dlgBody').querySelectorAll('.wt-cols input')];
+    $('#cAll').onclick = () => boxes().forEach(b => b.checked = true);
+    $('#cNone').onclick = () => boxes().forEach(b => b.checked = false);
+    $('#cMain').onclick = () => boxes().forEach(b => b.checked = MAIN.includes(b.value));
+    $('#cX').onclick = () => d.close();
+    $('#cOk').onclick = () => { const hide = boxes().filter(b => !b.checked).map(b => b.value);
+      if (hide.length === cols.length) return toast('เลือกอย่างน้อย 1 คอลัมน์');
+      store.set('vp_wt_hide', hide); hide.forEach(c => delete this.filters[c]); d.close(); this.draw(); };
+  },
+  csv(){
+    const H = this.hidden(), cols = this.COLS().filter(c => !H.has(c)), rows = this.filtered();
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const lines = [cols.map(c => q(WO_LABELS[c] || c)).join(','), ...rows.map(r => cols.map(c => { const t = this.type(c), v = r[c];
+      return t === 'numeric' ? (v ?? '') : q(this.disp(r, c)); }).join(','))];
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'}));
+    a.download = `WORKORDER_${isoToTh(todayISO()).replace(/\//g, '-')}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+};
+
 /* ================== หน้าเมนูหลัก (Main Menu) ================== */
 const HomePage = {
   menu: [
     { g:'ใบสั่งผลิต', items:[
       { k:'wo_new',  ic:'📝', c:'#0f6cbd', t:'เปิดใบสั่งผลิตใหม่', go:() => { WOForm.wo = null; store.set('vp_open_job', null); Office.go('wo'); } },
       { k:'wo_open', ic:'📂', c:'#1f3a68', t:'เปิด / แก้ไขใบสั่งผลิต', go:() => { Office.go('wo'); setTimeout(() => $('#woOpen')?.focus(), 200); } },
+      { k:'wotable', ic:'📋', c:'#1f5c3a', t:'WORKORDER (ตารางค้นหา)', go:() => Office.go('wotable') },
       { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') } ]},
     { g:'การผลิต / QC', items:[
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
@@ -1895,17 +2125,21 @@ const StockReport = {
       });
     } else body = rows.map(line).join('');
     const now = new Date(Date.now() + 7*3600e3);
-    $('#printArea').innerHTML = `<div class="rpt">
+    const html = `<div class="rpt">
       <div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(o.title)}</h2></div>
         <div class="rpt-meta">พิมพ์เมื่อ ${fmtT(new Date().toISOString())}<br>จำนวน ${fmtN(rows.length)} รายการ${o.cols.includes('stock_qty') ? ` · สต็อกรวม <b>${fmtN(sum(rows))}</b> ดวง` : ''}</div></div>
       <table>${'<thead>' + head + '</thead>'}<tbody>${body || `<tr><td colspan="${cols.length + 1}" style="text-align:center;padding:20px">ไม่มีข้อมูล</td></tr>`}</tbody></table>
       ${o.note ? `<div class="rpt-note">หมายเหตุ: ${esc(o.note)}</div>` : ''}
       <div class="rpt-sign"><div>ผู้จัดทำ ................................................</div><div>ผู้ตรวจสอบ ................................................</div></div>
     </div>`;
-    document.body.classList.add('print-rpt');
-    const done = () => { document.body.classList.remove('print-rpt'); window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    setTimeout(() => window.print(), 100);
+    const css = `.rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}\n.rpt-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:3mm}\n.rpt-h b{color:#1f3a68}.rpt-h h2{margin:0;font-size:15pt;color:#1f3a68}\n.rpt-meta{text-align:right;font-size:9pt;color:#334155}\n.rpt table{width:100%;border-collapse:collapse}\n.rpt th{background:#1f3a68;color:#fff;padding:1.5mm 2mm;font-size:9.5pt;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt td{padding:1.2mm 2mm;border-bottom:.5px solid #cbd5e1;vertical-align:top}\n.rpt .num{text-align:right;white-space:nowrap}\n.rpt .no{width:10mm;text-align:center;color:#64748b}\n.rpt td.stock_qty{font-weight:700;color:#c8102e}\n.rpt td.stock_jobs{font-size:8.5pt;color:#334155}\n.rpt tr.grp td{background:#e8eef8;font-weight:700;color:#1f3a68;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt tr.sub td{text-align:right;font-size:9pt;border-bottom:1px solid #1f3a68}\n.rpt thead{display:table-header-group}\n.rpt tr{page-break-inside:avoid}\n.rpt-note{margin-top:3mm;font-size:9pt}\n.rpt-sign{display:flex;justify-content:space-around;margin-top:12mm;font-size:9.5pt}\n`;
+    let fr = document.getElementById('rptFrame'); if (fr) fr.remove();
+    fr = document.createElement('iframe'); fr.id = 'rptFrame';
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(fr);
+    const d = fr.contentWindow.document;
+    d.open(); d.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>@page{size:A4;margin:10mm}body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}${css}</style></head><body>${html}</body></html>`); d.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); }, 300);
   },
   csv(o, rows){
     const cols = this.COLS.filter(c => o.cols.includes(c[0]));
@@ -1932,6 +2166,7 @@ const Office = {
         <nav class="tabs">
           <button class="tab" data-t="home">🏠 หน้าหลัก</button>
           <button class="tab" data-t="wo">ใบสั่งผลิต</button>
+          <button class="tab" data-t="wotable">WORKORDER</button>
           <button class="tab" data-t="inbox">ตรวจข้อมูลสแกน <span class="badge hidden" id="badge"></span></button>
           <button class="tab" data-t="progress">ติดตามงาน</button>
           <button class="tab" data-t="qr">พิมพ์ใบสั่งผลิต</button>
@@ -1958,7 +2193,7 @@ const Office = {
   go(t){
     this.tab = t; store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page()})[t]();
+    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page()})[t]();
   },
 
   /* ----- รอตรวจ ----- */
