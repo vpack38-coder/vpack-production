@@ -679,6 +679,10 @@ table.qs-rpt td,table.qs-rpt th{font-size:inherit!important;font-family:inherit}
 table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt td.pn{white-space:normal;min-width:220px;max-width:340px}
 .al-chip{display:inline-block;background:#eef2ff;border-radius:6px;padding:1px 8px;margin:2px}
 .qs-rem{color:#b42318} .qs-warn{color:#b45309;font-weight:700}
+.cl-box{max-height:55vh;overflow:auto} table.cl-t td{vertical-align:top;font-size:12px} .cl-r{line-height:1.5} .cl-a{color:#b42318;text-decoration:line-through} .cl-b{color:#166534;font-weight:600}
+#dlg:has(.cl-box){max-width:900px;width:94vw}
+.pv-r{cursor:pointer} .pv-r:hover td{background:#fff6d6}
+.pv-bar{height:12px;background:#f1f5f9;border-radius:6px;overflow:hidden}.pv-bar i{display:block;height:100%;border-radius:6px}.pv-bar.waste i{background:linear-gradient(90deg,#f59e0b,#dc2626)}.pv-bar.mat i{background:linear-gradient(90deg,#38bdf8,#0369a1)}
 /* ---------- รายงานสต็อก ---------- */
 #printArea{display:none}
 .rp-cols{display:flex;flex-wrap:wrap;gap:6px}
@@ -872,7 +876,13 @@ const Demo = {
       if (carry.total) w.carry_forward_qty = (+w.carry_forward_qty || 0) + carry.total; }
     this.save(); return {job_ticket: j, carry};
   },
-  async updateWorkOrder(job, p){ const w = this.db().wo.find(x => x.job_ticket === job); Object.assign(w, p); this.save(); },
+  async updateWorkOrder(job, p){ const d = this.db(), w = d.wo.find(x => x.job_ticket === job), ch = {};
+    Object.keys(p).forEach(k => { if ((w[k] ?? null) !== (p[k] ?? null) && String(w[k] ?? '') !== String(p[k] ?? '')) ch[k] = [w[k] ?? null, p[k] ?? null]; });
+    if (Object.keys(ch).length) (d.clog ||= []).push({tbl: 'work_orders', rec_key: job, action: 'update', changes: ch, changed_by: 'ทดลอง', changed_at: new Date().toISOString()});
+    Object.assign(w, p); w.updated_at = new Date().toISOString(); this.save(); },
+  async progressAll(){ return this.calc(); },
+  async changeLog(tbl, key){ return (this.db().clog || []).filter(x => x.tbl === tbl && x.rec_key === key).reverse(); },
+  async recentChanges(n){ return (this.db().clog || []).slice(-(n || 150)).reverse(); },
   qsDb(){ const d = this.db(); d.fc ||= []; d.dlv ||= []; return d; },
   async qsData(cfg){ const d = this.qsDb(); return {fc: d.fc.filter(x => x.customer_code === cfg.customer_code), dl: d.dlv.filter(x => x.customer_code === cfg.customer_code),
     pr: (await this.calc()).filter(r => (r.customer_name || '').includes(cfg.name_match || 'ควาร์ค'))}; },
@@ -1096,6 +1106,9 @@ const Live = {
     for (let k = 0; k < plan.ins.length; k += 500) this.chk(await this.sb.from('deliveries').insert(plan.ins.slice(k, k + 500)));
     for (const u of plan.upd) this.chk(await this.sb.from('deliveries').update({...u.patch, updated_at: now}).eq('id', u.id));
     return plan.stats; },
+  async progressAll(){ return this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,customer_name,product_name,product_code,machine,printer,diecutter,paper_type,paper_code,eff_prod,eff_qc,waste_qty,order_qty,cancelled,closed').order('job_ticket')); },
+  async changeLog(tbl, key){ try { return this.chk(await this.sb.from('change_log').select('*').eq('tbl', tbl).eq('rec_key', key).order('changed_at', {ascending: false}).limit(200)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
+  async recentChanges(n){ try { return this.chk(await this.sb.from('change_log').select('*').order('changed_at', {ascending: false}).limit(n || 150)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
   async fetchTable(t, order){ let out = [], from = 0;
     for (;;) { const r = this.chk(await this.sb.from(t).select('*').order(order).range(from, from + 999));
       out = out.concat(r); if (r.length < 1000) break; from += 1000; }
@@ -1151,7 +1164,7 @@ const BACKUP_TABLES = [   // [ชื่อชีต, ตาราง/วิว, 
   ['WORKORDER', 'work_orders', 'job_ticket'], ['ติดตามงาน', 'v_job_progress', 'job_ticket'], ['สต็อกตามสินค้า', 'v_stock', 'customer_name'],
   ['DATA_ผลิต', 'production_logs', 'id'], ['DATA_QC', 'qc_logs', 'id'], ['ข้อมูลสแกนทั้งหมด', 'scan_inbox', 'id'],
   ['ลูกค้า', 'customers', 'code'], ['สินค้า', 'products', 'code'], ['วัตถุดิบ', 'raw_materials', 'code'], ['ซัพพลายเออร์', 'suppliers', 'code'],
-  ['DATA_SPEC', 'lookups', 'category'], ['พนักงาน', 'employees', 'id'], ['ใบสั่งผลิตที่ลบ', 'deleted_work_orders', 'id'], ['ยอดยกมา', 'carry_links', 'id'], ['SO_หัวเอกสาร', 'so_headers', 'so_no'], ['SO_รายการ', 'so_items', 'id'], ['PO_Forecast', 'fc_po', 'id'], ['การส่งของ', 'deliveries', 'id'], ['Forecast_รายเดือน', 'fc_monthly', 'id']];
+  ['DATA_SPEC', 'lookups', 'category'], ['พนักงาน', 'employees', 'id'], ['ใบสั่งผลิตที่ลบ', 'deleted_work_orders', 'id'], ['ยอดยกมา', 'carry_links', 'id'], ['SO_หัวเอกสาร', 'so_headers', 'so_no'], ['SO_รายการ', 'so_items', 'id'], ['PO_Forecast', 'fc_po', 'id'], ['การส่งของ', 'deliveries', 'id'], ['Forecast_รายเดือน', 'fc_monthly', 'id'], ['ประวัติการแก้ไข', 'change_log', 'id']];
 const API = USE_DEMO ? Demo : (Live.init(), Live);
 if (USE_DEMO) $('#demoBar').classList.remove('hidden');
 
@@ -1733,6 +1746,7 @@ const WOForm = {
          <button class="btn ghost" id="aRevise">บันทึกเป็น Revised</button>
          <button class="btn ghost" id="aCopy">สร้าง JOB ใหม่จากใบนี้</button>
          <button class="btn ghost" id="aPrint">พิมพ์ใบสั่งผลิต</button>
+         <button class="btn ghost" id="aHist" title="ดูว่าใครแก้อะไรเมื่อไร">🕘 ประวัติ</button>
          <button class="btn ghost" id="aCancelWo" style="color:#b45309;border-color:#f0c674">🚫 ยกเลิกใบนี้</button>
          <button class="btn ghost" id="aDelete" style="color:var(--bad);border-color:var(--bad)">🗑 ลบใบนี้</button>
          <label class="wc ${this.wo.closed ? 'on' : ''}" style="margin-left:auto"><input type="checkbox" id="aClosed" ${this.wo.closed ? 'checked' : ''}> ปิดจ๊อบ</label>`;
@@ -1810,6 +1824,7 @@ const WOForm = {
     });
     $('#aDelete')?.addEventListener('click', () => this.del());
     $('#aCancelWo')?.addEventListener('click', () => this.cancelWo());
+    $('#aHist')?.addEventListener('click', () => ChangeLog.show(this.wo.job_ticket));
     $('#aUncancel')?.addEventListener('click', async () => { if (!(await Office.confirm(`นำ JOB ${this.wo.job_ticket} กลับมาใช้งาน?\n(ยอดยกมาที่คืนไปตอนยกเลิก จะไม่ดึงกลับมาให้อัตโนมัติ)`))) return;
       try { await API.uncancelWorkOrder(this.wo.job_ticket); const w = await API.getWorkOrder(this.wo.job_ticket); this.load(w, 'edit'); toast('นำกลับมาใช้งานแล้ว'); } catch (e) { toast(e.message); } });
     $('#aClosed')?.addEventListener('change', async e => {
@@ -2792,6 +2807,31 @@ const DLPick = {
 };
 document.addEventListener('click', e => { const b = e.target.closest('.dlb'); if (b) { e.preventDefault(); DLPick.open(b); } });
 
+
+/* ================== ประวัติการแก้ไข ================== */
+const ChangeLog = {
+  val(k, v){ if (v === null || v === undefined || v === '') return '<i class="wt-info">(ว่าง)</i>';
+    if (v === true) return '✓'; if (v === false) return '✗';
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return isoToTh(v);
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return fmtT(v);
+    if (typeof v === 'number') return fmtN(v);
+    return esc(typeof v === 'object' ? JSON.stringify(v) : String(v)).slice(0, 200); },
+  label(k){ return ({closed: 'ปิดจ๊อบ', adj_prod_qty: 'ยอดผลิตปรับปรุง', adj_qc_qty: 'ยอด QC ปรับปรุง', reduce_qty: 'ปรับลด/ปิดยอด', stock_cut_qty: 'ตัดสต็อก', track_note: 'หมายเหตุติดตาม',
+    cancelled: 'ยกเลิก', cancel_reason: 'เหตุผลยกเลิก', cancelled_at: 'ยกเลิกเมื่อ', cancelled_by: 'ยกเลิกโดย', period: 'งวดเดือน', si_no: 'ใบกำกับ', qty: 'จำนวน', po_qty: 'จำนวนใน PO', forecast_qty: 'Forecast'})[k] || WO_LABELS[k] || BK_HEAD[k] || k; },
+  rows(list, showKey){
+    const act = {insert: '<span class="so-st ok">สร้าง</span>', update: '<span class="so-st part">แก้ไข</span>', delete: '<span class="so-st x">ลบ</span>'};
+    return list.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.changed_at)}</td><td>${esc(x.changed_by || '')}</td>${showKey ? `<td><b>${esc(x.rec_key)}</b><div class="so-rm">${esc(({work_orders: 'ใบสั่งผลิต', deliveries: 'ส่งของ', fc_po: 'PO/Forecast'})[x.tbl] || x.tbl)}</div></td>` : ''}<td>${act[x.action] || x.action}</td>
+      <td>${x.changes ? Object.entries(x.changes).map(([k, [a, b]]) => `<div class="cl-r"><b>${esc(this.label(k))}:</b> <span class="cl-a">${this.val(k, a)}</span> → <span class="cl-b">${this.val(k, b)}</span></div>`).join('') : ''}</td></tr>`).join(''); },
+  async show(job){
+    $('#dlgBody').innerHTML = `<h3>🕘 ประวัติการแก้ไข JOB ${esc(job)}</h3><div id="cl_b" class="cl-box"><div class="empty">กำลังโหลด…</div></div><div class="acts"><button class="btn" id="cl_x">ปิด</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#cl_x').onclick = () => d.close();
+    let L; try { L = await API.changeLog('work_orders', job); } catch (e) { $('#cl_b').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    $('#cl_b').innerHTML = L === null ? '<div class="err">ต้องรันไฟล์ 13_change_log.sql ใน Supabase ก่อน</div>'
+      : L.length ? `<table class="trk cl-t"><thead><tr><th>เมื่อ</th><th>โดย</th><th></th><th>รายละเอียด</th></tr></thead><tbody>${this.rows(L)}</tbody></table>`
+      : '<div class="empty">ยังไม่มีประวัติการแก้ไข<br><small>(บันทึกเริ่มตั้งแต่รันไฟล์ 13 เป็นต้นไป)</small></div>';
+  }
+};
+
 /* ================== WORKORDER — ตารางแบบ Excel (กรองทีละคอลัมน์) ================== */
 const WO_LABELS = {"run_div": "ตัวหารระยะยาว", "cancelled": "ยกเลิก", "cancel_reason": "เหตุผลที่ยกเลิก", "customer_name": "ชื่อลูกค้า", "product_name": "ชื่อสินค้าที่ผลิต", "product_code": "รหัสงาน", "job_ticket": "JOB TICKET", "doc_date": "วันที่เอกสาร", "po_no": "P/O No.", "so_no": "S/O No.", "due_date": "กำหนดส่ง", "other_job": "งานอื่นๆ", "width_mm": "กว้าง(มม.)", "height_mm": "สูง(มม.)", "across": "จำนวนดวง/แถว (Across)", "die_rows": "จำนวนแถวในบล็อกมีด", "order_qty": "จำนวนที่สั่งผลิต(ดวง)", "length_rows": "จำนวนแถวแนวยาว(แถว)", "repeat_mm": "ระยะตั้งงาน (มม.)", "machine": "เครื่องพิมพ์", "supplier": "วัตถุดิบของ (Supplier)", "paper_code": "รหัสกระดาษ", "paper_name": "ชื่อกระดาษ", "paper_type": "ประเภทกระดาษ", "adhesive": "ประเภทกาว", "liner": "หลังกระดาษ", "web_width_mm": "กระดาษหน้ากว้าง(มม.)", "run_m": "ระยะยาวงานจริง(เมตร)", "setup_waste_m": "ระยะเผื่อตั้งงาน(เมตร)", "total_m": "รวมเมตรที่ต้องใช้(เมตร)", "ink_type": "ชนิดสี", "color_count": "จำนวนสี", "special_color": "สีพิเศษ", "pantone": "รหัส Pantone", "coating": "การเคลือบ", "coating_code": "รหัสเคลือบ", "paper_face_mm": "หน้ากระดาษ (mm.)", "spot_uv": "Spot UV", "diecut_no": "เลขที่ไดคัท", "diecut_corner": "มุมไดคัท", "corner_radius": "ขนาดมุมมน", "diecut_machine": "เครื่องไดคัท", "slitter": "เครื่อง Slitter", "foil_type": "ชนิดฟอยล์", "foil_color": "สีฟอยล์", "no_perf": "ไม่มีปรุ (หมายเหตุเทคนิค)", "perf": "มีปรุ (หมายเหตุเทคนิค)", "perf_spec": "ปรุกี่ (มม.) เช่น 3:1", "is_roll": "ระบบม้วน", "roll_outer": "ม้วนนอก", "roll_inner": "ม้วนใน", "core_size": "แกนกระดาษ", "roll_gap": "ช่องไฟ", "roll_across": "จำนวน/แถว (งานม้วน)", "per_roll": "จำนวนดวง/ม้วน", "per_meter": "จำนวน/เมตร", "margin_left": "ขอบซ้าย(มม.)", "margin_right": "ขอบขวา(มม.)", "layout_h": "การจัดวางแนวนอน", "layout_v": "การจัดวางแนวตั้ง", "pack_qty": "จำนวนบรรจุ", "finished_size": "ขนาดสำเร็จ(มม.)", "cut_flush": "ตัดชิดดวง", "leave_edge": "เหลือขอบ", "fold_per_page": "พับหน้าละ(ดวง)", "sprocket": "รูหนามเตย", "sheet_perf": "มีปรุ (งานแผ่น)", "sheet_perf_mm": "ปรุกี่(มม.) งานแผ่น", "is_sheet": "งานแผ่น", "is_continuous": "คอมต่อเนื่อง", "job_label": "งาน (PROOFS:/FORECAST:/เคลมสินค้า)", "mto": "Made to Order", "mts": "Made to Stock", "roll_direction": "ทิศทางการม้วน A-H", "remark": "หมายเหตุ (ส่วนที่ 6 บันทึกเพิ่มเติม/QC)", "foil_type_check": "ติ๊ก ชนิดฟอยล์", "foil_color_check": "ติ๊ก สีฟอยล์", "roll_perf": "มีปรุ (รายละเอียดงานม้วน)", "roll_perf_mm": "มีปรุกี่มม. (งานม้วน)", "roll_no_perf": "ไม่มีปรุ (รายละเอียดงานม้วน)", "sheet_gap": "ช่องไฟ (Gap) งานแผ่น", "adhesive_kill": "ฆ่ากาว: ไม่มี/บางส่วน/ทั้งหมด", "adhesive_kill_note": "รายละเอียดฆ่ากาว (ตำแหน่ง/พื้นที่)", "carry_forward_qty": "ยอดคงเหลือยกมา (ดวง)", "actual_qty": "ยอดผลิตจริง (ดวง)", "after_qc_qty": "ยอดหลังจาก QC (ดวง)", "lot_no": "LOT Number", "has_paper": "มีกระดาษแล้ว", "paper_ordered": "สั่งกระดาษแล้ว", "printer_name": "ลงชื่อ ช่างพิมพ์", "diecut_name": "ลงชื่อ ช่างไดคัท", "qc_name": "ลงชื่อ QC", "art_name": "ลงชื่อ Art", "ordered_by": "ผู้สั่งงาน", "closed": "ปิดจ๊อบ", "created_at": "วันที่บันทึก", "updated_at": "แก้ไขล่าสุด"};
 const WOTable = {
@@ -2910,12 +2950,22 @@ const Maint = {
         <p>ใบที่กดลบจะถูกเก็บสำเนาไว้ กู้คืนได้ถ้าเลข JOB นั้นยังไม่ถูกใช้กับใบใหม่ — ระบบจะตัดยอดยกมาให้ JOB ต้นทางเหมือนตอนก่อนลบ</p>
         <div id="mtDel" class="tbl-wrap"><div class="empty">กำลังโหลด…</div></div>
       </div>
+      <div class="card mt-card"><h3>🕘 ประวัติการแก้ไขล่าสุด</h3><p>ทุกการสร้าง / แก้ไข / ลบ ใบสั่งผลิต (รวมช่องในหน้าติดตามงาน) การส่งของ และ PO ควาร์ค · ดูประวัติของแต่ละใบได้ที่ปุ่ม 🕘 ประวัติ ในหน้าใบสั่งผลิต</p>
+        <input id="clQ" class="field" style="max-width:300px;padding:5px 10px;font-size:13px;margin-bottom:6px" placeholder="ค้นหา JOB / ผู้แก้ / ชื่อช่อง"><div id="mtLog" class="tbl-wrap cl-box"><div class="empty">กำลังโหลด…</div></div></div>
       <div class="card mt-card"><h3>🛟 ถ้าข้อมูลเสียหาย / หายทั้งระบบ</h3>
         <p>ระบบ<b>ไม่มีปุ่ม Restore ทั้งระบบ</b> เพื่อกันกดพลาดแล้วข้อมูลจริงถูกทับด้วยไฟล์เก่า หากเกิดเหตุ ให้ส่งไฟล์ Backup ล่าสุดมาทำไฟล์ SQL กู้คืน (แบบเดียวกับตอนย้ายข้อมูลจาก Excel)</p>
         <p class="hint">หมายเหตุ Supabase แบบฟรี: ไม่มีสำรองข้อมูลอัตโนมัติ และถ้าไม่มีใครเข้าใช้ 1 สัปดาห์ โปรเจกต์จะถูกพัก (กด Restore project ในหน้า Supabase ได้ ข้อมูลไม่หาย)</p>
       </div></div>`;
     $('#mtBk').onclick = () => this.backup();
-    this.showLast(); this.loadDel();
+    this.showLast(); this.loadDel(); this.loadLog();
+  },
+  async loadLog(){
+    let L; try { L = await API.recentChanges(300); } catch (e) { $('#mtLog').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    if (L === null) { $('#mtLog').innerHTML = '<div class="empty">ต้องรันไฟล์ 13_change_log.sql ใน Supabase ก่อน</div>'; return; }
+    const draw = () => { const q = ($('#clQ')?.value || '').trim().toLowerCase();
+      const R = L.filter(x => !q || [x.rec_key, x.changed_by, ...Object.keys(x.changes || {}).map(k => ChangeLog.label(k))].join(' ').toLowerCase().includes(q)).slice(0, 150);
+      $('#mtLog').innerHTML = R.length ? `<table class="trk cl-t"><thead><tr><th>เมื่อ</th><th>โดย</th><th>รายการ</th><th></th><th>รายละเอียด</th></tr></thead><tbody>${ChangeLog.rows(R, true)}</tbody></table>` : '<div class="empty">ยังไม่มีประวัติ</div>'; };
+    $('#clQ').oninput = draw; draw();
   },
   async showLast(){
     const m = await API.getMeta('last_backup'), el = $('#mtLast'); if (!el) return;
@@ -3135,12 +3185,95 @@ const HistoryRpt = {
   }
 };
 
+
+/* ================== รายงานของเสีย / การใช้กระดาษ (แทน DASHBOARD_WASTE / DASHBOARD_MATERIAL) ================== */
+const TH_MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const jobYM = j => { const m = String(j || '').match(/^(\d{2})(\d{2})\//); return m ? m[1] + m[2] : null; };
+const ymLabel = ym => `${TH_MON[+ym.slice(2) - 1] || ym.slice(2)} ${ym.slice(0, 2)}`;
+const PivotRpt = {
+  mode: 'waste',
+  CFG: {
+    waste: {title: 'รายงานของเสีย', dims: [['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า'], ['printer','ช่างพิมพ์'], ['diecutter','ช่างไดคัท'], ['paper_type','ประเภทกระดาษ'], ['ym','เดือน (ตาม JOB)']],
+      cols: [['jobs','จำนวน JOB'], ['prod','ยอดผลิต'], ['qc','ผ่าน QC'], ['waste','ของเสีย'], ['pct','% เสีย']], bar: 'pct'},
+    mat: {title: 'รายงานการใช้กระดาษสติกเกอร์', dims: [['paper_type','ประเภทกระดาษ'], ['paper_code','รหัสกระดาษ'], ['supplier','ซัพพลายเออร์'], ['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า'], ['ym','เดือน (ตาม JOB)']],
+      cols: [['jobs','จำนวน JOB'], ['meter','รวมเมตร'], ['sqm','ตร.ม.'], ['share','สัดส่วน %']], bar: 'meter'}
+  },
+  async page(mode){
+    this.mode = mode; const C = this.CFG[mode], o = {dim: C.dims[0][0], from: '', to: '', ...store.get('vp_pv_' + mode, {})};
+    $('#rpBody').innerHTML = `<div class="toolbar" style="margin:0 0 8px">แยกตาม <select id="pvDim" class="field" style="width:auto;padding:4px 8px">${C.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        เดือน JOB ตั้งแต่ <select id="pvFrom" class="field" style="width:auto;padding:4px 8px"></select> ถึง <select id="pvTo" class="field" style="width:auto;padding:4px 8px"></select>
+        <span class="sp"></span>${fontSel('pvFont', o.font)}${fsSel('pvFs', o.fs || 10)}<button class="btn sm" id="pvImg" style="background:#06c755">🖼 รูปภาพ</button><button class="btn ghost sm" id="pvPrint">🖨 พิมพ์</button><button class="btn ghost sm" id="pvCsv">⬇ Excel (CSV)</button></div>
+      <div id="pvBody"><div class="empty">กำลังโหลด…</div></div>`;
+    try { this.src = mode === 'waste' ? await API.progressAll() : await API.allWorkOrders(); } catch (e) { $('#pvBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    this.src = this.src.filter(r => !r.cancelled && jobYM(r.job_ticket));
+    const yms = [...new Set(this.src.map(r => jobYM(r.job_ticket)))].sort();
+    const cur = jobYM(new Date(Date.now() + 7*3600e3).getUTCFullYear() + 543 + '') ;
+    const def = yms.slice(-3)[0] || '';
+    if (!yms.includes(o.from)) o.from = def; if (!yms.includes(o.to)) o.to = yms[yms.length - 1] || '';
+    $('#pvFrom').innerHTML = yms.map(y => `<option value="${y}" ${y === o.from ? 'selected' : ''}>${ymLabel(y)}</option>`).join('');
+    $('#pvTo').innerHTML = yms.map(y => `<option value="${y}" ${y === o.to ? 'selected' : ''}>${ymLabel(y)}</option>`).join('');
+    const read = () => { const n = {dim: $('#pvDim').value, from: $('#pvFrom').value, to: $('#pvTo').value, font: $('#pvFont').value, fs: +$('#pvFs').value}; store.set('vp_pv_' + mode, n); return n; };
+    ['pvDim', 'pvFrom', 'pvTo'].forEach(id => $('#' + id).onchange = () => this.draw(read()));
+    $('#pvFont').onchange = $('#pvFs').onchange = read;
+    $('#pvPrint').onclick = () => this.print(read());
+    $('#pvImg').onclick = () => { RptPrint._img = true; this.print(read()); };
+    $('#pvCsv').onclick = () => { const n = read(), R = this.calc(n), Cf = this.CFG[mode];
+      QSPage.csv(`${Cf.title}_${ymLabel(n.from)}-${ymLabel(n.to)}`, [Cf.dims.find(d => d[0] === n.dim)[1], ...Cf.cols.map(c => c[1])], R.rows.map(r => [r.key, ...Cf.cols.map(([k]) => +(+r[k] || 0).toFixed(2))])); };
+    this.draw(read());
+  },
+  calc(o){
+    const g = new Map(), N = x => +x || 0;
+    this.src.filter(r => { const y = jobYM(r.job_ticket); return (!o.from || y >= o.from) && (!o.to || y <= o.to); }).forEach(r => {
+      const key = o.dim === 'ym' ? ymLabel(jobYM(r.job_ticket)) : (String(r[o.dim] || '').trim() || (o.dim === 'printer' || o.dim === 'diecutter' ? '-' : '(ไม่ระบุ)')), x = g.get(key) || {key, jobs: 0, prod: 0, qc: 0, waste: 0, meter: 0, sqm: 0, list: [], ym: jobYM(r.job_ticket)};
+      if (this.mode === 'waste') { if (!N(r.eff_prod)) return; x.prod += N(r.eff_prod); x.qc += N(r.eff_qc); x.waste += N(r.waste_qty); }
+      else { const m = N(r.total_m); if (!m) return; x.meter += m; x.sqm += m * N(r.web_width_mm) / 1000; }
+      x.jobs++; x.list.push(r); g.set(key, x); });
+    let rows = [...g.values()];
+    if (this.mode === 'waste') rows.forEach(r => r.pct = r.prod ? r.waste / r.prod * 100 : 0);
+    const tm = rows.reduce((a, r) => a + r.meter, 0); if (this.mode === 'mat') rows.forEach(r => r.share = tm ? r.meter / tm * 100 : 0);
+    rows.sort(o.dim === 'ym' ? (a, b) => a.ym.localeCompare(b.ym) : this.mode === 'waste' ? (a, b) => b.waste - a.waste : (a, b) => b.meter - a.meter);
+    const T = {key: 'รวมทั้งหมด', jobs: 0, prod: 0, qc: 0, waste: 0, meter: 0, sqm: 0}; rows.forEach(r => ['jobs', 'prod', 'qc', 'waste', 'meter', 'sqm'].forEach(k => T[k] += r[k]));
+    T.pct = T.prod ? T.waste / T.prod * 100 : 0; T.share = 100;
+    return {rows, T};
+  },
+  fmt(k, v){ return k === 'pct' || k === 'share' ? (+v || 0).toFixed(2) + '%' : k === 'sqm' || k === 'meter' ? fmtN(Math.round(v)) : fmtN(v); },
+  draw(o){
+    const C = this.CFG[this.mode], {rows, T} = this.calc(o), mx = Math.max(...rows.map(r => +r[C.bar] || 0), 0.0001), dimL = C.dims.find(d => d[0] === o.dim)[1];
+    $('#pvBody').innerHTML = `<div class="card tbl-wrap trk-wrap"><table class="trk pv-t"><thead><tr><th>${dimL}</th>${C.cols.map(([k, l]) => `<th class="num">${l}</th>`).join('')}<th style="width:28%"></th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr data-i="${i}" class="pv-r"><td><b>${esc(r.key)}</b></td>${C.cols.map(([k]) => `<td class="num ${k === 'pct' && r.pct > T.pct * 1.5 && r.pct > 3 ? 'stock-neg' : ''}">${this.fmt(k, r[k])}</td>`).join('')}
+        <td><div class="pv-bar ${this.mode}"><i style="width:${Math.max(0, (+r[C.bar] || 0) / mx * 100)}%"></i></div></td></tr>`).join('') || `<tr><td colspan="${C.cols.length + 2}" class="wt-info">ไม่มีข้อมูลในช่วงนี้</td></tr>`}
+      <tr class="md-tot"><td><b>รวมทั้งหมด</b></td>${C.cols.map(([k]) => `<td class="num"><b>${this.fmt(k, T[k])}</b></td>`).join('')}<td></td></tr></tbody></table></div>
+      <div class="hint" style="margin-top:6px">${this.mode === 'waste' ? 'ของเสีย = ยอดผลิต − ผ่าน QC (ใช้ยอดปรับปรุงถ้ามี) · นับเฉพาะ JOB ที่มียอดผลิต ไม่รวมใบที่ยกเลิก · ตัวแดง = %เสียสูงกว่าค่าเฉลี่ย 1.5 เท่า' : 'รวมเมตร = "รวมเมตรที่ต้องใช้" ในใบสั่งผลิต (ระยะยาว + เผื่อตั้งเครื่อง) · ตร.ม. = เมตร × หน้ากว้าง ÷ 1000 · เป็นยอดตามแผนในใบสั่งผลิต'} · คลิกแถวเพื่อดูรายการ JOB</div>`;
+    $('#pvBody').querySelectorAll('.pv-r').forEach(tr => tr.onclick = () => this.detail(rows[+tr.dataset.i], dimL));
+    this.last = {o, rows, T, dimL};
+  },
+  detail(r, dimL){
+    const W = this.mode === 'waste';
+    $('#dlgBody').innerHTML = `<h3>${esc(dimL)}: ${esc(r.key)} · ${r.jobs} JOB</h3><div class="tbl-wrap" style="max-height:60vh"><table class="trk"><thead><tr><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th>${W ? '<th>เครื่อง</th><th class="num">ผลิต</th><th class="num">QC</th><th class="num">เสีย</th><th class="num">%</th>' : '<th>กระดาษ</th><th class="num">เมตร</th><th class="num">ตร.ม.</th>'}</tr></thead><tbody>
+      ${r.list.sort((a, b) => W ? (+b.waste_qty || 0) - (+a.waste_qty || 0) : (+b.total_m || 0) - (+a.total_m || 0)).map(x => `<tr><td><a href="#" class="jl" data-open="${esc(x.job_ticket)}">${esc(x.job_ticket)}</a></td><td class="cu">${esc(x.customer_name || '')}</td><td class="pn">${esc(x.product_name || '')}</td>
+        ${W ? `<td>${esc(x.machine || '')}</td><td class="num">${fmtN(x.eff_prod)}</td><td class="num">${fmtN(x.eff_qc)}</td><td class="num">${fmtN(x.waste_qty)}</td><td class="num">${(+x.eff_prod ? x.waste_qty / x.eff_prod * 100 : 0).toFixed(2)}%</td>`
+        : `<td>${esc(x.paper_code || '')}<div class="so-rm">${esc(x.paper_type || '')}</div></td><td class="num">${fmtN(Math.round(x.total_m))}</td><td class="num">${fmtN(Math.round((+x.total_m || 0) * (+x.web_width_mm || 0) / 1000))}</td>`}</tr>`).join('')}</tbody></table></div>
+      <div class="acts"><button class="btn" id="pd_x">ปิด</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#pd_x').onclick = () => d.close();
+    $('#dlgBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); d.close(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+  },
+  print(o){
+    this.draw(o); const {rows, T, dimL} = this.last, C = this.CFG[this.mode];
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>${C.title} แยกตาม${esc(dimL)}</h2></div><div class="rpt-meta">JOB เดือน ${ymLabel(o.from)} – ${ymLabel(o.to)}<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
+      <table><thead><tr><th>${esc(dimL)}</th>${C.cols.map(([, l]) => `<th class="num">${l}</th>`).join('')}</tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc(r.key)}</td>${C.cols.map(([k]) => `<td class="num">${this.fmt(k, r[k])}</td>`).join('')}</tr>`).join('')}
+      <tr class="sub"><td style="text-align:left"><b>รวมทั้งหมด</b></td>${C.cols.map(([k]) => `<td class="num"><b>${this.fmt(k, T[k])}</b></td>`).join('')}</tr></tbody></table></div>`;
+    RptPrint.go({title: C.title, orient: 'portrait', fs: o.fs, font: o.font}, html);
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
+    if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
 };
@@ -3160,6 +3293,8 @@ const HomePage = {
       { k:'stock',   ic:'📦', c:'#2e7d32', t:'สต็อกตามสินค้า', go:() => { Office.pview = 'stock'; store.set('vp_pview','stock'); Office.go('progress'); } } ]},
     { g:'Dashboard / รายงาน', items:[
       { k:'mdash',   ic:'🖨️', c:'#0f766e', t:'สถานะเครื่องพิมพ์ (Dashboard)', go:() => { Reports.view = 'machine'; store.set('vp_rview','machine'); Office.go('reports'); } },
+      { k:'waste',   ic:'♻️', c:'#b45309', t:'รายงานของเสีย', go:() => { Reports.view = 'waste'; store.set('vp_rview','waste'); Office.go('reports'); } },
+      { k:'mat',     ic:'🧻', c:'#0369a1', t:'รายงานการใช้กระดาษ', go:() => { Reports.view = 'mat'; store.set('vp_rview','mat'); Office.go('reports'); } },
       { k:'qs',      ic:'🗂️', c:'#4338ca', t:'PO / Forecast / ส่งของ (ควาร์ค)', go:() => Office.go('qs') },
       { k:'hist',    ic:'📑', c:'#0f766e', t:'ประวัติการเปิดใบสั่งผลิต', go:() => { Reports.view = 'history'; store.set('vp_rview','history'); Office.go('reports'); } } ]},
     { g:'ฐานข้อมูล', items:[
