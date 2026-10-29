@@ -87,6 +87,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .top .tab{white-space:nowrap;flex:none}
 .top .who .btn.sm{padding:3px 10px;font-size:12.5px;border-radius:6px}
 .who-u{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* แท็บเล็ต / จอสัมผัส: เมนูขึ้น 2 บรรทัด แตะง่าย ไม่ต้องเลื่อน */
+@media (pointer:coarse), (max-width:1180px){
+  .top .in{flex-wrap:nowrap;align-items:flex-start}
+  .top .logo{padding-top:7px} .top .logo span{display:none}
+  .top .who{padding-top:5px}
+  .top .tabs{flex:1 1 0;flex-wrap:wrap;overflow:visible;gap:6px}
+  .top .tab{padding:6px 11px;font-size:13.5px;border-radius:8px}
+}
 .top .logo{font-weight:700;font-size:15px}
 .top .logo span{color:var(--prod)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap}
