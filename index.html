@@ -2865,10 +2865,7 @@ const QRSheet = {
       .qc{border:1px dashed #94a3b8;padding:3mm 4mm;box-sizing:border-box;overflow:hidden}.qh{display:flex;justify-content:space-between;gap:3mm;align-items:baseline}.qh b{font-size:15pt;color:#1f3a68}.qh span{font-size:8pt;color:#334155;text-align:right}
       .qp{font-size:8pt;color:#475569;height:9mm;overflow:hidden;margin:1mm 0}.qq{display:flex;justify-content:space-around}.qq div{text-align:center}.qq img{width:38mm;height:38mm;display:block}
       .qq i{font-style:normal;font-weight:700;font-size:10pt;display:block;margin-top:1mm;padding:0.5mm 3mm;border-radius:2mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.qq i.p{background:#0f6cbd}.qq i.q{background:#15803d}`;
-    let fr = document.getElementById('rptFrame'); if (fr) fr.remove();
-    fr = document.createElement('iframe'); fr.id = 'rptFrame'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'; document.body.appendChild(fr);
-    const doc = fr.contentWindow.document; doc.open(); doc.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>QR ชุด</title><style>${css}</style></head><body>${pages.map(pg => `<div class="pg">${pg.map(cell).join('')}</div>`).join('')}</body></html>`); doc.close();
-    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); }, 500);
+    PrintKit.doc('QR ชุด', css, pages.map(pg => `<div class="pg">${pg.map(cell).join('')}</div>`).join(''), 500);
   }
 };
 
@@ -3419,6 +3416,48 @@ const HomePage = {
   }
 };
 
+/* ---------- สั่งพิมพ์ให้ใช้ได้ทั้ง PC และ iPad ---------- */
+const PrintKit = {
+  ios: /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  // iPad/iPhone ที่เปิดจากไอคอนหน้าจอโฮม หรือเปิดลิงก์ในแอป LINE/Facebook → สั่งพิมพ์ไม่ได้
+  blocked(){ return this.ios && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || /\bLine\/|FBAN|FBAV|Instagram|GSA\//i.test(navigator.userAgent)); },
+  inLine(){ return /\bLine\//i.test(navigator.userAgent); },
+  clear(){ const a = $('#printArea'); if (a) a.innerHTML = ''; document.body.classList.remove('print-rpt'); },
+  // แจ้งเมื่อพิมพ์ไม่ได้ + ทางเลือก: เปิดใน Safari / ทำเป็นรูปแล้วแชร์ไปพิมพ์
+  help(onImg){
+    const ext = location.href + (location.search ? '&' : '?') + 'openExternalBrowser=1';
+    $('#dlgBody').innerHTML = `<h3>🖨 สั่งพิมพ์จากหน้านี้ไม่ได้</h3>
+      <p style="line-height:1.7">${this.inLine() ? 'หน้านี้เปิดอยู่ใน<b>แอป LINE</b>' : 'หน้านี้เปิดจาก<b>ไอคอนบนหน้าจอโฮม</b>'} ซึ่ง iPad ไม่อนุญาตให้สั่งพิมพ์<br>เลือกได้ 2 ทาง:</p>
+      <ol style="line-height:1.8;margin:0 0 10px 18px;padding:0"><li><b>เปิดใน Safari</b> แล้วกดพิมพ์อีกครั้ง (แนะนำ)</li><li><b>ทำเป็นรูป</b> → กด 📤 แชร์ → เลือก <b>"พิมพ์"</b> ในเมนูแชร์</li></ol>
+      <div class="acts"><button class="btn ghost" id="pk_x">ปิด</button>${onImg ? '<button class="btn ghost" id="pk_img">🖼 ทำเป็นรูป</button>' : ''}<a class="btn" id="pk_sf" href="${esc(ext)}" target="_blank" rel="noopener">🧭 เปิดใน Safari</a></div>`;
+    const d = $('#dlg'); d.showModal();
+    $('#pk_x').onclick = () => d.close();
+    $('#pk_img')?.addEventListener('click', () => { d.close(); onImg(); });
+    $('#pk_sf').onclick = () => setTimeout(() => d.close(), 300);
+  },
+  // พิมพ์เอกสารแยก (รายงาน / QR ชุด): PC ใช้ iframe ซ่อน, iPad ใช้ #printArea ในหน้าเดียวกัน
+  doc(title, css, body, delay, onImg){
+    if (this.blocked()) return this.help(onImg);
+    if (this.ios) {
+      const a = $('#printArea'); a.innerHTML = `<style>${css}</style>${body}`;
+      document.body.classList.add('print-rpt');
+      const done = () => { window.removeEventListener('afterprint', done); setTimeout(() => this.clear(), 500); };
+      window.addEventListener('afterprint', done);
+      setTimeout(() => window.print(), delay || 300);
+      return;
+    }
+    let fr = document.getElementById('rptFrame'); if (fr) fr.remove();
+    fr = document.createElement('iframe'); fr.id = 'rptFrame';
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(fr);
+    const d = fr.contentWindow.document;
+    d.open(); d.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${body}</body></html>`); d.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); }, delay || 300);
+  },
+  // พิมพ์หน้าปัจจุบัน (ใบสั่งผลิต)
+  page(onImg){ if (this.blocked()) return this.help(onImg); this.clear(); window.print(); }
+};
+
 /* ---------- พิมพ์รายงานผ่าน iframe (ใช้ร่วมกัน) ---------- */
 const RPT_FONTS = [['Tahoma','Tahoma'], ['Sarabun','Sarabun (สารบรรณ)'], ['TH Sarabun New','TH Sarabun New (ต้องมีในเครื่อง)'], ['Angsana New','Angsana New'], ['Cordia New','Cordia New'], ['Leelawadee UI','Leelawadee UI'], ['Calibri','Calibri'], ['Arial','Arial']];
 const fontSel = (id, v) => `<select id="${id}" class="field" style="width:auto;padding:4px 8px" title="แบบตัวอักษร">${RPT_FONTS.map(([f, l]) => `<option value="${f}" ${f === (v || 'Tahoma') ? 'selected' : ''}>🔤 ${l}</option>`).join('')}</select>`;
@@ -3427,6 +3466,11 @@ const RptPrint = {
   css: `.rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}\n.rpt-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:3mm}\n.rpt-h b{color:#1f3a68}.rpt-h h2{margin:0;font-size:1.5em;color:#1f3a68}\n.rpt-meta{text-align:right;font-size:.9em;color:#334155}\n.rpt table{width:100%;border-collapse:collapse}\n.rpt th{background:#1f3a68;color:#fff;padding:1.5mm 2mm;font-size:.95em;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt td{padding:1.2mm 2mm;border-bottom:.5px solid #cbd5e1;vertical-align:top}\n.rpt .num{text-align:right;white-space:nowrap}\n.rpt .no{width:10mm;text-align:center;color:#64748b}\n.rpt td.stock_qty{font-weight:700;color:#c8102e}\n.rpt td.stock_jobs{font-size:.85em;color:#334155}\n.rpt tr.grp td{background:#e8eef8;font-weight:700;color:#1f3a68;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt tr.sub td{text-align:right;font-size:.9em;border-bottom:1px solid #1f3a68}\n.rpt thead{display:table-header-group}\n.rpt tr{page-break-inside:avoid}\n.rpt-note{margin-top:3mm;font-size:.9em}\n.rpt-sign{display:flex;justify-content:space-around;margin-top:12mm;font-size:.95em}\n`,
   go(o, html){
     if (this._img) { this._img = false; return RptImage.go(o, html); }
+    if (PrintKit.ios) {
+      const fs = +o.fs || 9, font = o.font || 'Tahoma';
+      return PrintKit.doc(o.title, `@page{size:A4 ${o.orient === 'landscape' ? 'landscape' : 'portrait'};margin:10mm}#printArea{font-size:${fs}pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}${this.css}.rpt{font-size:${fs}pt;font-family:'${font}',Tahoma,sans-serif}`, html, 400,
+        () => RptImage.go({...o, hint: 'กด 📤 แชร์ → เลือก "พิมพ์" หรือส่งเข้า LINE'}, html));
+    }
     let fr = document.getElementById('rptFrame'); if (fr) fr.remove();
     fr = document.createElement('iframe'); fr.id = 'rptFrame';
     fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
@@ -3454,19 +3498,31 @@ const RptImage = {
     document.body.appendChild(box);
     try { if (document.fonts?.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]);
       const cv = await html2canvas(box, {scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false});
+      await this.show(cv, o);
+    } catch (e) { toast('สร้างรูปภาพไม่ได้: ' + e.message); }
+    box.remove();
+  },
+  /* สร้างรูปจาก element ที่แสดงอยู่ (ใบสั่งผลิต) */
+  async fromEl(el, o){
+    toast('กำลังสร้างรูปภาพ…');
+    try { await this.load(); } catch (e) { return toast(e.message); }
+    try { const cv = await html2canvas(el, {scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 1100}); await this.show(cv, o); }
+    catch (e) { toast('สร้างรูปภาพไม่ได้: ' + e.message); }
+  },
+  async show(cv, o){
+    {
       const blob = await new Promise(r => cv.toBlob(r, 'image/png')), url = URL.createObjectURL(blob);
       const name = (o.title || 'รายงาน').replace(/[\\/:*?"<>|\s]+/g, '_') + '.png', file = new File([blob], name, {type: 'image/png'});
       const canShare = navigator.canShare && navigator.canShare({files: [file]}), canCopy = !!(navigator.clipboard && window.ClipboardItem);
       $('#dlgBody').innerHTML = `<h3>🖼 รูปภาพรายงาน</h3><div class="img-prev"><img src="${url}" alt=""></div>
-        <div class="hint" style="margin:6px 0">ขนาด ${cv.width} × ${cv.height} px · ${canCopy ? 'กด "คัดลอกรูป" แล้วไปกด Ctrl+V ในแชท LINE ได้เลย' : 'กดดาวน์โหลด แล้วส่งไฟล์ใน LINE'}</div>
+        <div class="hint" style="margin:6px 0">ขนาด ${cv.width} × ${cv.height} px · ${o.hint || (canCopy ? 'กด "คัดลอกรูป" แล้วไปกด Ctrl+V ในแชท LINE ได้เลย' : 'กดดาวน์โหลด แล้วส่งไฟล์ใน LINE')}</div>
         <div class="acts"><button class="btn ghost" id="im_x">ปิด</button>${canShare ? '<button class="btn ghost" id="im_sh">📤 แชร์</button>' : ''}<button class="btn ghost" id="im_dl">⬇ ดาวน์โหลด PNG</button>${canCopy ? '<button class="btn" id="im_cp">📋 คัดลอกรูป</button>' : ''}</div>`;
       const d = $('#dlg'); d.showModal();
       $('#im_x').onclick = () => { d.close(); URL.revokeObjectURL(url); };
       $('#im_dl').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); };
       $('#im_cp')?.addEventListener('click', async () => { try { await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]); toast('คัดลอกรูปแล้ว — ไปวาง (Ctrl+V) ในแชท LINE ได้เลย'); } catch (e) { toast('คัดลอกไม่ได้ ให้ใช้ปุ่มดาวน์โหลดแทน'); } });
       $('#im_sh')?.addEventListener('click', async () => { try { await navigator.share({files: [file], title: o.title}); } catch {} });
-    } catch (e) { toast('สร้างรูปภาพไม่ได้: ' + e.message); }
-    box.remove();
+    }
   }
 };
 
@@ -3826,7 +3882,7 @@ const Office = {
         <input id="qj" class="field" style="max-width:280px;padding:9px 12px" placeholder="เลขที่ JOB เช่น 6910/30" list="jobList" autocomplete="off" value="${esc(store.get('vp_lastjob',''))}">
         <datalist id="jobList"></datalist>
         <div class="seg" id="tplSeg"><button data-v="1">แบบเดิม (Excel)</button><button data-v="2">แบบระบบ</button></div>
-        <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint" disabled>พิมพ์ A4</button>
+        <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint">🖨 พิมพ์ A4</button>
         <span id="qlinks" class="hidden"><button class="btn ghost sm" id="ql_p" title="คัดลอกลิงก์สแกนฝ่ายผลิต ไปวางใน LINE">🔗 ลิงก์ผลิต</button><button class="btn ghost sm" id="ql_q" title="คัดลอกลิงก์สแกน QC ไปวางใน LINE">🔗 ลิงก์ QC</button></span>
         <button class="btn ghost sm" id="qsheet" title="พิมพ์ QR หลายใบในแผ่นเดียว ไว้ตัดแปะใบสั่งผลิตเก่า">🏷 พิมพ์ QR ชุด (แปะใบเก่า)</button>
         <div class="sp"></div>
@@ -3839,18 +3895,21 @@ const Office = {
     $('#qbase').onchange = e => store.set('vp_base', e.target.value.trim());
     $('#qsheet').onclick = () => QRSheet.open($('#qbase').value.trim() || base);
     $('#qby').onchange = e => { store.set('vp_orderby', e.target.value.trim()); gen(); };
-    $('#qprint').onclick = () => window.print();
+    const tkImg = () => { const el = $('#qout .tk'); if (el) RptImage.fromEl(el, {title: 'ใบสั่งผลิต ' + (store.get('vp_lastjob', '') || ''), hint: 'กด 📤 แชร์ → เลือก "พิมพ์" (เลือกกระดาษ A4) หรือส่งเข้า LINE'}); };
+    $('#qprint').onclick = async () => {
+      if (!$('#qout .tk')) { if (!$('#qj').value.trim()) return toast('พิมพ์เลข JOB ก่อน แล้วกด "แสดงใบสั่งผลิต"'); await gen(); if (!$('#qout .tk')) return; await new Promise(r => setTimeout(r, 300)); }
+      PrintKit.page(tkImg);
+    };
     const gen = async () => {
       const job = $('#qj').value.trim(); if (!job) return;
       let wo; try { wo = await API.getWorkOrder(job); } catch (e) { return toast(e.message); }
-      if (!wo) { $('#qprint').disabled = true; return toast('ไม่พบ JOB ' + job); }
+      if (!wo) { $('#qout').innerHTML = ''; return toast('ไม่พบ JOB ' + job); }
       if (wo.cancelled) toast(`⚠ JOB ${wo.job_ticket} ถูกยกเลิกแล้ว — ไม่ควรพิมพ์ส่งฝ่ายผลิต`);
       store.set('vp_lastjob', wo.job_ticket);
       const b = $('#qbase').value.trim();
       const url = d => `${b}?scan=${d}&job=${encodeURIComponent(wo.job_ticket)}`;
       $('#qout').innerHTML = (store.get('vp_tpl', '1') === '2' ? jobTicketHTML2 : jobTicketHTML)(wo, $('#qby').value.trim());
       ['prod','qc'].forEach(d => new QRCode($('#tkq_' + d), {text: url(d), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M}));
-      $('#qprint').disabled = false;
       $('#qlinks').classList.remove('hidden');
       const share = async (dpt) => { const link = url(dpt), txt = `สแกน${dpt === 'prod' ? 'ฝ่ายผลิต' : ' QC'} JOB ${wo.job_ticket}\n${wo.customer_name || ''}\n${link}`;
         if (navigator.share && matchMedia('(pointer:coarse)').matches) { try { await navigator.share({text: txt}); return; } catch {} }
@@ -3860,7 +3919,7 @@ const Office = {
         Office.autoPrint = null;
         const back = () => { window.removeEventListener('afterprint', back); store.set('vp_open_job', wo.job_ticket); Office.go('wo'); };
         window.addEventListener('afterprint', back);
-        setTimeout(() => window.print(), 400);
+        setTimeout(() => PrintKit.page(tkImg), 400);
       }
     };
     const tseg = () => document.querySelectorAll('#tplSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === store.get('vp_tpl', '1')));
