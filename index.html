@@ -548,6 +548,7 @@ table.wt td.n{text-align:right}
 table.wt td.b{text-align:center;color:#1a7f4b;font-weight:700}
 table.wt tbody tr:nth-child(even) td{background:#f7faf8}
 table.wt tbody tr:hover td{background:#fff6d6;cursor:pointer}
+table.wt tbody tr.sel td{background:#bfe3ff!important}
 table.wt .st0{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 #cbd5e1}
 table.wt td.st0{background:#fff;font-weight:700;color:#0f3d24}
 table.wt th.st0{z-index:3}
@@ -2854,8 +2855,9 @@ const WOTable = {
         <button class="btn ghost sm" id="wtCols">☰ เลือกคอลัมน์</button>
         <button class="btn ghost sm" id="wtCsv">⬇ Excel (CSV)</button>
         <button class="btn ghost sm" id="wtReload">↻ โหลดใหม่</button>
+        <button class="btn sm" id="wtEdit" title="เลือกแถว แล้วกด F2 หรือ Enter">✏️ F2-แก้ไข</button>
         <span class="wt-info" id="wtInfo"></span>
-        <span class="wt-info" style="margin-left:auto">กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียง · ดับเบิลคลิกแถวเพื่อเปิดใบสั่งผลิต</span>
+        <span class="wt-info" style="margin-left:auto">กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียง · คลิกเลือกแถว แล้วกด F2 (หรือดับเบิลคลิก) เพื่อแก้ไข · ↑↓ เลื่อนแถว</span>
       </div>
       <div class="wt-wrap" id="wtWrap"><div class="empty">กำลังโหลด…</div></div>`;
     let t; $('#wtQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.limit = 300; this.draw(); }, 200); };
@@ -2863,6 +2865,8 @@ const WOTable = {
     $('#wtCols').onclick = () => this.colDlg();
     $('#wtCsv').onclick = () => this.csv();
     $('#wtReload').onclick = () => this.load();
+    $('#wtEdit').onclick = () => this.edit();
+    if (!this._k) { this._k = true; document.addEventListener('keydown', e => this.key(e)); }
     await this.load();
   },
   async load(){
@@ -2896,7 +2900,17 @@ const WOTable = {
     $('#wtInfo').textContent = `แสดง ${fmtN(rows.length)} จาก ${fmtN(this.rows.length)} ใบ${nf ? ` · กรองอยู่ ${nf} คอลัมน์` : ''}`;
     $('#wtMore')?.addEventListener('click', () => { this.limit += 500; this.draw(); });
     $('#wtWrap').querySelectorAll('.fb').forEach(b => b.onclick = e => { e.stopPropagation(); this.pop(b.dataset.f, b); });
-    $('#wtWrap').querySelectorAll('tbody tr').forEach(tr => tr.ondblclick = () => { store.set('vp_open_job', tr.dataset.j); Office.go('wo'); });
+    $('#wtWrap').querySelectorAll('tbody tr').forEach(tr => { tr.ondblclick = () => this.edit(tr.dataset.j); tr.onclick = () => this.pick(tr); });
+    const keep = this.sel && $('#wtWrap').querySelector(`tbody tr[data-j="${CSS.escape(this.sel)}"]`); if (keep) keep.classList.add('sel');
+  },
+  pick(tr){ $('#wtWrap').querySelectorAll('tr.sel').forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); this.sel = tr.dataset.j; },
+  edit(j){ j = j || this.sel; if (!j) return toast('คลิกเลือกแถวก่อน แล้วกด F2'); store.set('vp_open_job', j); Office.go('wo'); },
+  key(e){ if (Office.tab !== 'wotable' || document.querySelector('dialog[open]') || document.querySelector('.wt-pop')) return;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.key !== 'F2') return;
+    const rows = [...$('#wtWrap').querySelectorAll('tbody tr')]; if (!rows.length) return;
+    let i = rows.findIndex(r => r.classList.contains('sel'));
+    if (e.key === 'F2' || (e.key === 'Enter' && i >= 0)) { e.preventDefault(); this.edit(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); i = Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))); this.pick(rows[i]); rows[i].scrollIntoView({block: 'nearest'}); }
   },
   pop(c, btn){
     const others = {...this.filters}; delete others[c];
