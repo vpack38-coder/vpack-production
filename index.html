@@ -3827,6 +3827,7 @@ const Office = {
         <datalist id="jobList"></datalist>
         <div class="seg" id="tplSeg"><button data-v="1">แบบเดิม (Excel)</button><button data-v="2">แบบระบบ</button></div>
         <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint" disabled>พิมพ์ A4</button>
+        <span id="qlinks" class="hidden"><button class="btn ghost sm" id="ql_p" title="คัดลอกลิงก์สแกนฝ่ายผลิต ไปวางใน LINE">🔗 ลิงก์ผลิต</button><button class="btn ghost sm" id="ql_q" title="คัดลอกลิงก์สแกน QC ไปวางใน LINE">🔗 ลิงก์ QC</button></span>
         <button class="btn ghost sm" id="qsheet" title="พิมพ์ QR หลายใบในแผ่นเดียว ไว้ตัดแปะใบสั่งผลิตเก่า">🏷 พิมพ์ QR ชุด (แปะใบเก่า)</button>
         <div class="sp"></div>
         <label class="hint">ผู้สั่งงาน <input id="qby" class="field" style="padding:5px 9px;width:120px;display:inline-block" value="${esc(store.get('vp_orderby',''))}"></label>
@@ -3850,6 +3851,11 @@ const Office = {
       $('#qout').innerHTML = (store.get('vp_tpl', '1') === '2' ? jobTicketHTML2 : jobTicketHTML)(wo, $('#qby').value.trim());
       ['prod','qc'].forEach(d => new QRCode($('#tkq_' + d), {text: url(d), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M}));
       $('#qprint').disabled = false;
+      $('#qlinks').classList.remove('hidden');
+      const share = async (dpt) => { const link = url(dpt), txt = `สแกน${dpt === 'prod' ? 'ฝ่ายผลิต' : ' QC'} JOB ${wo.job_ticket}\n${wo.customer_name || ''}\n${link}`;
+        if (navigator.share && matchMedia('(pointer:coarse)').matches) { try { await navigator.share({text: txt}); return; } catch {} }
+        try { await navigator.clipboard.writeText(txt); toast('คัดลอกลิงก์แล้ว — ไปวางในแชท LINE ได้เลย'); } catch { prompt('คัดลอกลิงก์นี้', link); } };
+      $('#ql_p').onclick = () => share('prod'); $('#ql_q').onclick = () => share('qc');
       if (Office.autoPrint === wo.job_ticket) {   // มาจากปุ่ม "บันทึก + พิมพ์"
         Office.autoPrint = null;
         const back = () => { window.removeEventListener('afterprint', back); store.set('vp_open_job', wo.job_ticket); Office.go('wo'); };
