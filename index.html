@@ -700,6 +700,7 @@ th.kp-w{min-width:170px} td.kp-b{font-weight:700}
 .sh-prod{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;font-size:11.5px}
 .sh-ot td,.sh-ot th{padding:3px 7px;font-size:12.5px;line-height:1.3}.sh-act{white-space:nowrap}.sh-act a{font-size:12.5px}.sh-job{background:#f5f3ff;color:#5b21b6;border-radius:6px;padding:1px 7px}.sh-job.d{background:#ecfdf5;color:#047857}.sh-docs{color:#475569}
 .sh-dh{display:flex;flex-direction:column;gap:3px;font-size:14px;margin-bottom:4px}
+.sh-selbar{display:flex;gap:12px;align-items:center;margin:0 0 6px;font-size:13px}.sh-selbar label{display:flex;gap:5px;align-items:center;cursor:pointer}.sh-c{width:17px;height:17px;cursor:pointer}
 .pp-st{display:inline-block;white-space:nowrap;font-size:12px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);border:1px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:999px;padding:1px 8px}
 .pp-t td{vertical-align:top}.pp-t tr.pp-late td{background:#fff5f5}.pp-tl{font-size:12px;color:#475569;white-space:nowrap}
 .pp-grid{display:grid;grid-template-columns:120px 1fr;gap:8px 10px;align-items:center;margin-bottom:8px}.pp-grid>label{margin:0;font-size:13.5px;color:#475569}.pp-grid .field{padding:6px 9px}
@@ -4363,15 +4364,22 @@ const ShipPage = {
     const R = D.lines.filter(L => (this.view === 'open' ? openSt.includes(L.status) : this.view === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === this.view) && this.match(L, q))
       .sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.customer_name).localeCompare(String(b.customer_name), 'th'));
     const tc = this.view === 'toclose' ? R.filter(L => !L.missingDoc).length : 0;
-    $('#shBody').innerHTML = (tc && !Office.viewer ? `<div class="pf-bar">มี ${tc} รายการที่ส่งครบและมีเลขเอกสารครบแล้ว <button class="btn sm" id="shCloseAll">🔒 ปิดงานทั้งหมด ${tc} รายการ</button></div>` : '')
+    const FC = !Office.ro; this.sel ||= new Set(); [...this.sel].forEach(k => { if (!R.some(L => L.key === k)) this.sel.delete(k); });
+    $('#shBody').innerHTML = (FC && R.some(L => L.status !== 'closed') ? `<div class="sh-selbar"><label><input type="checkbox" id="shAll"> เลือกทั้งหมดในหน้านี้</label><span id="shSelN"></span><button class="btn sm ghost" id="shForce" disabled>🔒 ปิดงานที่เลือก (ไม่ต้องคีย์ส่ง)</button></div>` : '')
+      + (tc && !Office.viewer ? `<div class="pf-bar">มี ${tc} รายการที่ส่งครบและมีเลขเอกสารครบแล้ว <button class="btn sm" id="shCloseAll">🔒 ปิดงานทั้งหมด ${tc} รายการ</button></div>` : '')
       + (R.length ? `<div class="sh-list">${R.map((L, i) => { const late = L.due && L.due < t && !['toclose', 'closed'].includes(L.status);
         return `<div class="card sh-row ${late ? 'late' : ''}" data-i="${i}">
-          <div class="sh-top">${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}</span>` : ''}</div>
+          <div class="sh-top">${FC && L.status !== 'closed' ? `<input type="checkbox" class="sh-c" data-k="${esc(L.key)}" ${this.sel.has(L.key) ? 'checked' : ''}>` : ''}${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}</span>` : ''}</div>
           <div class="sh-pn"><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
           <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อก <b>${fmtN(L.stock)}</b></span><span class="u">${esc(L.unit || '')}</span></div>
           <div class="sh-prod">${L.jobs.length ? L.jobs.map(j => `<span class="sh-job ${Kpi.done(j) ? 'd' : ''}">${esc(j.job_ticket)} · ${Kpi.done(j) ? 'ผลิตเสร็จ' : esc(j.qc_status && j.qc_status !== '-' ? 'QC ' + j.qc_status : j.print_status || 'ยังไม่เริ่ม')} · พร้อมส่ง ${fmtN(j.ready_qty || 0)}</span>`).join('') : '<span class="hint">ยังไม่มีใบสั่งผลิต</span>'}
             ${L.docs.length ? `<span class="sh-docs">📄 ${esc(L.docs.slice(0, 4).join(', '))}${L.docs.length > 4 ? '…' : ''}</span>` : ''}${L.missingDoc ? `<span class="stock-neg">⚠ ยังไม่มีเลขเอกสาร ${L.missingDoc} รายการ</span>` : ''}</div></div>`; }).join('')}</div>` : '<div class="empty">ไม่มีรายการ</div>');
-    document.querySelectorAll('.sh-row').forEach(el => el.onclick = () => this.detail(R[+el.dataset.i]));
+    document.querySelectorAll('.sh-row').forEach(el => el.onclick = e => { if (e.target.classList.contains('sh-c')) return; this.detail(R[+el.dataset.i]); });
+    const selUpd = () => { const n = this.sel.size; if ($('#shForce')) { $('#shForce').disabled = !n; $('#shSelN').textContent = n ? `เลือก ${n} รายการ` : ''; } };
+    document.querySelectorAll('.sh-c').forEach(c => c.onchange = () => { c.checked ? this.sel.add(c.dataset.k) : this.sel.delete(c.dataset.k); selUpd(); });
+    $('#shAll')?.addEventListener('change', e => { R.filter(L => L.status !== 'closed').forEach(L => e.target.checked ? this.sel.add(L.key) : this.sel.delete(L.key)); document.querySelectorAll('.sh-c').forEach(c => c.checked = e.target.checked); selUpd(); });
+    $('#shForce')?.addEventListener('click', () => this.forceClose(R.filter(L => this.sel.has(L.key))));
+    selUpd();
     $('#shCloseAll')?.addEventListener('click', async () => { const L = R.filter(x => !x.missingDoc); if (!(await Office.confirm(`ปิดงานจัดส่ง ${L.length} รายการที่ส่งครบแล้ว?`))) return;
       try { for (const x of L) await this.closeLine(x, true); toast(`ปิดงานแล้ว ${L.length} รายการ`); } catch (e) { toast(e.message); } this.page(true); });
   },
@@ -4430,18 +4438,32 @@ const ShipPage = {
         : `<div class="hint">ยังไม่มีการส่ง${L.af_shipped ? ` (Autoflight แจ้งส่งแล้ว ${fmtN(L.af_shipped)} — นำเข้า PREFLI02.CSV เพื่อดูเลขใบกำกับ)` : ''}</div>`}
       ${L.close ? `<div class="pf-bar" style="margin-top:8px">🔒 ปิดงานเมื่อ ${fmtT(L.close.closed_at)} โดย ${esc(L.close.closed_by || '')}${L.close.doc_nos ? ' · ' + esc(L.close.doc_nos) : ''}${L.close.note ? ' · ' + esc(L.close.note) : ''}</div>` : ''}
       <div class="acts">${RO ? '' : L.close ? '<button class="btn ghost" id="sd_re">↩ เปิดงานอีกครั้ง</button>' : `<button class="btn ghost" id="sd_add">+ บันทึกส่ง</button><button class="btn ${canClose ? 'ok' : 'ghost'}" id="sd_close" ${canClose ? '' : 'disabled'} title="${L.remain ? 'ยังส่งไม่ครบยอด PO' : L.missingDoc ? 'ใส่เลขที่ใบส่งของ/ใบกำกับให้ครบก่อน' : ''}">🔒 ปิดงาน</button>`}<button class="btn" id="sd_x">ปิด</button></div>
+      ${!Office.ro && !L.close && !canClose ? `<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" id="sd_force">🔒 ปิดงานเลย (งานจบแล้ว ไม่ต้องคีย์ส่งย้อนหลัง)</button></div>` : ''}
       ${!RO && !L.close && !canClose ? `<div class="hint" style="text-align:right">${L.remain ? `ปิดงานได้เมื่อส่งครบยอด PO (ยังค้าง ${fmtN(L.remain)})` : 'ใส่เลขที่ใบส่งของ/ใบกำกับให้ครบทุกรายการก่อนปิดงาน'}</div>` : ''}`;
     const d = $('#dlg'); d.showModal(); $('#sd_x').onclick = () => d.close();
     $('#sd_add')?.addEventListener('click', () => this.editDl(null, L));
     document.querySelectorAll('[data-de]').forEach(b => b.onclick = () => this.editDl(L.dl[+b.dataset.de], L));
     document.querySelectorAll('[data-unm]').forEach(b => b.onclick = async () => { try { await API.dlvSave({ship_key: null}, L.dl[+b.dataset.unm].id); d.close(); toast('ยกเลิกการจับคู่แล้ว'); this.page(true); } catch (e) { toast(e.message); } });
+    $('#sd_force')?.addEventListener('click', () => this.forceClose([L]));
     $('#sd_close')?.addEventListener('click', async () => { try { await this.closeLine(L); d.close(); toast('ปิดงานจัดส่งแล้ว 🔒'); this.page(true); } catch (e) { toast(e.message); } });
     $('#sd_re')?.addEventListener('click', async () => { if (!(await Office.confirm('เปิดงานจัดส่งนี้อีกครั้ง?'))) return this.detail(L); try { await API.shipReopen(L.key); toast('เปิดงานแล้ว'); this.page(true); } catch (e) { toast(e.message); } });
   },
-  async closeLine(L, quiet){
-    if (L.shipped < L.qty) throw new Error('ยังส่งไม่ครบยอด PO');
-    if (L.missingDoc) throw new Error('ยังมีการส่งที่ไม่มีเลขเอกสาร');
-    await API.shipClose({key: L.key, po_no: L.po_no, product_code: L.product_code, customer_name: L.customer_name, po_qty: L.qty, shipped_qty: L.shipped, doc_nos: L.docs.join(', '), closed_by: Office.user?.email || ''});
+  async closeLine(L, quiet, note){
+    if (note === undefined) { if (L.shipped < L.qty) throw new Error('ยังส่งไม่ครบยอด PO'); if (L.missingDoc) throw new Error('ยังมีการส่งที่ไม่มีเลขเอกสาร'); }
+    await API.shipClose({key: L.key, po_no: L.po_no, product_code: L.product_code, customer_name: L.customer_name, po_qty: L.qty, shipped_qty: L.shipped, doc_nos: L.docs.join(', '), note: note || null, closed_by: Office.user?.email || ''});
+  },
+  // ปิดงานแบบไม่ต้องคีย์การส่งย้อนหลัง (งานเก่าที่จบไปแล้ว) — เฉพาะออฟฟิศ
+  async forceClose(list){
+    if (!list.length) return;
+    $('#dlgBody').innerHTML = `<h3>🔒 ปิดงานจัดส่ง ${list.length} รายการ (ไม่ต้องคีย์ส่งย้อนหลัง)</h3>
+      <div class="hint" style="max-height:160px;overflow:auto;margin-bottom:8px">${list.map(L => `PO ${esc(L.po_no)} · ${esc(L.product_code)} · ค้างส่ง ${fmtN(L.remain)}`).join('<br>')}</div>
+      <label>เหตุผล / หมายเหตุ</label><input id="fc_n" class="field" value="งานเก่า ส่งครบแล้ว (ไม่ได้คีย์ย้อนหลัง)">
+      <div class="hint">ยอดที่ยังไม่ได้บันทึกส่งจะไม่ถูกนับเป็นยอดส่ง แต่รายการจะย้ายไป "ปิดแล้ว" · เปิดงานกลับได้ภายหลัง</div>
+      <div class="acts"><button class="btn ghost" id="fc_x">ยกเลิก</button><button class="btn ok" id="fc_ok">🔒 ปิดงาน ${list.length} รายการ</button></div>`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); $('#fc_x').onclick = () => d.close();
+    $('#fc_ok').onclick = async () => { const note = $('#fc_n').value.trim() || 'ปิดงาน (ไม่ได้คีย์ส่ง)'; $('#fc_ok').disabled = true; let n = 0;
+      try { for (const L of list) { await this.closeLine(L, true, note); n++; } toast(`ปิดงานแล้ว ${n} รายการ`); } catch (e) { toast(`ปิดได้ ${n} รายการ แล้วติดปัญหา: ${e.message}`); }
+      d.close(); this.sel.clear(); this.page(true); };
   },
   editDl(x, L){
     if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
