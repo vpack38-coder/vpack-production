@@ -682,6 +682,7 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .qs-rem{color:#b42318} .qs-warn{color:#b45309;font-weight:700}
 .cl-box{max-height:55vh;overflow:auto} table.cl-t td{vertical-align:top;font-size:12px} .cl-r{line-height:1.5} .cl-a{color:#b42318;text-decoration:line-through} .cl-b{color:#166534;font-weight:600}
 #dlg:has(.cl-box){max-width:900px;width:94vw}
+#dlg:has(.sh-dh),#dlg:has(.pp-grid),#dlg:has(.le-grid),#dlg:has(.os-grid){max-width:780px;width:94vw}
 .pv-r{cursor:pointer} .pv-r:hover td{background:#fff6d6}
 .pv-bar{height:12px;background:#f1f5f9;border-radius:6px;overflow:hidden}.pv-bar i{display:block;height:100%;border-radius:6px}.pv-bar.waste i{background:linear-gradient(90deg,#f59e0b,#dc2626)}.pv-bar.mat i{background:linear-gradient(90deg,#38bdf8,#0369a1)}
 /* ---------- รายงานสต็อก ---------- */
@@ -692,6 +693,13 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .kp-cb{display:flex;align-items:center;gap:8px;justify-content:flex-end}.kp-cb span{min-width:52px}.kp-cb .pv-bar{flex:1;min-width:80px}
 .pv-bar.kp i{background:#2563eb}.pv-bar.good i{background:#16a34a}.pv-bar.mid i{background:#f59e0b}.pv-bar.bad i{background:#dc2626}.pv-bar.lead i{background:linear-gradient(90deg,#38bdf8,#2563eb)}
 th.kp-w{min-width:170px} td.kp-b{font-weight:700}
+.sh-seg{flex-wrap:wrap}.sh-seg button{font-size:14px}.sh-n{color:var(--bad);font-size:12px;margin-left:2px}.sh-seg button.on .sh-n{color:#fde68a}
+.sh-list{display:flex;flex-direction:column;gap:6px}.sh-row{padding:7px 12px;cursor:pointer;border-left:4px solid #cbd5e1;font-size:13px}.sh-row .pp-st{font-size:11px;padding:0 7px}.sh-row:hover{box-shadow:0 3px 10px #0001}.sh-row.late{border-left-color:#dc2626}
+.sh-top{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}.sh-cu{font-size:13.5px;color:#1f3a68}.sh-po{font-size:13px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:0 7px}.sh-po b{font-size:14px}.sh-pocell{color:#b91c1c;font-weight:700}
+.sh-pn{font-size:12.5px;color:#334155;margin:2px 0}.sh-nums{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:12.5px;color:#475569}.sh-nums b{color:#0f172a;font-size:13.5px}.sh-nums .rem b{color:#b45309}.sh-nums .u{color:#94a3b8}
+.sh-prod{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;font-size:11.5px}
+.sh-ot td,.sh-ot th{padding:3px 7px;font-size:12.5px;line-height:1.3}.sh-act{white-space:nowrap}.sh-act a{font-size:12.5px}.sh-job{background:#f5f3ff;color:#5b21b6;border-radius:6px;padding:1px 7px}.sh-job.d{background:#ecfdf5;color:#047857}.sh-docs{color:#475569}
+.sh-dh{display:flex;flex-direction:column;gap:3px;font-size:14px;margin-bottom:4px}
 .pp-st{display:inline-block;white-space:nowrap;font-size:12px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);border:1px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:999px;padding:1px 8px}
 .pp-t td{vertical-align:top}.pp-t tr.pp-late td{background:#fff5f5}.pp-tl{font-size:12px;color:#475569;white-space:nowrap}
 .pp-grid{display:grid;grid-template-columns:120px 1fr;gap:8px 10px;align-items:center;margin-bottom:8px}.pp-grid>label{margin:0;font-size:13.5px;color:#475569}.pp-grid .field{padding:6px 9px}
@@ -1021,6 +1029,11 @@ const Demo = {
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
   async isViewer(){ return !!store.get('vp_demo_viewer', false); },
+  async myRole(){ return store.get('vp_demo_role', null) || (store.get('vp_demo_viewer', false) ? 'viewer' : 'office'); },
+  async shipData(){ const d = this.qsDb(), m = this.m(); this.soDb(); const prog = await this.calc();
+    return {so_h: d.so_h, so_i: d.so_i, fc: d.fc, dl: d.dlv, wo: d.wo, prog, close: d.shipc || [], cust: m.customers || []}; },
+  async shipClose(row){ const d = this.db(); d.shipc = (d.shipc || []).filter(x => x.key !== row.key); d.shipc.push({...row, closed_at: new Date().toISOString()}); this.save(); },
+  async shipReopen(key){ const d = this.db(); d.shipc = (d.shipc || []).filter(x => x.key !== key); this.save(); },
   async paperList(){ return [...(this.db().paper || [])].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))); },
   async paperForJob(job){ return (this.db().paper || []).filter(r => r.job_tickets.includes(job)); },
   async paperSave(row, id){ const d = this.db(); d.paper ||= []; if (id) Object.assign(d.paper.find(r => r.id === id), row); else d.paper.push({id: ++d.seq + 200000, status: 'pending', job_tickets: [], created_at: new Date().toISOString(), ...row}); this.save(); },
@@ -1031,7 +1044,7 @@ const Demo = {
   async logUpdate(table, id, patch){ const d = this.db(), A = table === 'qc_logs' ? d.qc_logs : d.prod_logs, x = A.find(l => l.id === id); if (!x) throw new Error('ไม่พบรายการ'); Object.assign(x, patch); this.save(); },
   async logDelete(table, id){ const d = this.db(); if (table === 'qc_logs') d.qc_logs = d.qc_logs.filter(l => l.id !== id); else d.prod_logs = d.prod_logs.filter(l => l.id !== id); this.save(); },
   async viewers(){ return this.db().viewers || []; },
-  async viewerAdd(email, note){ const d = this.db(); d.viewers ||= []; if (d.viewers.some(x => x.email === email.toLowerCase())) throw new Error('duplicate key'); d.viewers.push({email: email.toLowerCase(), note, created_at: new Date().toISOString()}); this.save(); },
+  async viewerAdd(email, note, role){ const d = this.db(); d.viewers ||= []; if (d.viewers.some(x => x.email === email.toLowerCase())) throw new Error('duplicate key'); d.viewers.push({email: email.toLowerCase(), note, role: role || 'viewer', created_at: new Date().toISOString()}); this.save(); },
   async viewerDel(email){ const d = this.db(); d.viewers = (d.viewers || []).filter(x => x.email !== email); this.save(); },
   async woValueCounts(col){ const m = {}; this.db().wo.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
   async woRename(col, olds, nv){ let n = 0; this.db().wo.forEach(x => { if (olds.includes(x[col])) { x[col] = nv; n++; } }); this.save(); return n; },
@@ -1115,8 +1128,22 @@ const Live = {
   async logUpdate(table, id, patch){ const r = this.chk(await this.sb.from(table).update(patch).eq('id', id).select('id')); if (!r.length) throw new Error('บันทึกไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
   async logDelete(table, id){ const r = this.chk(await this.sb.from(table).delete().eq('id', id).select('id')); if (!r.length) throw new Error('ลบไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
   async isViewer(){ try { const {data, error} = await this.sb.rpc('is_viewer'); return !error && data === true; } catch { return false; } },
+  async myRole(){ try { const {data, error} = await this.sb.rpc('my_role'); if (!error && data) return data; } catch {} return (await this.isViewer()) ? 'viewer' : 'office'; },
+  async shipData(){ const safe = async f => { try { return await f(); } catch (e) { if (/so_headers|so_items|fc_po|deliveries|customers|does not exist|schema cache/.test(e.message) && !/ship_close/.test(e.message)) return []; throw e; } };
+    const [so_h, so_i, fc, dl, wo, prog, close, cust] = await Promise.all([
+      safe(() => this.pageAll(() => this.sb.from('so_headers').select('so_no,so_date,po_no,customer_code,customer_name,cancelled').order('so_no'))),
+      safe(() => this.pageAll(() => this.sb.from('so_items').select('id,so_no,line,product_code,product_name,qty,unit,due_date,item_type,cancelled,delivered_qty,job_ticket').order('id'))),
+      safe(() => this.pageAll(() => this.sb.from('fc_po').select('*').order('id'))),
+      safe(() => this.pageAll(() => this.sb.from('deliveries').select('*').order('id'))),
+      this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_name,product_code,po_no,so_no,order_qty,due_date,doc_date,cancelled,closed').order('job_ticket')),
+      this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,ready_qty,eff_qc,print_status,diecut_status,qc_status,stock_qty,last_qc_at,last_prod_at').order('job_ticket')),
+      this.pageAll(() => this.sb.from('ship_close').select('*').order('key')),
+      safe(() => this.pageAll(() => this.sb.from('customers').select('code,short_name').order('code')))]);
+    return {so_h, so_i, fc, dl, wo, prog, close, cust}; },
+  async shipClose(row){ this.chk(await this.sb.from('ship_close').upsert({...row, closed_at: new Date().toISOString()}, {onConflict: 'key'})); },
+  async shipReopen(key){ this.chk(await this.sb.from('ship_close').delete().eq('key', key)); },
   async viewers(){ const {data, error} = await this.sb.from('app_viewers').select('*').order('created_at'); if (error) { if (/app_viewers/.test(error.message)) return null; throw new Error(error.message); } return data; },
-  async viewerAdd(email, note){ this.chk(await this.sb.from('app_viewers').insert({email: email.toLowerCase(), note: note || null})); },
+  async viewerAdd(email, note, role){ const r = {email: email.toLowerCase(), note: note || null}; if (role && role !== 'viewer') r.role = role; this.chk(await this.sb.from('app_viewers').insert(r)); },
   async viewerDel(email){ this.chk(await this.sb.from('app_viewers').delete().eq('email', email)); },
   async woValueCounts(col){ const r = await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,' + col).order('job_ticket')), m = {};
     r.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
@@ -2366,11 +2393,17 @@ const ColFilter = {
 /* ================== ใบรับคำสั่งซื้อ (SO) — นำเข้าจาก Autoflight PSALEORD.CSV ================== */
 const SOImport = {
   // Autoflight ใส่ " ในข้อความโดยไม่ escape (เช่น Dia.3") → ตัดช่องเอง: ปิด " เมื่อเจอ ", หรือท้ายบรรทัด
-  line(t){ const f = []; let i = 0; const n = t.length;
-    while (i <= n) {
-      if (t[i] === '"') { let j = t.indexOf('"', i + 1); while (j !== -1 && !(j === n - 1 || t[j + 1] === ',')) j = t.indexOf('"', j + 1); if (j === -1) j = n; f.push(t.slice(i + 1, j)); i = j + 2; }
-      else { let j = t.indexOf(',', i); if (j === -1) j = n; f.push(t.slice(i, j)); i = j + 1; }
-    } return f; },
+  line(t, want){
+    // ลองหลายกติกาการปิด " แล้วเลือกแบบที่ได้จำนวนช่องตรงกับหัวตาราง
+    const rules = [(t, j, n) => j === n - 1 || t[j + 1] === ',',
+                   (t, j, n) => j === n - 1 || (t[j + 1] === ',' && (j + 2 >= n || /["\d\/,\-]/.test(t[j + 2]))),
+                   (t, j, n) => j === n - 1 || (t[j + 1] === ',' && (j + 2 >= n || /[",]/.test(t[j + 2])))];
+    const run = ok => { const f = []; let i = 0; const n = t.length;
+      while (i <= n) {
+        if (t[i] === '"') { let j = t.indexOf('"', i + 1); while (j !== -1 && !ok(t, j, n)) j = t.indexOf('"', j + 1); if (j === -1) j = n; f.push(t.slice(i + 1, j)); i = j + 2; }
+        else { let j = t.indexOf(',', i); if (j === -1) j = n; f.push(t.slice(i, j)); i = j + 1; }
+      } return f; };
+    let first = null; for (const r of rules) { const f = run(r); if (!want || f.length === want) return f; first ||= f; } return first; },
   date(s){ const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (!m) return null; let y = +m[3]; if (y > 2400) y -= 543; return `${y}-${m[2]}-${m[1]}`; },
   parse(text){
     const L = text.split(/\r?\n/), H = this.line(L[0]).map(x => x.trim());
@@ -2378,7 +2411,7 @@ const SOImport = {
     if (!H.includes('code')) throw new Error('ไฟล์ไม่มีเลขที่ SO — ตอน export ให้ตั้ง "เลขที่เอกสารที่ใช้พิมพ์เป็น" = เลขที่อ้างอิงและเลขที่ภายใน');
     let book = '01'; const heads = new Map(), items = new Map(), last = {}; let bad = 0;
     for (let k = 1; k < L.length; k++) { if (!L[k].trim()) continue;
-      const v = this.line(L[k]); if (v.length !== H.length) bad++;
+      const v = this.line(L[k], H.length); if (v.length !== H.length) bad++;
       const d = {}; H.forEach((h, i) => d[h] = (v[i] ?? '').trim());
       const mb = (d.subheadmsg || '').match(/เล่ม\s*(\d+)/); if (mb) book = mb[1];
       if (!d.no || d.no === '0' || !d.code) continue;
@@ -2585,8 +2618,9 @@ const DlvImport = {
     if (!H.includes('refto') || !H.includes('prodcode') || !H.includes('coor')) throw new Error('ไฟล์นี้ไม่ใช่รายงานใบส่งของขายเชื่อ (PREFLI02) จาก Autoflight');
     const out = []; let cur = null;
     for (let k = 1; k < L.length; k++) { if (!L[k].trim()) continue;
-      const v = SOImport.line(L[k]), d = {}; H.forEach((h, i) => d[h] = (v[i] ?? '').trim());
+      const v = SOImport.line(L[k], H.length), d = {}; H.forEach((h, i) => d[h] = (v[i] ?? '').trim());
       if (d.coor) { cur = d; continue; }
+      if (!(+d.qty > 0)) continue;   // บรรทัดที่ไม่มีจำนวน
       if (!cur || !d.prodcode || !(+d.runno > 0)) continue;
       if (/^c/i.test(cur.stat || '')) continue;      // ใบที่ยกเลิก
       const dt = SOImport.date(cur.date);
@@ -2599,7 +2633,10 @@ const DlvImport = {
   plan(items, ex){
     const ins = [], upd = [], used = new Set(), stats = {rows: items.length, ins: 0, upd: 0, matched: 0, codeDiff: [], customers: new Set(items.map(x => x.customer_code)).size};
     items.forEach(x => {
-      let o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && (e.si_line == null || e.si_line === x.si_line));
+      const same = ex.filter(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && e.si_line == null);
+      if (same.length > 1 && Math.abs(same.reduce((a, e) => a + (+e.qty || 0), 0) - x.qty) < 0.5) { same.forEach(e => used.add(e.id)); return; }   // ในระบบแยกหลายแถว รวมแล้วเท่ากับใบกำกับ
+      let o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && (e.si_line == null || e.si_line === x.si_line) && +e.qty === +x.qty)
+           || ex.find(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && (e.si_line == null || e.si_line === x.si_line));
       if (o) { used.add(o.id); const patch = {si_line: x.si_line, si_date: x.si_date, qty: x.qty, po_no: o.po_no || x.po_no};
         if (+o.qty !== +x.qty || o.si_line !== x.si_line) { upd.push({id: o.id, patch}); stats.upd++; } return; }
       o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && +e.qty === +x.qty && e.customer_code === x.customer_code);
@@ -2625,7 +2662,9 @@ const QSPage = {
     const raw = await API.qsData(this.cfg), fcm = [], C = this.cfg, disp = {};
     // รวมรหัสที่สะกดต่างกัน (ช่องว่าง/ตัวพิมพ์) และรหัสที่ตั้งให้ "รวมกับ" รหัสอื่น
     const canon = c => { const s0 = this.clean(c); if (!s0) return s0; let k = this.norm(s0), a = C.alias[k]; if (a) k = this.norm(a); return disp[k] ||= (a ? this.clean(a) : s0); };
-    const fc = raw.fc.map(x => ({...x, product_code: canon(x.product_code)})), dl = raw.dl.map(x => ({...x, product_code: canon(x.product_code)})), pr = raw.pr.map(x => ({...x, product_code: canon(x.product_code)}));
+    // ใบกำกับที่นำเข้าจาก PREFLI02 นับเฉพาะ PO ที่ติดตามในหน้านี้ (PO อื่นของลูกค้าไม่เกี่ยวกับรายงาน Forecast)
+    const poSet = new Set(raw.fc.filter(x => x.po_no).map(x => this.norm(x.po_no)));
+    const fc = raw.fc.map(x => ({...x, product_code: canon(x.product_code)})), dl = raw.dl.filter(x => x.source !== 'csv' || poSet.has(this.norm(x.po_no))).map(x => ({...x, product_code: canon(x.product_code)})), pr = raw.pr.map(x => ({...x, product_code: canon(x.product_code)}));
     const startM = C.start_date ? C.start_date.slice(0, 7) : '0000-00';
     const jobMonth = j => { const m = String(j).match(/^(\d{2})(\d{2})\//); return m ? `${+m[1] + 1957}-${m[2]}` : '9999-99'; };
     const prod = {}; pr.forEach(r => { if (r.cancelled || !r.product_code || jobMonth(r.job_ticket) < startM) return; const k = r.product_code.trim(); (prod[k] ||= {qty: 0, jobs: []}); prod[k].qty += +r.eff_qc || 0; if (+r.eff_qc) prod[k].jobs.push(r.job_ticket); });
@@ -3163,11 +3202,12 @@ const Maint = {
       </div>
       <div class="card mt-card"><h3>🕘 ประวัติการแก้ไขล่าสุด</h3><p>ทุกการสร้าง / แก้ไข / ลบ ใบสั่งผลิต (รวมช่องในหน้าติดตามงาน) การส่งของ และ PO ควาร์ค · ดูประวัติของแต่ละใบได้ที่ปุ่ม 🕘 ประวัติ ในหน้าใบสั่งผลิต</p>
         <input id="clQ" class="field" style="max-width:300px;padding:5px 10px;font-size:13px;margin-bottom:6px" placeholder="ค้นหา JOB / ผู้แก้ / ชื่อช่อง"><div id="mtLog" class="tbl-wrap cl-box"><div class="empty">กำลังโหลด…</div></div></div>
-      <div class="card mt-card"><h3>👁 บัญชีดูอย่างเดียว (เจ้านาย / ผู้บริหาร)</h3>
-        <p>อีเมลในรายการนี้ login แล้วจะเห็นเฉพาะ<b>หน้าสรุปผู้บริหาร + รายงาน</b> และ<b>แก้ไขข้อมูลไม่ได้</b> (กันที่ฐานข้อมูลด้วย) · ต้องสร้างผู้ใช้อีเมลเดียวกันใน Supabase (Authentication → Users) ด้วย</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><input id="vwE" class="field" type="email" style="max-width:260px;padding:6px 10px" placeholder="อีเมล เช่น boss@gmail.com"><input id="vwN" class="field" style="max-width:160px;padding:6px 10px" placeholder="ชื่อ / หมายเหตุ"><button class="btn sm" id="vwAdd">+ เพิ่ม</button></div>
+      <div class="card mt-card"><h3>👁 บัญชีพิเศษ: ดูอย่างเดียว / ฝ่ายจัดส่ง</h3>
+        <p>อีเมลในรายการนี้ login แล้ว: <b>👁 ดูอย่างเดียว</b> = เห็นหน้าสรุปผู้บริหาร + รายงาน แก้อะไรไม่ได้ · <b>🚚 ฝ่ายจัดส่ง</b> = เห็นหน้าจัดส่ง + รายงาน บันทึกได้แค่การส่งของ/ปิดงานจัดส่ง (ต้องรันไฟล์ 19) · กันที่ฐานข้อมูลด้วย · ต้องสร้างผู้ใช้อีเมลเดียวกันใน Supabase (Authentication → Users) ด้วย</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><input id="vwE" class="field" type="email" style="max-width:260px;padding:6px 10px" placeholder="อีเมล เช่น boss@gmail.com"><input id="vwN" class="field" style="max-width:160px;padding:6px 10px" placeholder="ชื่อ / หมายเหตุ"><select id="vwR" class="field" style="width:auto;padding:6px 8px"><option value="viewer">👁 ดูอย่างเดียว (เจ้านาย)</option><option value="shipping">🚚 ฝ่ายจัดส่ง</option></select><button class="btn sm" id="vwAdd">+ เพิ่ม</button></div>
         <div id="vwList"><div class="empty">กำลังโหลด…</div></div>
         <div class="hint" style="margin-top:8px">ลิงก์หน้าสรุปผู้บริหาร: <code id="vwLink"></code> <button class="btn ghost sm" id="vwCopy">📋 คัดลอก</button></div>
+        <div class="hint" style="margin-top:4px">ลิงก์หน้าจัดส่ง: <code>${esc(location.origin + location.pathname + '?ship')}</code></div>
       </div>
       <div class="card mt-card"><h3>🛟 ถ้าข้อมูลเสียหาย / หายทั้งระบบ</h3>
         <p>ระบบ<b>ไม่มีปุ่ม Restore ทั้งระบบ</b> เพื่อกันกดพลาดแล้วข้อมูลจริงถูกทับด้วยไฟล์เก่า หากเกิดเหตุ ให้ส่งไฟล์ Backup ล่าสุดมาทำไฟล์ SQL กู้คืน (แบบเดียวกับตอนย้ายข้อมูลจาก Excel)</p>
@@ -3181,10 +3221,10 @@ const Maint = {
     $('#vwCopy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('คัดลอกลิงก์แล้ว'); } catch { prompt('คัดลอกลิงก์นี้', link); } };
     let V; try { V = await API.viewers(); } catch (e) { $('#vwList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     if (V === null) { $('#vwList').innerHTML = '<div class="empty">ต้องรันไฟล์ 15_viewer_readonly.sql ใน Supabase ก่อน</div>'; $('#vwAdd').disabled = true; return; }
-    $('#vwList').innerHTML = V.length ? `<table class="trk"><thead><tr><th>อีเมล</th><th>หมายเหตุ</th><th>เพิ่มเมื่อ</th><th></th></tr></thead><tbody>${V.map(x => `<tr><td><b>${esc(x.email)}</b></td><td>${esc(x.note || '')}</td><td>${fmtT(x.created_at)}</td><td><button class="btn ghost sm" data-vdel="${esc(x.email)}" style="color:var(--bad)">ลบ</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">ยังไม่มีบัญชีดูอย่างเดียว</div>';
+    $('#vwList').innerHTML = V.length ? `<table class="trk"><thead><tr><th>อีเมล</th><th>สิทธิ์</th><th>หมายเหตุ</th><th>เพิ่มเมื่อ</th><th></th></tr></thead><tbody>${V.map(x => `<tr><td><b>${esc(x.email)}</b></td><td>${x.role === 'shipping' ? '🚚 ฝ่ายจัดส่ง' : '👁 ดูอย่างเดียว'}</td><td>${esc(x.note || '')}</td><td>${fmtT(x.created_at)}</td><td><button class="btn ghost sm" data-vdel="${esc(x.email)}" style="color:var(--bad)">ลบ</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">ยังไม่มีบัญชีดูอย่างเดียว</div>';
     $('#vwAdd').onclick = async () => { const e = $('#vwE').value.trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('อีเมลไม่ถูกต้อง');
       if (e.toLowerCase() === String(Office.user?.email || '').toLowerCase()) return toast('ห้ามใส่อีเมลของตัวเอง — จะทำให้แก้ไขข้อมูลไม่ได้');
-      try { await API.viewerAdd(e, $('#vwN').value.trim()); toast('เพิ่มแล้ว'); this.loadViewers(); $('#vwE').value = $('#vwN').value = ''; } catch (er) { toast(/duplicate|unique/i.test(er.message) ? 'มีอีเมลนี้แล้ว' : er.message); } };
+      try { await API.viewerAdd(e, $('#vwN').value.trim(), $('#vwR').value); toast('เพิ่มแล้ว'); this.loadViewers(); $('#vwE').value = $('#vwN').value = ''; } catch (er) { toast(/duplicate|unique/i.test(er.message) ? 'มีอีเมลนี้แล้ว' : er.message); } };
     document.querySelectorAll('[data-vdel]').forEach(b => b.onclick = async () => { if (!(await Office.confirm(`ลบ ${b.dataset.vdel} ออกจากบัญชีดูอย่างเดียว?\n(อีเมลนี้จะกลับไปแก้ไขข้อมูลได้เหมือนพนักงานออฟฟิศ)`))) return;
       try { await API.viewerDel(b.dataset.vdel); this.loadViewers(); } catch (e) { toast(e.message); } });
   },
@@ -3498,10 +3538,17 @@ const PivotRpt = {
 };
 
 
+/* ---------- ช่องตัวเลขมีลูกน้ำคั่นหลักพัน (เคอร์เซอร์ไม่กระโดด) ---------- */
+function numInput(el){ if (!el) return;
+  const fmt = v => { const raw = String(v).replace(/[^\d.]/g, ''), [i, ...d] = raw.split('.'); return (i ? Number(i).toLocaleString('en-US') : (d.length ? '0' : '')) + (d.length ? '.' + d.join('') : ''); };
+  el.value = el.value === '' ? '' : fmt(el.value);
+  el.addEventListener('input', () => { const pos = el.selectionStart, digitsBefore = el.value.slice(0, pos).replace(/[^\d.]/g, '').length;
+    el.value = fmt(el.value); let k = 0, n = 0; while (k < el.value.length && n < digitsBefore) { if (/[\d.]/.test(el.value[k])) n++; k++; } try { el.setSelectionRange(k, k); } catch {} }); }
+
 /* ---------- แก้ / ลบ ยอดสแกนที่อนุมัติแล้ว (แทนชีต DATA_ผลิต / DATA_QC) ---------- */
 const LogEdit = {
   open(x, onDone){
-    if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
+    if (Office.ro) return toast('บัญชีนี้ดูได้อย่างเดียว');
     if (!x.id) return toast('รายการนี้ไม่มีรหัส แก้ไขไม่ได้');
     const QC = x.table === 'qc_logs', D = DEPT[QC ? 'qc' : 'prod'], t = new Date(new Date(x.logged_at || Date.now()).getTime() + 7 * 3600e3);
     const sts = [...new Set([...D.statuses, x.status].filter(Boolean))];
@@ -3518,7 +3565,7 @@ const LogEdit = {
         <label>หมายเหตุ</label><input id="le_n" class="field" value="${esc(x.note || '')}">
       </div>
       <div class="acts"><button class="btn ghost" id="le_del" style="color:var(--bad);margin-right:auto">🗑 ลบรายการนี้</button><button class="btn ghost" id="le_x">ยกเลิก</button><button class="btn" id="le_ok">💾 บันทึก</button></div>`;
-    const d = $('#dlg'); d.showModal(); $('#le_x').onclick = () => d.close();
+    const d = $('#dlg'); d.showModal(); numInput($('#le_q')); $('#le_x').onclick = () => d.close();
     $('#le_ok').onclick = async () => {
       const di = thToIso($('#le_d').value.trim()), tm = $('#le_t').value.trim().match(/^(\d{1,2})[:.](\d{2})$/);
       if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
@@ -3540,7 +3587,7 @@ const LogEdit = {
 /* ---------- แก้กำหนดส่งแบบเร็ว (1 JOB หรือหลาย JOB พร้อมกัน) ---------- */
 const DueEdit = {
   open(list, onDone){   // list = [{job_ticket, due_date, customer_name, product_name}]
-    if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
+    if (Office.ro) return toast('บัญชีนี้ดูได้อย่างเดียว');
     const one = list.length === 1, w = list[0], t = todayISO();
     const add = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString().slice(0, 10);
     $('#dlgBody').innerHTML = `<h3>📅 แก้กำหนดส่ง ${one ? 'JOB ' + esc(w.job_ticket) : list.length + ' JOB'}</h3>
@@ -3700,7 +3747,7 @@ const Kpi = {
   },
   editDue(jobs){ const m = new Map((this._jobs || []).map(r => [r.job_ticket, r])); DueEdit.open(jobs.map(j => m.get(j) || {job_ticket: j}), () => { this._jobs = null; this.page(this.v); }); },
   detail(key, list){
-    const c = this.R.detailCols || this.DCOLS, B = this.v === 'backlog' && !Office.viewer;
+    const c = this.R.detailCols || this.DCOLS, B = this.v === 'backlog' && !Office.ro;
     $('#dlgBody').innerHTML = `<h3>${esc(this.cv(key))} · ${list.length} JOB</h3><div class="tbl-wrap" style="max-height:62vh"><table class="trk"><thead><tr>${B ? '<th><input type="checkbox" id="kd_all" title="เลือกทั้งหมด"></th>' : ''}${c.map(([, l, n]) => `<th class="${n ? 'num' : ''}">${l}</th>`).join('')}</tr></thead><tbody>
       ${list.map(r => `<tr>${B ? `<td><input type="checkbox" class="kd_c" value="${esc(r.job_ticket)}"></td>` : ''}${c.map(([k, , n, f]) => k === 'job_ticket' ? `<td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td>`
         : k === 'due_date' && B ? `<td><a href="#" class="kp-due" data-due="${esc(r.job_ticket)}">${esc(f ? f(r) : r[k] ?? '')} ✏️</a></td>`
@@ -3838,8 +3885,8 @@ const Kpi = {
       const qi = QC ? 5 : 6, hm = t => fmtT(t).split(' ')[1] || '';
       const rows = A.map(x => [{t: fmtD(x._d), n: x.logged_at || ''}, {t: hm(x.logged_at), n: x.logged_at || ''}, x.job_ticket, x.employee_name || '', ...(QC ? [] : [x.step || '']), x.status || '', x.qty === null || x.qty === undefined || x.qty === '' ? '' : +x.qty, x.note || '', srcL(x), (d => d ? {t: d, c: 'stock-neg kp-b'} : '')(dup(x)), x.machine || '', x.customer_name || '', x.product_name || '']);
       rows.forEach((r, i) => r._log = {...A[i], table: QC ? 'qc_logs' : 'production_logs'});
-      return {sub: `${QC ? 'QC' : 'ฝ่ายผลิต'} ${A.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel · ช่องค้นหา JOB พิมพ์บางส่วนได้ เช่น 6910/3' + (Office.viewer ? '' : ' · <b>คลิกแถวเพื่อแก้ยอด/ลบรายการ</b> (แทนการแก้ในชีต DATA_ผลิต / DATA_QC)') + ' · "ตรวจซ้ำ" = JOB/สถานะ/จำนวนเดียวกันมาจากทั้ง Excel และสแกน หรือซ้ำกันภายใน 1 ชม.',
-        mainAll: {filter: true, editable: !Office.viewer, head, rows, titleFn: R => `${QC ? '✅ QC' : '🖨️ ฝ่ายผลิต'} (${fmtN(R.length)} รายการ)`,
+      return {sub: `${QC ? 'QC' : 'ฝ่ายผลิต'} ${A.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel · ช่องค้นหา JOB พิมพ์บางส่วนได้ เช่น 6910/3' + (Office.ro ? '' : ' · <b>คลิกแถวเพื่อแก้ยอด/ลบรายการ</b> (แทนการแก้ในชีต DATA_ผลิต / DATA_QC)') + ' · "ตรวจซ้ำ" = JOB/สถานะ/จำนวนเดียวกันมาจากทั้ง Excel และสแกน หรือซ้ำกันภายใน 1 ชม.',
+        mainAll: {filter: true, editable: !Office.ro, head, rows, titleFn: R => `${QC ? '✅ QC' : '🖨️ ฝ่ายผลิต'} (${fmtN(R.length)} รายการ)`,
           totalFn: R => head.map((h, k) => k === 0 ? 'รวม' : k === qi ? R.reduce((a, r) => a + (+this.craw(r[k]) || 0), 0) : '')}};
     }
     const src = [...P, ...Q].filter(x => x.step === o.step), col = x => (o.dim === 'machine' ? x.machine : x.employee_name) || '(ไม่ระบุ)';
@@ -4213,6 +4260,250 @@ const PaperPage = {
   }
 };
 
+
+/* ================== ระบบจัดส่ง (ตาม PO + สินค้า) — ลิงก์ ?ship / บัญชีฝ่ายจัดส่ง ================== */
+const ShipPage = {
+  ST: {nojob: ['ยังไม่เปิดใบสั่งผลิต', '#64748b', '📝'], prod: ['กำลังผลิต', '#7c3aed', '🖨️'], ready: ['พร้อมส่ง', '#0f766e', '📦'], partial: ['ส่งบางส่วน', '#d97706', '🚚'],
+       toclose: ['ส่งครบ รอปิดงาน', '#2563eb', '✅'], closed: ['ปิดงานแล้ว', '#16a34a', '🔒']},
+  view: store.get('vp_sh_view', 'open'), q: '',
+  n: s => String(s || '').toLowerCase().replace(/[\s ​]+/g, ''),
+  key(po, code){ return this.n(po) + '|' + this.n(code); },
+  // รหัสสินค้าใกล้เคียง (ใบกำกับกับใบสั่งผลิตสะกดต่างกันเล็กน้อย)
+  codeSim(a, b){ a = this.n(a); b = this.n(b); if (!a || !b) return false; if (a.startsWith(b) || b.startsWith(a)) return true;
+    const sz = x => (x.match(/\d+(\.\d+)?x\d+(\.\d+)?/) || [''])[0], seg = x => x.split('-')[0];
+    return seg(a) === seg(b) && sz(a) !== '' && sz(a) === sz(b); },
+  badge(s){ const [l, c, ic] = this.ST[s]; return `<span class="pp-st" style="--c:${c}">${ic} ${l}</span>`; },
+  cfg(){ return {start: '2026-10-01', ...store.get('vp_ship_cfg', {}), ...(this._cfg || {})}; },
+  async load(force){
+    if (!force && this.D && Date.now() - this.D._at < 60000) return this.D;
+    const D = await API.shipData(); D._at = Date.now();
+    try { const c = await API.getMeta('ship_cfg'); if (c) this._cfg = c; } catch {}
+    const C = this.cfg(), N = x => +x || 0, lines = new Map(), prog = new Map(D.prog.map(r => [r.job_ticket, r]));
+    const add = (po, code, base) => { const k = this.key(po, code); let L = lines.get(k);
+      if (!L) { L = {key: k, po_no: po, product_code: code, product_name: base.product_name, customer_name: base.customer_name, customer_code: base.customer_code, unit: base.unit,
+        qty: 0, so_nos: new Set(), due: null, af_shipped: 0, jobs: [], dl: [], src: base.src, date: base.date}; lines.set(k, L); }
+      if (base.due && (!L.due || base.due < L.due)) L.due = base.due; if (!L.customer_code && base.customer_code) L.customer_code = base.customer_code;
+      if (base.date && (!L.date || base.date > L.date)) L.date = base.date; return L; };
+    // 1) SO จาก Autoflight
+    const H = new Map(D.so_h.filter(h => !h.cancelled).map(h => [h.so_no, h]));
+    D.so_i.filter(i => !i.cancelled && i.item_type !== 'P7' && H.has(i.so_no) && i.product_code).forEach(i => { const h = H.get(i.so_no), po = (h.po_no || '').trim() || 'SO ' + i.so_no;
+      const L = add(po, i.product_code.trim(), {product_name: i.product_name, customer_name: h.customer_name, customer_code: h.customer_code, unit: i.unit, due: i.due_date, src: 'SO', date: h.so_date});
+      L.qty += N(i.qty); L.so_nos.add(i.so_no); L.af_shipped += N(i.delivered_qty); if (i.job_ticket) L.linkJobs = [...(L.linkJobs || []), i.job_ticket]; });
+    // 2) PO ระยะยาว / Forecast (ควาร์ค)
+    const fcSum = new Map(); D.fc.filter(f => f.po_no && f.product_code).forEach(f => { const k = this.key(f.po_no, f.product_code); const x = fcSum.get(k) || {f, qty: 0}; x.qty += N(f.po_qty); fcSum.set(k, x); });
+    fcSum.forEach(({f, qty}, k) => { const L = add(f.po_no.trim(), f.product_code.trim(), {product_name: f.product_name, customer_name: f.customer_name, customer_code: f.customer_code, unit: f.unit, src: 'PO', date: f.recv_date}); L.qty = Math.max(L.qty, qty); });
+    // 3) ใบสั่งผลิตที่ยังไม่มี SO
+    const W = D.wo.filter(w => !w.cancelled && !/-R\d+$/.test(w.job_ticket));
+    const cust = new Map(D.cust.map(c => [this.n(c.short_name), c.code]));
+    W.filter(w => w.po_no && w.product_code && !lines.has(this.key(w.po_no, w.product_code)) && (w.doc_date || '9999') >= C.start)
+      .forEach(w => add(w.po_no.trim(), w.product_code.trim(), {product_name: w.product_name, customer_name: w.customer_name, customer_code: cust.get(this.n(w.customer_name)), src: 'JOB', due: w.due_date, date: w.doc_date, _wo: 1}).qty += 0);
+    lines.forEach(L => { if (L.src === 'JOB') L.qty = W.filter(w => this.key(w.po_no, w.product_code) === L.key).reduce((a, w) => a + N(w.order_qty), 0); });
+    // ผูก JOB กับรายการ
+    const bySo = new Map(); lines.forEach(L => L.so_nos.forEach(s => (bySo.get(s) || bySo.set(s, []).get(s)).push(L)));
+    D.wo.filter(w => !w.cancelled).forEach(w => { const hit = new Set(); const k = w.po_no && w.product_code ? this.key(w.po_no, w.product_code) : null;
+      if (k && lines.has(k)) hit.add(lines.get(k));
+      (bySo.get((w.so_no || '').trim()) || []).filter(L => this.n(L.product_code) === this.n(w.product_code)).forEach(L => hit.add(L));
+      lines.forEach(L => { if (L.linkJobs?.includes(w.job_ticket)) hit.add(L); });
+      hit.forEach(L => L.jobs.push({...w, ...(prog.get(w.job_ticket) || {})})); });
+    // การส่งของ
+    const orphan = [], hidden = [], svc = new Set(D.so_i.filter(i => i.item_type === 'P7' && i.product_code).map(i => this.n(i.product_code)));
+    const byPo = new Map(); lines.forEach(L => { const k = this.n(L.po_no); (byPo.get(k) || byPo.set(k, []).get(k)).push(L); });
+    D.dl.forEach(d => {
+      if (d.ship_ignore || svc.has(this.n(d.product_code)) || (!d.ship_key && /^\s*ค่า/.test(d.product_name || ''))) { if ((d.delivery_date || '9999') >= C.start) hidden.push(d); return; }
+      const sk = d.ship_key && d.ship_key !== '__keep' ? d.ship_key : null;
+      let L = sk ? lines.get(sk) : d.po_no ? lines.get(this.key(d.po_no, d.product_code)) : null;
+      if (!L && !sk && d.po_no) {   // รหัสสินค้าไม่ตรง: PO เดียวกัน ลูกค้าเดียวกัน → ถ้ามีรายการเดียว หรือยอดตรงกัน ให้จับคู่อัตโนมัติ
+        const c = (byPo.get(this.n(d.po_no)) || []).filter(x => this.codeSim(x.product_code, d.product_code));
+        L = c.length === 1 ? c[0] : c.find(x => +x.qty === +d.qty) || null; if (L) d._auto = true; }
+      if (L) L.dl.push(d); else if ((d.delivery_date || '9999') >= C.start) orphan.push(d); });
+    // สต็อกตามรหัสสินค้า
+    const stock = new Map(); D.prog.forEach(r => { const w = D.wo.find(x => x.job_ticket === r.job_ticket); if (!w?.product_code || w.cancelled) return; const k = this.n(w.product_code); stock.set(k, (stock.get(k) || 0) + N(r.stock_qty)); });
+    const closed = new Map((D.close || []).map(c => [c.key, c]));
+    lines.forEach(L => {
+      L.shipped = Math.max(L.dl.reduce((a, d) => a + N(d.qty), 0), L.af_shipped); L.remain = Math.max(0, L.qty - L.shipped);
+      L.stock = Math.max(0, stock.get(this.n(L.product_code)) || 0); L.close = closed.get(L.key) || null;
+      L.docs = L.dl.map(d => d.si_no ? 'SI01/' + d.si_no : d.do_no).filter(Boolean);
+      L.missingDoc = L.dl.filter(d => !d.si_no && !d.do_no).length;
+      if (!L.customer_name) L.customer_name = L.jobs[0]?.customer_name; if (!L.product_name) L.product_name = L.jobs[0]?.product_name;
+      const allDone = L.jobs.length && L.jobs.every(j => Kpi.done(j)), ready = L.jobs.reduce((a, j) => a + N(j.ready_qty), 0);
+      L.prodPct = L.qty ? Math.min(100, Math.round(ready / L.qty * 100)) : 0; L.readyQty = ready;
+      L.status = L.close ? 'closed' : (L.qty > 0 && L.shipped >= L.qty) ? 'toclose' : L.shipped > 0 ? 'partial'
+        : (allDone || (L.remain > 0 && L.stock >= L.remain)) ? 'ready' : L.jobs.length ? 'prod' : 'nojob';
+    });
+    // ซ่อนรายการเก่าก่อนวันเริ่มใช้ที่ไม่มีการเคลื่อนไหว
+    const all = [...lines.values()].filter(L => L.qty > 0 && ((L.date || '9999') >= C.start || L.dl.length || L.jobs.some(j => !j.closed)));
+    this.D = {...D, lines: all, orphan, hidden, stockMap: stock}; return this.D;
+  },
+  async page(force){
+    const V = [['open', 'ค้างส่งทั้งหมด'], ['prod', '🖨️ กำลังผลิต'], ['ready', '📦 พร้อมส่ง'], ['partial', '🚚 ส่งบางส่วน'], ['toclose', '✅ รอปิดงาน'], ['closed', '🔒 ปิดแล้ว'], ['stock', '📦 เช็กสต็อก'], ['orphan', '⚠ ส่งแล้วไม่พบ PO']];
+    $('#page').innerHTML = `<div class="toolbar sh-bar"><div class="seg sh-seg" id="shSeg">${V.map(([k, l]) => `<button data-v="${k}">${l} <b class="sh-n" data-n="${k}"></b></button>`).join('')}</div></div>
+      <div class="toolbar"><input id="shQ" class="field" style="max-width:300px;padding:7px 11px" placeholder="🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB / เลขใบส่งของ" value="${esc(this.q)}">
+        <button class="btn ghost sm" id="shRe">↻</button><span class="sp"></span>
+        <button class="btn ghost sm" id="shImp">📥 นำเข้า PREFLI02.CSV</button><input type="file" id="shFile" accept=".csv,.CSV" class="hidden">
+        <button class="btn sm" id="shAdd">+ บันทึกส่งของ</button>${Office.shipping || Office.viewer ? '' : '<button class="btn ghost sm" id="shCfg" title="ตั้งค่า">⚙</button>'}</div>
+      <div id="shBody"><div class="empty">กำลังโหลด…</div></div>`;
+    document.querySelectorAll('#shSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_sh_view', this.view); document.querySelectorAll('#shSeg button').forEach(x => x.classList.toggle('on', x === b)); this.draw(); }; });
+    let t; $('#shQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value.trim(); this.draw(); const i = $('#shQ'); i.focus(); }, 300); };
+    $('#shRe').onclick = () => this.page(true);
+    $('#shAdd').onclick = () => this.editDl(null, null);
+    $('#shImp').onclick = () => $('#shFile').click();
+    $('#shFile').onchange = e => { const f = e.target.files[0]; if (f) this.importCsv(f); e.target.value = ''; };
+    $('#shCfg')?.addEventListener('click', () => this.settings());
+    if (Office.viewer) ['shAdd', 'shImp'].forEach(id => $('#' + id)?.remove());
+    try { await this.load(force); } catch (e) { $('#shBody').innerHTML = `<div class="err">${esc(e.message)}${/ship_close/.test(e.message) ? '<br>ต้องรันไฟล์ 19_shipping.sql ใน Supabase ก่อน' : ''}</div>`; return; }
+    this.draw();
+  },
+  match(L, q){ return !q || [L.customer_name, L.po_no, L.product_code, L.product_name, ...L.jobs.map(j => j.job_ticket), ...L.docs, ...L.so_nos].join(' ').toLowerCase().includes(q); },
+  draw(){
+    const D = this.D; if (!D) return; const q = this.q.toLowerCase(), t = todayISO();
+    const openSt = ['nojob', 'prod', 'ready', 'partial'], cnt = s => D.lines.filter(L => s === 'open' ? openSt.includes(L.status) : s === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === s).length;
+    document.querySelectorAll('.sh-n').forEach(b => { const k = b.dataset.n; b.textContent = k === 'stock' ? '' : k === 'orphan' ? (D.orphan.length || '') : (cnt(k) || ''); });
+    if (this.view === 'stock') return this.drawStock(q);
+    if (this.view === 'orphan') return this.drawOrphan(q);
+    const R = D.lines.filter(L => (this.view === 'open' ? openSt.includes(L.status) : this.view === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === this.view) && this.match(L, q))
+      .sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.customer_name).localeCompare(String(b.customer_name), 'th'));
+    const tc = this.view === 'toclose' ? R.filter(L => !L.missingDoc).length : 0;
+    $('#shBody').innerHTML = (tc && !Office.viewer ? `<div class="pf-bar">มี ${tc} รายการที่ส่งครบและมีเลขเอกสารครบแล้ว <button class="btn sm" id="shCloseAll">🔒 ปิดงานทั้งหมด ${tc} รายการ</button></div>` : '')
+      + (R.length ? `<div class="sh-list">${R.map((L, i) => { const late = L.due && L.due < t && !['toclose', 'closed'].includes(L.status);
+        return `<div class="card sh-row ${late ? 'late' : ''}" data-i="${i}">
+          <div class="sh-top">${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}</span>` : ''}</div>
+          <div class="sh-pn"><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
+          <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อก <b>${fmtN(L.stock)}</b></span><span class="u">${esc(L.unit || '')}</span></div>
+          <div class="sh-prod">${L.jobs.length ? L.jobs.map(j => `<span class="sh-job ${Kpi.done(j) ? 'd' : ''}">${esc(j.job_ticket)} · ${Kpi.done(j) ? 'ผลิตเสร็จ' : esc(j.qc_status && j.qc_status !== '-' ? 'QC ' + j.qc_status : j.print_status || 'ยังไม่เริ่ม')} · พร้อมส่ง ${fmtN(j.ready_qty || 0)}</span>`).join('') : '<span class="hint">ยังไม่มีใบสั่งผลิต</span>'}
+            ${L.docs.length ? `<span class="sh-docs">📄 ${esc(L.docs.slice(0, 4).join(', '))}${L.docs.length > 4 ? '…' : ''}</span>` : ''}${L.missingDoc ? `<span class="stock-neg">⚠ ยังไม่มีเลขเอกสาร ${L.missingDoc} รายการ</span>` : ''}</div></div>`; }).join('')}</div>` : '<div class="empty">ไม่มีรายการ</div>');
+    document.querySelectorAll('.sh-row').forEach(el => el.onclick = () => this.detail(R[+el.dataset.i]));
+    $('#shCloseAll')?.addEventListener('click', async () => { const L = R.filter(x => !x.missingDoc); if (!(await Office.confirm(`ปิดงานจัดส่ง ${L.length} รายการที่ส่งครบแล้ว?`))) return;
+      try { for (const x of L) await this.closeLine(x, true); toast(`ปิดงานแล้ว ${L.length} รายการ`); } catch (e) { toast(e.message); } this.page(true); });
+  },
+  drawStock(q){
+    const D = this.D, g = new Map();
+    D.prog.forEach(r => { const w = D.wo.find(x => x.job_ticket === r.job_ticket); if (!w || w.cancelled || !(+r.stock_qty)) return;
+      const k = (w.customer_name || '').trim() + '|' + (w.product_name || '').trim(), x = g.get(k) || {c: w.customer_name, p: w.product_name, code: w.product_code, q: 0, jobs: []}; x.q += +r.stock_qty; x.jobs.push(`${w.job_ticket} (${fmtN(r.stock_qty)})`); g.set(k, x); });
+    const R = [...g.values()].filter(x => x.q > 0 && (!q || [x.c, x.p, x.code, x.jobs.join(' ')].join(' ').toLowerCase().includes(q))).sort((a, b) => String(a.c).localeCompare(String(b.c), 'th') || b.q - a.q);
+    $('#shBody').innerHTML = `<div class="hint" style="margin:0 0 6px">สต็อกคงเหลือ (ผ่าน QC แล้ว ยังไม่ได้ตัดส่ง) — ${R.length} สินค้า · รวม ${fmtN(R.reduce((a, x) => a + x.q, 0))}</div>
+      <div class="card tbl-wrap trk-wrap"><table class="trk"><thead><tr><th>ลูกค้า</th><th>รหัส</th><th>สินค้า</th><th class="num">คงเหลือ</th><th>อยู่ที่ JOB</th></tr></thead><tbody>
+      ${R.map(x => `<tr><td class="cu">${esc(x.c || '')}</td><td>${esc(x.code || '')}</td><td class="pn">${esc(x.p || '')}</td><td class="num"><b>${fmtN(x.q)}</b></td><td style="font-size:12px">${esc(x.jobs.join(', '))}</td></tr>`).join('') || '<tr><td colspan="5" class="hint">ไม่พบ</td></tr>'}</tbody></table></div>`;
+  },
+  drawOrphan(q){
+    const H = this.showHidden, src = H ? this.D.hidden : this.D.orphan;
+    const R = src.filter(d => !q || [d.customer_name, d.po_no, d.product_code, d.product_name, d.do_no, d.si_no].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => String(b.delivery_date).localeCompare(String(a.delivery_date)));
+    const RO = Office.viewer;
+    $('#shBody').innerHTML = `<div class="toolbar" style="margin:0 0 6px"><span class="hint">${H ? 'รายการที่ซ่อนไว้ (ไม่เกี่ยวกับงานผลิต เช่น ค่าบล็อก ค่าจัดส่ง งานโรงปั๊ม)' : `การส่งของตั้งแต่ ${fmtD(this.cfg().start)} ที่ยังจับคู่กับ PO ไม่ได้ — <b>จับคู่</b> = เลือกรายการ PO ที่ถูกต้อง (เช่น รหัสในใบกำกับไม่ตรงกับใบสั่งผลิต) · <b>ซ่อน</b> = ไม่เกี่ยวกับงานผลิต`}</span>
+        <span class="sp"></span><label class="wc ${H ? 'on' : ''}"><input type="checkbox" id="shHid" ${H ? 'checked' : ''}> แสดงที่ซ่อนไว้ (${this.D.hidden.length})</label></div>
+      <div class="card tbl-wrap trk-wrap"><table class="trk sh-ot"><thead><tr><th>วันที่ส่ง</th><th>ลูกค้า</th><th>PO</th><th>รหัส</th><th>สินค้า</th><th class="num">จำนวน</th><th>ใบส่งของ</th><th>ใบกำกับ</th><th></th></tr></thead><tbody>
+      ${R.slice(0, 800).map((d, i) => `<tr><td>${fmtD(d.delivery_date)}</td><td class="cu">${esc(d.customer_name || '')}</td><td class="sh-pocell">${esc(d.po_no || '— รอ PO —')}</td><td>${esc(d.product_code || '')}</td><td class="pn">${esc(d.product_name || '')}</td><td class="num">${fmtN(d.qty)}</td><td>${esc(d.do_no || '')}</td><td>${d.si_no ? 'SI01/' + esc(d.si_no) : ''}</td>
+        <td class="sh-act">${RO ? '' : H ? `<a href="#" data-un="${i}">เลิกซ่อน</a>` : `<a href="#" data-mt="${i}">จับคู่</a> · <a href="#" data-hd="${i}">ซ่อน</a> · <a href="#" data-oe="${i}">แก้ไข</a>`}</td></tr>`).join('') || '<tr><td colspan="9" class="hint">ไม่มี</td></tr>'}</tbody></table></div>`;
+    $('#shHid').onchange = e => { this.showHidden = e.target.checked; this.draw(); };
+    const upd = async (d, patch, msg) => { try { await API.dlvSave(patch, d.id); toast(msg); await this.load(true); this.draw(); } catch (e) { toast('บันทึกไม่ได้: ' + e.message); } };
+    document.querySelectorAll('[data-oe]').forEach(b => b.onclick = e => { e.preventDefault(); this.editDl(R[+b.dataset.oe], null); });
+    document.querySelectorAll('[data-hd]').forEach(b => b.onclick = e => { e.preventDefault(); upd(R[+b.dataset.hd], {ship_ignore: true}, 'ซ่อนแล้ว'); });
+    document.querySelectorAll('[data-un]').forEach(b => b.onclick = e => { e.preventDefault(); upd(R[+b.dataset.un], {ship_ignore: false, ship_key: R[+b.dataset.un].ship_key || '__keep'}, 'เลิกซ่อนแล้ว'); });
+    document.querySelectorAll('[data-mt]').forEach(b => b.onclick = e => { e.preventDefault(); this.matchDlg(R[+b.dataset.mt]); });
+  },
+  matchDlg(d){
+    const sim = L => (L.customer_code && d.customer_code && L.customer_code === d.customer_code ? 4 : this.n(L.customer_name).slice(0, 8) === this.n(d.customer_name).slice(0, 8) ? 3 : 0)
+      + (this.n(L.po_no) === this.n(d.po_no) ? 3 : 0) + (this.n(L.product_code).slice(0, 5) === this.n(d.product_code).slice(0, 5) ? 1 : 0) + (L.remain >= +d.qty ? 1 : 0);
+    const C = this.D.lines.filter(L => L.status !== 'closed').map(L => ({L, s: sim(L)})).filter(x => x.s >= 3).sort((a, b) => b.s - a.s || String(a.L.po_no).localeCompare(String(b.L.po_no)));
+    $('#dlgBody').innerHTML = `<h3>🔗 จับคู่การส่งของกับ PO</h3>
+      <div class="sh-dh"><div>${fmtD(d.delivery_date)} · ${esc(d.customer_name || '')} · PO <b>${esc(d.po_no || '-')}</b> · ${d.si_no ? 'SI01/' + esc(d.si_no) : esc(d.do_no || '')}</div><div><b>${esc(d.product_code || '')}</b> ${esc(d.product_name || '')} · <b>${fmtN(d.qty)}</b></div></div>
+      <input id="mt_q" class="field" placeholder="ค้นหา PO / รหัส / ชื่อสินค้า" style="margin:6px 0">
+      <div class="tbl-wrap" style="max-height:50vh" id="mt_l"></div>
+      <div class="acts"><button class="btn ghost" id="mt_x">ยกเลิก</button></div>`;
+    const dlg = $('#dlg'); dlg.showModal(); $('#mt_x').onclick = () => dlg.close();
+    const draw = () => { const q = $('#mt_q').value.trim().toLowerCase(), A = q ? this.D.lines.filter(L => L.status !== 'closed' && this.match(L, q)).map(L => ({L})) : C;
+      $('#mt_l').innerHTML = A.length ? `<table class="trk"><thead><tr><th>PO</th><th>ลูกค้า</th><th>รหัส / สินค้า</th><th class="num">สั่ง</th><th class="num">ค้างส่ง</th><th></th></tr></thead><tbody>${A.slice(0, 60).map(({L}, i) => `<tr><td class="sh-pocell">${esc(L.po_no)}</td><td class="cu">${esc(L.customer_name || '')}</td><td><b>${esc(L.product_code)}</b><div class="so-rm">${esc(L.product_name || '')}</div></td><td class="num">${fmtN(L.qty)}</td><td class="num">${fmtN(L.remain)}</td><td><button class="btn sm" data-pk="${i}">เลือก</button></td></tr>`).join('')}</tbody></table>` : '<div class="hint">ไม่พบรายการที่ใกล้เคียง — พิมพ์ค้นหาด้านบน</div>';
+      $('#mt_l').querySelectorAll('[data-pk]').forEach(b => b.onclick = async () => { const L = A[+b.dataset.pk].L;
+        try { await API.dlvSave({ship_key: L.key}, d.id); dlg.close(); toast(`จับคู่กับ PO ${L.po_no} แล้ว`); await this.load(true); this.draw(); } catch (e) { toast('บันทึกไม่ได้: ' + e.message); } }); };
+    let t; $('#mt_q').oninput = () => { clearTimeout(t); t = setTimeout(draw, 200); }; draw();
+  },
+  detail(L){
+    const t = todayISO(), canClose = L.status === 'toclose' && !L.missingDoc, RO = Office.viewer;
+    $('#dlgBody').innerHTML = `<h3>${this.badge(L.status)} ${esc(L.customer_name || '')}</h3>
+      <div class="sh-dh"><div>PO <b>${esc(L.po_no)}</b>${L.so_nos.size ? ` · SO ${esc([...L.so_nos].join(', '))}` : ''}${L.due ? ` · กำหนดส่ง <b class="${L.due < t && L.remain ? 'stock-neg' : ''}">${fmtD(L.due)}</b>` : ''}</div>
+        <div><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
+        <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อกสินค้านี้ <b>${fmtN(L.stock)}</b></span></div></div>
+      <h4 class="kp-h">🖨️ การผลิต</h4>${L.jobs.length ? `<div class="tbl-wrap"><table class="trk"><thead><tr><th>JOB</th><th class="num">ยอดสั่งผลิต</th><th>พิมพ์</th><th>QC</th><th class="num">พร้อมส่ง</th><th class="num">สต็อก JOB นี้</th></tr></thead><tbody>
+        ${L.jobs.map(j => `<tr><td><b>${esc(j.job_ticket)}</b>${j.closed ? ' <small class="hint">(ปิดจ๊อบ)</small>' : ''}</td><td class="num">${fmtN(j.order_qty)}</td><td>${esc(j.print_status || '')}</td><td>${esc(j.qc_status || '')}</td><td class="num">${fmtN(j.ready_qty || 0)}</td><td class="num">${fmtN(j.stock_qty || 0)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="hint">ยังไม่มีใบสั่งผลิตที่ผูกกับ PO นี้</div>'}
+      <h4 class="kp-h">🚚 การส่งของ</h4>${L.dl.length ? `<div class="tbl-wrap"><table class="trk"><thead><tr><th>วันที่ส่ง</th><th class="num">จำนวน</th><th>ใบส่งของ</th><th>ใบกำกับ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
+        ${L.dl.sort((a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date))).map((d, i) => `<tr><td>${fmtD(d.delivery_date)}</td><td class="num">${fmtN(d.qty)}</td><td>${esc(d.do_no || '')}</td><td>${d.si_no ? 'SI01/' + esc(d.si_no) : '<span class="hint">รอใบกำกับ</span>'}</td><td>${esc(d.note || '')}${d.ship_key && d.ship_key !== '__keep' ? ' <small class="hint">🔗 จับคู่เอง</small>' : d._auto ? ` <small class="hint">🔗 รหัสในใบกำกับ ${esc(d.product_code)}</small>` : ''}</td><td>${RO || L.close ? '' : `<button class="btn ghost sm" data-de="${i}">แก้ไข</button>${d.ship_key && d.ship_key !== '__keep' ? ` <button class="btn ghost sm" data-unm="${i}" title="ยกเลิกการจับคู่">✖</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="hint">ยังไม่มีการส่ง${L.af_shipped ? ` (Autoflight แจ้งส่งแล้ว ${fmtN(L.af_shipped)} — นำเข้า PREFLI02.CSV เพื่อดูเลขใบกำกับ)` : ''}</div>`}
+      ${L.close ? `<div class="pf-bar" style="margin-top:8px">🔒 ปิดงานเมื่อ ${fmtT(L.close.closed_at)} โดย ${esc(L.close.closed_by || '')}${L.close.doc_nos ? ' · ' + esc(L.close.doc_nos) : ''}${L.close.note ? ' · ' + esc(L.close.note) : ''}</div>` : ''}
+      <div class="acts">${RO ? '' : L.close ? '<button class="btn ghost" id="sd_re">↩ เปิดงานอีกครั้ง</button>' : `<button class="btn ghost" id="sd_add">+ บันทึกส่ง</button><button class="btn ${canClose ? 'ok' : 'ghost'}" id="sd_close" ${canClose ? '' : 'disabled'} title="${L.remain ? 'ยังส่งไม่ครบยอด PO' : L.missingDoc ? 'ใส่เลขที่ใบส่งของ/ใบกำกับให้ครบก่อน' : ''}">🔒 ปิดงาน</button>`}<button class="btn" id="sd_x">ปิด</button></div>
+      ${!RO && !L.close && !canClose ? `<div class="hint" style="text-align:right">${L.remain ? `ปิดงานได้เมื่อส่งครบยอด PO (ยังค้าง ${fmtN(L.remain)})` : 'ใส่เลขที่ใบส่งของ/ใบกำกับให้ครบทุกรายการก่อนปิดงาน'}</div>` : ''}`;
+    const d = $('#dlg'); d.showModal(); $('#sd_x').onclick = () => d.close();
+    $('#sd_add')?.addEventListener('click', () => this.editDl(null, L));
+    document.querySelectorAll('[data-de]').forEach(b => b.onclick = () => this.editDl(L.dl[+b.dataset.de], L));
+    document.querySelectorAll('[data-unm]').forEach(b => b.onclick = async () => { try { await API.dlvSave({ship_key: null}, L.dl[+b.dataset.unm].id); d.close(); toast('ยกเลิกการจับคู่แล้ว'); this.page(true); } catch (e) { toast(e.message); } });
+    $('#sd_close')?.addEventListener('click', async () => { try { await this.closeLine(L); d.close(); toast('ปิดงานจัดส่งแล้ว 🔒'); this.page(true); } catch (e) { toast(e.message); } });
+    $('#sd_re')?.addEventListener('click', async () => { if (!(await Office.confirm('เปิดงานจัดส่งนี้อีกครั้ง?'))) return this.detail(L); try { await API.shipReopen(L.key); toast('เปิดงานแล้ว'); this.page(true); } catch (e) { toast(e.message); } });
+  },
+  async closeLine(L, quiet){
+    if (L.shipped < L.qty) throw new Error('ยังส่งไม่ครบยอด PO');
+    if (L.missingDoc) throw new Error('ยังมีการส่งที่ไม่มีเลขเอกสาร');
+    await API.shipClose({key: L.key, po_no: L.po_no, product_code: L.product_code, customer_name: L.customer_name, po_qty: L.qty, shipped_qty: L.shipped, doc_nos: L.docs.join(', '), closed_by: Office.user?.email || ''});
+  },
+  editDl(x, L){
+    if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
+    const r = x || {delivery_date: todayISO(), po_no: L?.po_no?.startsWith('SO ') ? '' : L?.po_no, product_code: L?.product_code, product_name: L?.product_name, customer_name: L?.customer_name, customer_code: L?.customer_code, unit: L?.unit, qty: L?.remain || null};
+    const jobs = L?.jobs || [];
+    $('#dlgBody').innerHTML = `<h3>🚚 ${x ? 'แก้ไขการส่งของ' : 'บันทึกส่งของ'}</h3>
+      <div class="pp-grid">
+        <label>ลูกค้า</label><input id="sd_cu" class="field" value="${esc(r.customer_name || '')}" ${L || x ? 'readonly' : ''} list="sd_cl"><datalist id="sd_cl">${[...new Set(this.D.lines.map(l => l.customer_name).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+        <label>เลขที่ PO</label><input id="sd_po" class="field" value="${esc(r.po_no || '')}" placeholder="เว้นว่างได้ ถ้าส่งไปก่อน รอ PO">
+        <label>รหัสสินค้า</label><input id="sd_pc" class="field" value="${esc(r.product_code || '')}" ${L ? 'readonly' : ''}>
+        <label>ชื่อสินค้า</label><input id="sd_pn" class="field" value="${esc(r.product_name || '')}" ${L ? 'readonly' : ''}>
+        ${jobs.length ? `<label>JOB</label><select id="sd_j" class="field" style="width:auto"><option value="">— ไม่ระบุ —</option>${jobs.map(j => `<option ${j.job_ticket === r.job_ticket ? 'selected' : ''}>${esc(j.job_ticket)}</option>`).join('')}</select>` : ''}
+        <label>วันที่ส่ง</label><input id="sd_d" class="field" value="${isoToTh(r.delivery_date || todayISO())}" placeholder="วว/ดด/ปปปป" style="max-width:180px">
+        <label>จำนวนที่ส่ง</label><div><input id="sd_q" class="field" inputmode="decimal" value="${r.qty ?? ''}" style="max-width:180px"> <small>${esc(r.unit || '')}${L ? ` · ค้างส่ง ${fmtN(L.remain)}` : ''}</small></div>
+        <label>เลขที่ใบส่งของ</label><input id="sd_do" class="field" value="${esc(r.do_no || '')}" placeholder="เช่น FR003/69100012 (ใบส่งของชั่วคราว)">
+        <label>เลขที่ใบกำกับ</label><input id="sd_si" class="field" value="${esc(r.si_no || '')}" placeholder="เช่น 69100055 — ใส่ทีหลังได้">
+        <label>หมายเหตุ</label><input id="sd_n" class="field" value="${esc(r.note || '')}">
+      </div>
+      <div class="acts">${x && x.source !== 'csv' ? '<button class="btn ghost" id="sd_del" style="color:var(--bad);margin-right:auto">🗑 ลบ</button>' : ''}<button class="btn ghost" id="sd_c">ยกเลิก</button><button class="btn" id="sd_ok">💾 บันทึก</button></div>
+      ${x?.source === 'csv' ? '<div class="hint">รายการนี้นำเข้าจาก Autoflight — แก้ได้เฉพาะ PO / ใบส่งของ / หมายเหตุ</div>' : ''}`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); numInput($('#sd_q'));
+    $('#sd_c').onclick = () => L ? this.detail(L) : d.close();
+    $('#sd_del')?.addEventListener('click', async () => { if (!(await Office.confirm('ลบรายการส่งของนี้?'))) return this.editDl(x, L); try { await API.dlvDelete(x.id); toast('ลบแล้ว'); this.page(true); } catch (e) { toast(e.message); } });
+    $('#sd_ok').onclick = async () => {
+      const di = thToIso($('#sd_d').value.trim()); if (!di) return toast('วันที่ไม่ถูกต้อง');
+      const qty = +String($('#sd_q').value).replace(/,/g, ''); if (!(qty > 0)) return toast('ใส่จำนวนที่ส่ง');
+      const lim = L ? L.remain + (x ? +x.qty || 0 : 0) : null;
+      if (lim !== null && qty > lim && !(await Office.confirm(`จำนวนที่ส่ง ${fmtN(qty)} มากกว่ายอดค้างส่ง ${fmtN(lim)}\nส่งเกิน ${fmtN(qty - lim)} — ถูกต้องไหม?`))) return this.editDl(x, L);
+      const code = $('#sd_pc').value.trim(); if (!code) return toast('ใส่รหัสสินค้า');
+      const si = $('#sd_si').value.trim().split('/').pop().trim(), doNo = $('#sd_do').value.trim();
+      if (!si && !doNo && !(await Office.confirm('ยังไม่ได้ใส่เลขที่ใบส่งของ / ใบกำกับ\nบันทึกไว้ก่อนได้ แต่จะปิดงานไม่ได้จนกว่าจะใส่ — บันทึกต่อไหม?'))) return this.editDl(x, L);
+      if (si && this.D.dl.some(o => o.id !== x?.id && o.si_no === si && this.n(o.product_code) === this.n(code))) return toast(`มีใบกำกับ SI01/${si} ของสินค้านี้ในระบบแล้ว`);
+      const custName = $('#sd_cu').value.trim(), cc = r.customer_code || this.D.lines.find(l => l.customer_name === custName && l.customer_code)?.customer_code || null;
+      const row = x?.source === 'csv' ? {po_no: $('#sd_po').value.trim() || null, do_no: doNo || null, note: $('#sd_n').value.trim() || null}
+        : {delivery_date: di, customer_name: custName || null, customer_code: cc, po_no: $('#sd_po').value.trim() || null, product_code: code, product_name: $('#sd_pn').value.trim() || null, unit: r.unit || null,
+           qty, do_no: doNo || null, si_no: si || null, si_date: si ? (x?.si_date || di) : null, note: $('#sd_n').value.trim() || null, job_ticket: $('#sd_j')?.value || null};
+      if (!x) row.created_by = Office.user?.email || '';
+      $('#sd_ok').disabled = true;
+      try { await API.dlvSave(row, x?.id); toast('บันทึกแล้ว'); await this.load(true); this.draw();
+        const nl = L && this.D.lines.find(l => l.key === L.key); if (nl) this.detail(nl); else d.close(); }
+      catch (e) { $('#sd_ok').disabled = false; toast('บันทึกไม่ได้: ' + e.message); }
+    };
+  },
+  async importCsv(f){
+    try { const buf = await f.arrayBuffer(); let text = new TextDecoder('utf-8').decode(buf);
+      if (!/refto/.test(text) || /�/.test(text)) text = new TextDecoder('windows-874').decode(buf);
+      const items = DlvImport.parse(text); if (!items.length) return toast('ไม่พบรายการในไฟล์');
+      const st = await API.dlvImport(items);
+      await Office.confirm(`นำเข้าไฟล์ ${f.name} แล้ว\n\nรายการในไฟล์ ${st.rows} รายการ (${st.customers} ลูกค้า)\nเพิ่มใหม่ ${st.ins} · อัปเดต ${st.upd} · จับคู่ใบส่งของชั่วคราว ${st.matched}${st.codeDiff.length ? `\n\nรหัสสินค้าไม่ตรง ${st.codeDiff.length} รายการ:\n` + st.codeDiff.slice(0, 8).join('\n') : ''}`, true);
+      this.page(true); } catch (e) { await Office.confirm('นำเข้าไม่ได้: ' + e.message, true); }
+  },
+  settings(){
+    const C = this.cfg();
+    $('#dlgBody').innerHTML = `<h3>⚙ ตั้งค่าระบบจัดส่ง</h3><label>เริ่มติดตาม PO ตั้งแต่วันที่</label><input id="sc_s" class="field" value="${isoToTh(C.start)}" style="max-width:200px">
+      <div class="hint">ใบสั่งผลิต/SO ก่อนวันนี้ที่ไม่มีการเคลื่อนไหว จะไม่แสดง (กันงานเก่าก่อนใช้ระบบขึ้นเป็นค้างส่ง)</div>
+      <div class="acts"><button class="btn ghost" id="sc_x">ยกเลิก</button><button class="btn" id="sc_ok">บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#sc_x').onclick = () => d.close();
+    $('#sc_ok').onclick = async () => { const s = thToIso($('#sc_s').value.trim()); if (!s) return toast('วันที่ไม่ถูกต้อง');
+      this._cfg = {...(this._cfg || {}), start: s}; store.set('vp_ship_cfg', this._cfg); try { await API.setMeta('ship_cfg', this._cfg); } catch {} d.close(); this.page(true); };
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
@@ -4234,7 +4525,8 @@ const HomePage = {
       { k:'wo_open', ic:'📂', c:'#1f3a68', t:'เปิด / แก้ไขใบสั่งผลิต', go:() => { Office.go('wo'); setTimeout(() => $('#woOpen')?.focus(), 200); } },
       { k:'wotable', ic:'📋', c:'#1f5c3a', t:'WORKORDER (ตารางค้นหา)', go:() => Office.go('wotable') },
       { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') },
-      { k:'paper',   ic:'📦', c:'#a21caf', t:'แจ้งสั่งกระดาษ', go:() => Office.go('paper') } ]},
+      { k:'paper',   ic:'📦', c:'#a21caf', t:'แจ้งสั่งกระดาษ', go:() => Office.go('paper') },
+      { k:'ship',    ic:'🚚', c:'#0f766e', t:'จัดส่ง (ค้างส่งตาม PO / สต็อก)', go:() => Office.go('ship') } ]},
     { g:'การผลิต / QC', items:[
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
       { k:'oscan',   ic:'📝', c:'#9a3412', t:'บันทึกยอดแทนช่าง (สแกนย้อนหลัง)', go:() => Office.go('oscan') },
@@ -4516,8 +4808,9 @@ const Office = {
     const s = await API.session();
     if (!s) return this.loginPage();
     this.user = s;
-    this.viewer = await API.isViewer();
+    const role = await API.myRole(); this.viewer = role === 'viewer'; this.shipping = role === 'shipping'; this.ro = this.viewer || this.shipping;
     if (this.viewer || params.has('boss')) return this.startBoss(s);
+    if (this.shipping || params.has('ship')) return this.startShip(s);
     $('#app').innerHTML = `
       <div class="top"><div class="in">
         <div class="logo" id="logoHome" style="cursor:pointer" title="กลับหน้าเมนูหลัก">V-PACK <span>Job Tracking</span></div>
@@ -4531,6 +4824,7 @@ const Office = {
           <button class="tab" data-t="reports" style="--tc:#15803d">รายงาน</button>
           <button class="tab" data-t="qs" style="--tc:#4338ca">PO ควาร์ค</button>
           <button class="tab" data-t="paper" style="--tc:#a21caf">สั่งกระดาษ <span class="badge hidden" id="ppBadge"></span></button>
+          <button class="tab" data-t="ship" style="--tc:#0f766e">จัดส่ง</button>
           <button class="tab" data-t="qr" style="--tc:#475569">พิมพ์ใบสั่ง</button>
           <button class="tab" data-t="master" style="--tc:#9d174d">ฐานข้อมูล</button>
           <button class="tab" data-t="emp" style="--tc:#b91c1c">พนักงาน</button>
@@ -4544,6 +4838,24 @@ const Office = {
     this.go(params.has('oscan') ? 'oscan' : 'home');   // login แล้วเข้าหน้าเมนูหลักก่อนเสมอ (ลิงก์ ?oscan → หน้าบันทึกยอดแทนช่าง)
     PaperPage.refreshBadge(); SOPage.refreshBadge(); setInterval(() => { if (!document.querySelector('dialog[open]')) SOPage.refreshBadge(true); }, 120000);
     setInterval(() => { if (this.tab === 'inbox' && this.view === 'pending' && !document.querySelector('dialog[open]') && !this.sel.size) this.loadInbox(true); }, 30000);
+  },
+  startShip(s){
+    document.title = 'V-PACK · จัดส่ง';
+    $('#app').innerHTML = `
+      <div class="top"><div class="in">
+        <div class="logo" id="logoHome" style="cursor:pointer">V-PACK <span>จัดส่ง</span></div>
+        <nav class="tabs bp-tabs">
+          <button class="tab" data-t="ship" style="--tc:#0f766e">🚚 จัดส่ง</button>
+          <button class="tab" data-t="reports" style="--tc:#15803d">📈 รายงาน</button>
+          ${this.shipping ? '' : `<a class="tab" href="${location.pathname}" style="--tc:#475569;text-decoration:none">🏠 ระบบเต็ม</a>`}
+        </nav>
+        <div class="who"><span class="who-u" title="${esc(s.email)}">👤 ${esc(String(s.email).split('@')[0])}${this.shipping ? ' <small>(ฝ่ายจัดส่ง)</small>' : ''}</span>${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
+      </div></div><div class="page" id="page"></div>`;
+    this.boss = true; this.bossTabs = ['ship', 'reports'];
+    document.querySelectorAll('.tab[data-t]').forEach(b => b.onclick = () => this.go(b.dataset.t));
+    $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
+    $('#logoHome').onclick = () => this.go('ship');
+    this.go('ship');
   },
   startBoss(s){
     document.title = 'V-PACK · สรุปผู้บริหาร';
@@ -4575,10 +4887,10 @@ const Office = {
     $('#lg').onclick = go; $('#pw').onkeydown = e => { if (e.key === 'Enter') go(); };
   },
   go(t){
-    if (this.boss && !['boss', 'reports', 'paper'].includes(t)) { if (this.viewer) toast('บัญชีนี้ดูได้อย่างเดียว — เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = 'boss'; }
+    if (this.boss && !(this.bossTabs || ['boss', 'reports', 'paper']).includes(t)) { if (this.ro) toast('บัญชีนี้เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = (this.bossTabs || ['boss'])[0]; }
     this.tab = t; if (!this.boss) store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), paper:()=>PaperPage.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
+    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), paper:()=>PaperPage.page(), ship:()=>ShipPage.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
   },
 
   /* ----- รอตรวจ ----- */
