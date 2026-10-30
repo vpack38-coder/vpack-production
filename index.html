@@ -692,6 +692,11 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .kp-cb{display:flex;align-items:center;gap:8px;justify-content:flex-end}.kp-cb span{min-width:52px}.kp-cb .pv-bar{flex:1;min-width:80px}
 .pv-bar.kp i{background:#2563eb}.pv-bar.good i{background:#16a34a}.pv-bar.mid i{background:#f59e0b}.pv-bar.bad i{background:#dc2626}.pv-bar.lead i{background:linear-gradient(90deg,#38bdf8,#2563eb)}
 th.kp-w{min-width:170px} td.kp-b{font-weight:700}
+.pp-st{display:inline-block;white-space:nowrap;font-size:12px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);border:1px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:999px;padding:1px 8px}
+.pp-t td{vertical-align:top}.pp-t tr.pp-late td{background:#fff5f5}.pp-tl{font-size:12px;color:#475569;white-space:nowrap}
+.pp-grid{display:grid;grid-template-columns:120px 1fr;gap:8px 10px;align-items:center;margin-bottom:8px}.pp-grid>label{margin:0;font-size:13.5px;color:#475569}.pp-grid .field{padding:6px 9px}
+.pp-sz{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.pp-sz .field{width:80px}
+.po-box{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:8px}.pp-mini small{color:#475569}
 .os-wrap{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:14px;align-items:start}.os-card{padding:14px 16px}.os-card h3{margin:0 0 10px;color:#1f3a68}
 .os-seg{margin-bottom:12px}.os-seg button{font-size:15px;padding:8px 18px}
 .os-grid{display:grid;grid-template-columns:110px 1fr;gap:10px 12px;align-items:center}.os-grid>label{margin:0;font-size:14px;color:#475569}.os-grid .field{padding:8px 10px}
@@ -1016,6 +1021,10 @@ const Demo = {
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
   async isViewer(){ return !!store.get('vp_demo_viewer', false); },
+  async paperList(){ return [...(this.db().paper || [])].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))); },
+  async paperForJob(job){ return (this.db().paper || []).filter(r => r.job_tickets.includes(job)); },
+  async paperSave(row, id){ const d = this.db(); d.paper ||= []; if (id) Object.assign(d.paper.find(r => r.id === id), row); else d.paper.push({id: ++d.seq + 200000, status: 'pending', job_tickets: [], created_at: new Date().toISOString(), ...row}); this.save(); },
+  async paperDelete(id){ const d = this.db(); d.paper = (d.paper || []).filter(r => r.id !== id); this.save(); },
   async logInsert(table, row){ const d = this.db(); (table === 'qc_logs' ? d.qc_logs : d.prod_logs).push({id: ++d.seq + 100000, ...row}); this.save(); },
   async jobLogs(job){ const d = this.db(), by = (a, b) => String(a.logged_at).localeCompare(String(b.logged_at));
     return {prod: d.prod_logs.filter(x => x.job_ticket === job).sort(by), qc: d.qc_logs.filter(x => x.job_ticket === job).sort(by), pending: d.inbox.filter(x => x.job_ticket === job && x.review_status === 'pending').length}; },
@@ -1094,6 +1103,10 @@ const Live = {
   },
   async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
   async logInsert(table, row){ this.chk(await this.sb.from(table).insert(row)); },
+  async paperList(){ try { return await this.pageAll(() => this.sb.from('paper_orders').select('*').order('created_at', {ascending: false})); } catch (e) { if (/paper_orders/.test(e.message)) return null; throw e; } },
+  async paperForJob(job){ const {data, error} = await this.sb.from('paper_orders').select('*').contains('job_tickets', [job]).order('created_at'); if (error) { if (/paper_orders/.test(error.message)) return null; throw new Error(error.message); } return data; },
+  async paperSave(row, id){ const p = {...row, updated_at: new Date().toISOString()}; if (id) this.chk(await this.sb.from('paper_orders').update(p).eq('id', id)); else this.chk(await this.sb.from('paper_orders').insert(p)); },
+  async paperDelete(id){ this.chk(await this.sb.from('paper_orders').delete().eq('id', id)); },
   async jobLogs(job){ const sel = 'id,source,job_ticket,employee_name,status,qty,note,logged_at';
     const [prod, qc, pend] = await Promise.all([this.chk(await this.sb.from('production_logs').select(sel + ',step').eq('job_ticket', job).order('logged_at')),
       this.chk(await this.sb.from('qc_logs').select(sel).eq('job_ticket', job).order('logged_at')),
@@ -1695,7 +1708,7 @@ const WOForm = {
     if (mode === 'new') { try { const nx = await API.nextJobTicket(); $('#woJob').textContent = `JOB ถัดไป: ${nx}`; } catch {} }
     this.pull = undefined; this.carry = null; this.carryManual = false;
     this.render(); this.setDirty(this.dirty);
-    this.checkStock();
+    this.checkStock(); PaperPage.woBox(this);
   },
   setDirty(v){ this.dirty = v; const d = $('#woDirty'); if (d) d.textContent = v ? '● ยังไม่ได้บันทึก' : ''; },
 
@@ -1808,7 +1821,7 @@ const WOForm = {
         this.f('remark','หมายเหตุ',{area:1, rows:3}),
         this.f('printer_name','ช่างพิมพ์') + this.f('diecut_name','ช่างไดคัท') + this.f('qc_name','QC') + this.f('art_name','Artwork') +
         this.f('ordered_by','ผู้สั่งงาน')) +
-        `<div class="wo-split" style="margin-top:0"><div class="wo-col">${this.pair('กระดาษ', this.c('has_paper','มีกระดาษแล้ว') + this.c('paper_ordered','สั่งกระดาษแล้ว'), {cls:'p-chips'})}</div></div>`)}
+        `<div class="wo-split" style="margin-top:0"><div class="wo-col">${this.pair('กระดาษ', this.c('has_paper','มีกระดาษแล้ว') + this.c('paper_ordered','สั่งกระดาษแล้ว') + '<span id="poBox" class="po-box"></span>', {cls:'p-chips'})}</div></div>`)}
     </fieldset>`;
     // actions
     const A = this.mode === 'new'
@@ -3903,6 +3916,8 @@ const BossPage = {
     open.forEach(r => { const x = M(r.machine || '(ไม่ระบุ)'); x.n++; x.left += left(r); if (isRun(r)) x.run++; if (isQ(r)) x.q++; });
     pr.forEach(x => M(x.machine).pr += N(x.qty));
     const mrows = [...ms.values()].filter(x => x.n || x.pr).sort((a, b) => b.pr - a.pr || b.n - a.n), mx = Math.max(1, ...mrows.map(x => x.pr));
+    let PP = null; try { PP = await API.paperList(); } catch {}
+    const ppWait = (PP || []).filter(r => r.status === 'pending' || r.status === 'notified'), ppOrd = (PP || []).filter(r => r.status === 'ordered');
     const card = (ic, l, v, u, sub, c, go) => `<div class="bp-card" style="--c:${c}" ${go ? `data-go="${go}"` : ''}><span>${ic} ${l}</span><b>${v}<em>${u}</em></b><small>${sub}</small></div>`;
     const job = r => `<div class="bp-job"><div><b>${esc(r.job_ticket)}</b> <span class="bp-due ${r.due_date < t ? 'late' : ''}">ส่ง ${fmtD(r.due_date)}${r.due_date < t ? ` · เลย ${Kpi.diff(r.due_date, t)} วัน` : ''}</span></div>
       <div class="bp-c">${esc(r.customer_name || '')}</div><div class="bp-p">${esc(r.product_name || '')}</div>
@@ -3917,6 +3932,7 @@ const BossPage = {
         ${card('🖨️', 'ยอดพิมพ์วันนี้', fmtN(prToday), ' ดวง', `เดือนนี้ ${fmtN(prMonth)} ดวง`, '#0f6cbd', 'daily')}
         ${card('🔍', 'ผ่าน QC เดือนนี้', fmtN(qcMonth), ' ดวง', `QC จบ ${fmtN(Q.filter(x => x.status === 'ส่งยอดสุดท้าย (จบ JOB)').length)} JOB`, '#15803d', 'daily')}
         ${card('📦', 'สต็อกคงเหลือ', fmtN(stock), ' ดวง', `${fmtN(prod.size)} สินค้า`, '#7c3aed', 'aging')}
+        ${PP ? `<div class="bp-card" style="--c:#a21caf" id="bpPaper"><span>📦 กระดาษ รอสั่ง / รอของเข้า</span><b>${ppWait.length}<em> รอสั่ง</em> · ${ppOrd.length}<em> รอเข้า</em></b><small>${ppOrd.filter(r => r.eta && r.eta < t).length ? `⚠ เลยกำหนดเข้า ${ppOrd.filter(r => r.eta && r.eta < t).length} รายการ` : ppOrd.filter(r => r.eta).map(r => `${r.paper_code} เข้า ${fmtD(r.eta)}`).slice(0, 2).join(' · ') || 'แตะเพื่อดูรายการ'}</small></div>` : ''}
         ${card('🐢', 'สต็อกค้างเกิน 180 วัน', fmtN(old), ' ดวง', stock ? `${(old / stock * 100).toFixed(1)}% ของสต็อก` : '', old ? '#b45309' : '#16a34a', 'aging')}
       </div>
       <div class="bp-grid">
@@ -3934,6 +3950,7 @@ const BossPage = {
       </div>
       <div class="bp-links">ดูรายงานเต็ม: ${[['machine','🖨️ สถานะเครื่อง'], ['backlog','⏰ งานค้าง'], ['ontime','✅ ส่งตรงเวลา'], ['daily','📅 ผลผลิตรายวัน'], ['aging','📦 สต็อกค้างนาน'], ['waste','♻️ ของเสีย'], ['lead','⏱ Lead time'], ['history','📑 ประวัติใบสั่งผลิต']].map(([k, l]) => `<button class="btn ghost sm" data-go="${k}">${l}</button>`).join('')}</div>`;
     $('#bpBody').querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.preventDefault(); this.rpt(b.dataset.go); });
+    $('#bpPaper')?.addEventListener('click', () => Office.go('paper'));
   }
 };
 
@@ -4027,6 +4044,175 @@ const OfficeScan = {
   }
 };
 
+
+/* ================== แจ้งสั่งกระดาษ (Memo ให้เจ้านาย + ติดตามสถานะ) ================== */
+const PaperPage = {
+  ST: {pending: ['รอแจ้ง', '#64748b', '⏳'], notified: ['ขอซื้อแล้ว', '#2563eb', '📨'], ordered: ['สั่งซื้อแล้ว', '#d97706', '🛒'], received: ['รับกระดาษแล้ว', '#16a34a', '✅'], cancelled: ['ยกเลิก', '#94a3b8', '✖']},
+  view: store.get('vp_pp_view', 'open'), q: '', sel: new Set(), rows: [],
+  badge(s){ const [l, c, ic] = this.ST[s] || [s, '#64748b', '']; return `<span class="pp-st" style="--c:${c}">${ic} ${l}</span>`; },
+  shortName(full){ const m = this.alias || {}; if (full && m[full]) return m[full];
+    return String(full || '').replace(/บริษัท|จำกัด|\(มหาชน\)|\(สำนักงานใหญ่\)|สำนักงานใหญ่|สาขา.*$/g, '').replace(/\s+/g, ' ').trim().slice(0, 24); },
+  spec(r){ const n = v => v === null || v === undefined || v === '' ? '?' : (+v === Math.round(+v) ? String(+v) : String(+v)); return `${n(r.width_mm)}x${n(r.length_m)}x${n(r.qty)}${r.unit === 'set' ? 'set' : ''}`; },
+  lineText(list){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
+    return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code} ${this.spec(r)}`).join('\n')}`).join('\n\n'); },
+  async refreshBadge(){ try { const R = await API.paperList(); const n = (R || []).filter(r => r.status === 'pending').length, b = $('#ppBadge'); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); } } catch {} },
+  async page(){
+    const V = [['open', 'ยังไม่จบ'], ['pending', '⏳ รอแจ้ง'], ['notified', '📨 ขอซื้อแล้ว'], ['ordered', '🛒 สั่งแล้ว รอของ'], ['received', '✅ รับแล้ว'], ['cancelled', 'ยกเลิก'], ['all', 'ทั้งหมด']];
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="ppSeg">${V.map(([k, l]) => `<button data-v="${k}">${l}</button>`).join('')}</div>
+        <input id="ppQ" class="field" style="max-width:240px;padding:6px 10px" placeholder="ค้นหา JOB / ลูกค้า / รหัสกระดาษ" value="${esc(this.q)}">
+        <span class="sp"></span>${Office.viewer ? '' : '<button class="btn ghost sm" id="ppLine">📋 คัดลอกส่ง LINE</button><button class="btn sm" id="ppAdd">+ เพิ่มรายการสั่งกระดาษ</button>'}</div>
+      <div id="ppBulk" class="pf-bar hidden"></div>
+      <div id="ppBody" class="card tbl-wrap"><div class="empty">กำลังโหลด…</div></div>
+      <div class="hint" style="margin-top:8px">ขั้นตอน: ⏳ รอแจ้ง → 📨 ขอซื้อแล้ว (กด "คัดลอกส่ง LINE") → 🛒 สั่งซื้อแล้ว (ใส่วันที่กระดาษจะเข้าได้) → ✅ รับกระดาษแล้ว (ติ๊ก "มีกระดาษแล้ว" ในใบสั่งผลิตให้อัตโนมัติ) · ติ๊กหลายแถวเพื่อเปลี่ยนสถานะพร้อมกัน</div>`;
+    document.querySelectorAll('#ppSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_pp_view', this.view); this.sel.clear(); this.page(); }; });
+    let t; $('#ppQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value.trim(); this.draw(); }, 250); };
+    $('#ppAdd')?.addEventListener('click', () => this.edit(null));
+    $('#ppLine')?.addEventListener('click', () => this.copyLine());
+    this.load();
+  },
+  async load(){
+    try { const [R, A] = await Promise.all([API.paperList(), API.getMeta('cust_short').catch(() => null)]); this.alias = A || {};
+      if (R === null) { $('#ppBody').innerHTML = '<div class="empty">ต้องรันไฟล์ 18_paper_orders.sql ใน Supabase ก่อน</div>'; return; } this.rows = R; }
+    catch (e) { $('#ppBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    this.draw(); this.refreshBadge();
+  },
+  vis(){ const q = this.q.toLowerCase(), v = this.view;
+    return this.rows.filter(r => (v === 'all' || (v === 'open' ? !['received', 'cancelled'].includes(r.status) : r.status === v))
+      && (!q || [r.job_tickets.join(' '), r.customer_name, r.customer_short, r.paper_code, r.paper_name, r.supplier].join(' ').toLowerCase().includes(q))); },
+  draw(){
+    const R = this.vis(), t = todayISO(), RO = Office.viewer;
+    const nxt = {pending: ['notified', '📨 ขอซื้อแล้ว'], notified: ['ordered', '🛒 สั่งแล้ว'], ordered: ['received', '✅ รับแล้ว']};
+    $('#ppBody').innerHTML = R.length ? `<table class="trk pp-t"><thead><tr>${RO ? '' : '<th><input type="checkbox" id="ppAll"></th>'}<th>สถานะ</th><th>JOB</th><th>ลูกค้า (ชื่อเรียก)</th><th>รหัสกระดาษ</th><th>ชื่อกระดาษ / ซัพพลายเออร์</th><th>กว้าง×ยาว×จำนวน</th><th>กำหนดเข้า</th><th>ความคืบหน้า</th><th>หมายเหตุ</th>${RO ? '' : '<th></th>'}</tr></thead><tbody>
+      ${R.map(r => { const late = r.status === 'ordered' && r.eta && r.eta < t;
+        return `<tr class="${late ? 'pp-late' : ''}">${RO ? '' : `<td><input type="checkbox" class="pp-c" value="${r.id}" ${this.sel.has(r.id) ? 'checked' : ''}></td>`}
+        <td>${this.badge(r.status)}</td>
+        <td>${r.job_tickets.map(j => `<a href="#" class="jl" data-open="${esc(j)}">${esc(j)}</a>`).join('<br>') || '–'}</td>
+        <td><b>${esc(r.customer_short || this.shortName(r.customer_name))}</b><div class="so-rm">${esc(r.customer_name || '')}</div></td>
+        <td><b>${esc(r.paper_code)}</b></td><td>${esc(r.paper_name || '')}<div class="so-rm">${esc(r.supplier || '')}</div></td>
+        <td style="white-space:nowrap"><b>${esc(this.spec(r))}</b>${r.need_m ? `<div class="so-rm">ต้องใช้ ${fmtN(Math.round(r.need_m))} ม.</div>` : ''}</td>
+        <td style="white-space:nowrap" class="${late ? 'stock-neg' : ''}">${r.eta ? fmtD(r.eta) + (late ? ' ⚠ เลยกำหนด' : '') : '–'}</td>
+        <td class="pp-tl">${[['notified_at', 'ขอซื้อ'], ['ordered_at', 'สั่ง'], ['received_at', 'รับ']].filter(([k]) => r[k]).map(([k, l]) => `${l} ${fmtT(r[k]).slice(0, 10)}`).join('<br>') || `สร้าง ${fmtT(r.created_at).slice(0, 10)}`}</td>
+        <td>${esc(r.note || '')}</td>
+        ${RO ? '' : `<td style="white-space:nowrap">${nxt[r.status] ? `<button class="btn ghost sm" data-nx="${r.id}" data-to="${nxt[r.status][0]}">${nxt[r.status][1]}</button>` : ''}<button class="btn ghost sm" data-ed="${r.id}">แก้ไข</button></td>`}</tr>`; }).join('')}</tbody></table>`
+      : `<div class="empty">ไม่มีรายการ${this.view === 'open' ? 'ที่ยังไม่จบ' : ''}</div>`;
+    const bulk = () => { const n = this.sel.size, b = $('#ppBulk'); b.classList.toggle('hidden', !n);
+      if (n) { b.innerHTML = `เลือก ${n} รายการ → เปลี่ยนเป็น ${['notified', 'ordered', 'received', 'cancelled'].map(s => `<button class="btn ghost sm" data-bs="${s}">${this.ST[s][2]} ${this.ST[s][0]}</button>`).join('')} <button class="btn ghost sm" id="ppSelX">ยกเลิกการเลือก</button>`;
+        b.querySelectorAll('[data-bs]').forEach(x => x.onclick = () => this.setStatus([...this.sel], x.dataset.bs)); $('#ppSelX').onclick = () => { this.sel.clear(); this.draw(); }; } };
+    $('#ppAll')?.addEventListener('change', e => { R.forEach(r => e.target.checked ? this.sel.add(r.id) : this.sel.delete(r.id)); this.draw(); });
+    document.querySelectorAll('.pp-c').forEach(c => c.onchange = () => { c.checked ? this.sel.add(+c.value) : this.sel.delete(+c.value); bulk(); });
+    document.querySelectorAll('[data-nx]').forEach(b => b.onclick = () => this.setStatus([+b.dataset.nx], b.dataset.to));
+    document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => this.edit(this.rows.find(r => r.id === +b.dataset.ed)));
+    document.querySelectorAll('#ppBody [data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+    bulk();
+  },
+  async setStatus(ids, to){
+    if (!ids.length) return; let extra = {};
+    if (to === 'ordered') { const eta = await this.askEta(ids.length); if (eta === false) return; if (eta) extra.eta = eta; }
+    if (to === 'cancelled' && !(await Office.confirm(`ยกเลิก ${ids.length} รายการ?`))) return;
+    const now = new Date().toISOString(), stamp = {notified: 'notified_at', ordered: 'ordered_at', received: 'received_at'}[to];
+    try {
+      for (const id of ids) { const r = this.rows.find(x => x.id === id), p = {status: to, ...extra}; if (stamp && !r?.[stamp]) p[stamp] = now;
+        if (to === 'received' && !r?.ordered_at) p.ordered_at = now; if ((to === 'ordered' || to === 'received') && !r?.notified_at) p.notified_at = now;
+        await API.paperSave(p, id);
+        const wf = to === 'received' ? {has_paper: true, paper_ordered: true} : to === 'ordered' ? {paper_ordered: true} : null;
+        if (wf && r) for (const j of r.job_tickets) { try { await API.updateWorkOrder(j, wf); } catch {} } }
+      toast(`เปลี่ยนเป็น "${this.ST[to][0]}" แล้ว ${ids.length} รายการ`); this.sel.clear(); this.load();
+    } catch (e) { toast('บันทึกไม่ได้: ' + e.message); this.load(); }
+  },
+  askEta(n){ return new Promise(res => {
+    $('#dlgBody').innerHTML = `<h3>🛒 สั่งซื้อแล้ว ${n > 1 ? n + ' รายการ' : ''}</h3><label>กระดาษจะเข้าวันที่ (ถ้าทราบ)</label><input id="pe_d" class="field" placeholder="วว/ดด/ปปปป — เว้นว่างได้" style="max-width:200px">
+      <div class="de-q">${[1, 2, 3, 5, 7].map(k => { const d = new Date(Date.parse(todayISO()) + k * 864e5).toISOString().slice(0, 10); return `<button class="btn ghost sm" data-d="${d}">+${k} วัน<small>${isoToTh(d).slice(0, 5)}</small></button>`; }).join('')}</div>
+      <div class="acts"><button class="btn ghost" id="pe_x">ยกเลิก</button><button class="btn" id="pe_ok">บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal();
+    document.querySelectorAll('#dlgBody [data-d]').forEach(b => b.onclick = () => { $('#pe_d').value = isoToTh(b.dataset.d); });
+    $('#pe_x').onclick = () => { d.close(); res(false); };
+    $('#pe_ok').onclick = () => { const v = $('#pe_d').value.trim(); if (v && !thToIso(v)) return toast('วันที่ไม่ถูกต้อง'); d.close(); res(v ? thToIso(v) : null); };
+  }); },
+  async copyLine(){
+    let L = this.rows.filter(r => this.sel.has(r.id));
+    if (!L.length) L = this.rows.filter(r => r.status === 'pending');
+    if (!L.length) return toast('ไม่มีรายการรอแจ้ง — ติ๊กเลือกรายการที่จะส่งก่อน');
+    const txt = this.lineText(L);
+    $('#dlgBody').innerHTML = `<h3>📋 ข้อความแจ้งสั่งกระดาษ (${L.length} รายการ)</h3><textarea id="pl_t" class="field" rows="${Math.min(18, txt.split('\n').length + 1)}" style="font-family:inherit">${esc(txt)}</textarea>
+      <div class="hint">แก้ข้อความได้ก่อนคัดลอก</div>
+      <label class="wc on" style="margin-top:8px"><input type="checkbox" id="pl_mark" checked> เปลี่ยนสถานะเป็น "📨 ขอซื้อแล้ว" หลังคัดลอก</label>
+      <div class="acts"><button class="btn ghost" id="pl_x">ปิด</button>${navigator.share && matchMedia('(pointer:coarse)').matches ? '<button class="btn ghost" id="pl_sh">📤 แชร์</button>' : ''}<button class="btn" id="pl_cp" style="background:#06c755">📋 คัดลอก แล้วไปวางใน LINE</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#pl_x').onclick = () => d.close();
+    const done = async () => { d.close(); if ($('#pl_mark')?.checked !== false && document.getElementById('pl_mark')?.checked) { const ids = L.filter(r => r.status === 'pending').map(r => r.id); if (ids.length) await this.setStatus(ids, 'notified'); } };
+    $('#pl_cp').onclick = async () => { const v = $('#pl_t').value, mk = $('#pl_mark').checked; try { await navigator.clipboard.writeText(v); toast('คัดลอกแล้ว — ไปวางในแชท LINE ได้เลย'); } catch { prompt('คัดลอกข้อความนี้', v); }
+      d.close(); if (mk) { const ids = L.filter(r => r.status === 'pending').map(r => r.id); if (ids.length) await this.setStatus(ids, 'notified'); } };
+    $('#pl_sh')?.addEventListener('click', async () => { const v = $('#pl_t').value, mk = $('#pl_mark').checked; try { await navigator.share({text: v}); } catch { return; }
+      d.close(); if (mk) { const ids = L.filter(r => r.status === 'pending').map(r => r.id); if (ids.length) await this.setStatus(ids, 'notified'); } });
+  },
+  async fromJob(job){ let w; try { w = await API.getWorkOrder(job); } catch {} if (!w) return null;
+    const len = 1000, need = +w.total_m || null;
+    return {job_tickets: [w.job_ticket], customer_name: w.customer_name, customer_short: this.shortName(w.customer_name), supplier: w.supplier, paper_code: w.paper_code, paper_name: w.paper_name,
+      width_mm: +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need}; },
+  async edit(x, preset){
+    if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
+    if (!this.alias) { try { this.alias = await API.getMeta('cust_short') || {}; } catch { this.alias = {}; } }
+    const r = x || preset || {job_tickets: [], length_m: 1000, unit: 'ม้วน', status: 'pending'};
+    const L = WOForm.L || (WOForm.L = await API.lookups().catch(() => null)) || {suppliers: [], raw: []};
+    $('#dlgBody').innerHTML = `<h3>📦 ${x ? 'แก้ไขรายการสั่งกระดาษ' : 'เพิ่มรายการสั่งกระดาษ'}</h3>
+      <div class="pp-grid">
+        <label>JOB</label><div><input id="pp_j" class="field" value="${esc(r.job_tickets.join(', '))}" placeholder="เช่น 6910/30 (หลาย JOB คั่นด้วย ,)"><div class="hint" id="pp_jh">พิมพ์เลข JOB แล้วกดออกจากช่อง ระบบจะดึงข้อมูลกระดาษจากใบสั่งผลิตให้</div></div>
+        <label>ลูกค้า (ชื่อเรียก)</label><div><input id="pp_cs" class="field" value="${esc(r.customer_short || '')}" placeholder="เช่น พี่อุย, MAH"><div class="hint" id="pp_cn">${esc(r.customer_name || '')}</div></div>
+        <label>ซัพพลายเออร์</label><input id="pp_sp" class="field" list="pp_sl" value="${esc(r.supplier || '')}"><datalist id="pp_sl">${(L.suppliers || []).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+        <label>รหัสกระดาษ</label><input id="pp_pc" class="field" list="pp_pl" value="${esc(r.paper_code || '')}"><datalist id="pp_pl">${(L.raw || []).map(m => `<option value="${esc(m.code)}">${esc(m.name || '')}</option>`).join('')}</datalist>
+        <label>ชื่อกระดาษ</label><input id="pp_pn" class="field" value="${esc(r.paper_name || '')}">
+        <label>ขนาด</label><div class="pp-sz">กว้าง <input id="pp_w" class="field" inputmode="decimal" value="${r.width_mm ?? ''}"> มม. × ยาว <input id="pp_l" class="field" inputmode="decimal" value="${r.length_m ?? ''}"> ม. × <input id="pp_q" class="field" inputmode="decimal" value="${r.qty ?? ''}">
+          <select id="pp_u" class="field" style="width:auto"><option value="ม้วน" ${r.unit !== 'set' ? 'selected' : ''}>ม้วน</option><option value="set" ${r.unit === 'set' ? 'selected' : ''}>set</option></select></div>
+        <label>ต้องใช้</label><div class="hint" id="pp_need"></div>
+        <label>กำหนดเข้า</label><input id="pp_eta" class="field" value="${r.eta ? isoToTh(r.eta) : ''}" placeholder="วว/ดด/ปปปป (ถ้าทราบ)" style="max-width:200px">
+        <label>หมายเหตุ</label><input id="pp_n" class="field" value="${esc(r.note || '')}" placeholder="เช่น Avery มีอีเมลยืนยันแล้ว">
+        ${x ? `<label>สถานะ</label><select id="pp_st" class="field" style="width:auto">${Object.entries(this.ST).map(([k, [l, , ic]]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${ic} ${l}</option>`).join('')}</select>` : ''}
+      </div>
+      <div class="hint">ข้อความ LINE: <b id="pp_prev"></b></div>
+      <div class="acts">${x ? '<button class="btn ghost" id="pp_del" style="color:var(--bad);margin-right:auto">🗑 ลบ</button>' : ''}<button class="btn ghost" id="pp_x">ยกเลิก</button><button class="btn" id="pp_ok">💾 บันทึก</button></div>`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); $('#pp_x').onclick = () => d.close();
+    let need = r.need_m || null;
+    const num = id => { const v = $('#' + id).value.replace(/,/g, '').trim(); return v === '' ? null : +v; };
+    const cur = () => ({width_mm: num('pp_w'), length_m: num('pp_l'), qty: num('pp_q'), unit: $('#pp_u').value, paper_code: $('#pp_pc').value.trim(), customer_short: $('#pp_cs').value.trim()});
+    const prev = () => { const c = cur(); $('#pp_prev').textContent = `${c.customer_short || '?'} · ${c.paper_code || '?'} ${this.spec(c)}`;
+      $('#pp_need').textContent = need ? `${fmtN(Math.round(need))} เมตร (รวมจากใบสั่งผลิต)${c.length_m ? ` → ประมาณ ${Math.ceil(need / c.length_m)} ม้วน` : ''}` : '–'; };
+    ['pp_w', 'pp_l', 'pp_q', 'pp_u', 'pp_pc', 'pp_cs'].forEach(id => $('#' + id).oninput = $('#' + id).onchange = prev); prev();
+    $('#pp_j').onchange = async () => { const jobs = $('#pp_j').value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean); if (!jobs.length) return;
+      const info = await Promise.all(jobs.map(j => API.getWorkOrder(j).catch(() => null))), miss = jobs.filter((j, i) => !info[i]);
+      $('#pp_jh').innerHTML = miss.length ? `<span style="color:var(--bad)">ไม่พบ JOB ${esc(miss.join(', '))}</span>` : `พบ ${jobs.length} JOB`;
+      const w = info.find(Boolean); if (!w) return;
+      const fill = (id, v) => { if (v !== null && v !== undefined && v !== '' && !$('#' + id).value) $('#' + id).value = v; };
+      fill('pp_cs', this.shortName(w.customer_name)); $('#pp_cn').textContent = w.customer_name || ''; r.customer_name = w.customer_name;
+      fill('pp_sp', w.supplier); fill('pp_pc', w.paper_code); fill('pp_pn', w.paper_name); fill('pp_w', +w.web_width_mm || '');
+      need = info.filter(Boolean).filter(x => x.paper_code === w.paper_code).reduce((a, x) => a + (+x.total_m || 0), 0) || null;
+      if (need && !$('#pp_q').value) $('#pp_q').value = Math.max(1, Math.ceil(need / (num('pp_l') || 1000))); prev(); };
+    if (!x && preset) prev();
+    $('#pp_del')?.addEventListener('click', async () => { if (!(await Office.confirm('ลบรายการสั่งกระดาษนี้?'))) return this.edit(x); try { await API.paperDelete(x.id); toast('ลบแล้ว'); this.page(); } catch (e) { toast(e.message); } });
+    $('#pp_ok').onclick = async () => {
+      const c = cur(); if (!c.paper_code) return toast('ใส่รหัสกระดาษ');
+      const eta = $('#pp_eta').value.trim(); if (eta && !thToIso(eta)) return toast('วันที่กำหนดเข้าไม่ถูกต้อง');
+      const row = {...c, job_tickets: $('#pp_j').value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean), customer_name: r.customer_name || null, supplier: $('#pp_sp').value.trim() || null,
+        paper_name: $('#pp_pn').value.trim() || null, need_m: need, eta: eta ? thToIso(eta) : null, note: $('#pp_n').value.trim() || null};
+      if (x) { row.status = $('#pp_st').value; const st = {notified: 'notified_at', ordered: 'ordered_at', received: 'received_at'}[row.status]; if (st && !x[st]) row[st] = new Date().toISOString(); }
+      else row.created_by = Office.user?.email || '';
+      $('#pp_ok').disabled = true;
+      try { await API.paperSave(row, x?.id);
+        if (r.customer_name && c.customer_short && c.customer_short !== this.shortName(r.customer_name)) { this.alias = {...(this.alias || {}), [r.customer_name]: c.customer_short}; API.setMeta('cust_short', this.alias).catch(() => {}); }
+        d.close(); toast('บันทึกแล้ว'); if (Office.tab === 'paper') this.page(); else if (Office.tab === 'wo') this.woBox(WOForm); this.refreshBadge(); }
+      catch (e) { $('#pp_ok').disabled = false; toast('บันทึกไม่ได้: ' + e.message); }
+    };
+  },
+  // ป้ายสถานะกระดาษในหน้าใบสั่งผลิต
+  async woBox(F){
+    const box = document.getElementById('poBox'); if (!box) return;
+    const job = F.mode === 'edit' && F.wo?.job_ticket; if (!job) { box.innerHTML = ''; return; }
+    let L; try { L = await API.paperForJob(job); } catch { L = null; }
+    if (L === null) { box.innerHTML = ''; return; }
+    box.innerHTML = L.filter(r => r.status !== 'cancelled').map(r => `<span class="pp-mini" title="${esc(r.paper_code)} ${esc(this.spec(r))}">${this.badge(r.status)} <small>${esc(r.paper_code)} ${esc(this.spec(r))}${r.status === 'ordered' && r.eta ? ' · เข้า ' + fmtD(r.eta) : ''}</small></span>`).join('')
+      + (Office.viewer ? '' : ` <button type="button" class="btn ghost sm" id="poNew">📦 แจ้งสั่งกระดาษ</button>`);
+    $('#poNew')?.addEventListener('click', async () => { const p = await this.fromJob(job); this.edit(null, p || {job_tickets: [job], length_m: 1000, unit: 'ม้วน'}); });
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
@@ -4047,7 +4233,8 @@ const HomePage = {
       { k:'wo_new',  ic:'📝', c:'#0f6cbd', t:'เปิดใบสั่งผลิตใหม่', go:() => { WOForm.wo = null; store.set('vp_open_job', null); Office.go('wo'); } },
       { k:'wo_open', ic:'📂', c:'#1f3a68', t:'เปิด / แก้ไขใบสั่งผลิต', go:() => { Office.go('wo'); setTimeout(() => $('#woOpen')?.focus(), 200); } },
       { k:'wotable', ic:'📋', c:'#1f5c3a', t:'WORKORDER (ตารางค้นหา)', go:() => Office.go('wotable') },
-      { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') } ]},
+      { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') },
+      { k:'paper',   ic:'📦', c:'#a21caf', t:'แจ้งสั่งกระดาษ', go:() => Office.go('paper') } ]},
     { g:'การผลิต / QC', items:[
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
       { k:'oscan',   ic:'📝', c:'#9a3412', t:'บันทึกยอดแทนช่าง (สแกนย้อนหลัง)', go:() => Office.go('oscan') },
@@ -4343,6 +4530,7 @@ const Office = {
           <button class="tab" data-t="progress" style="--tc:#6d28d9">ติดตามงาน</button>
           <button class="tab" data-t="reports" style="--tc:#15803d">รายงาน</button>
           <button class="tab" data-t="qs" style="--tc:#4338ca">PO ควาร์ค</button>
+          <button class="tab" data-t="paper" style="--tc:#a21caf">สั่งกระดาษ <span class="badge hidden" id="ppBadge"></span></button>
           <button class="tab" data-t="qr" style="--tc:#475569">พิมพ์ใบสั่ง</button>
           <button class="tab" data-t="master" style="--tc:#9d174d">ฐานข้อมูล</button>
           <button class="tab" data-t="emp" style="--tc:#b91c1c">พนักงาน</button>
@@ -4354,7 +4542,7 @@ const Office = {
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
     $('#logoHome').onclick = () => this.go('home');
     this.go(params.has('oscan') ? 'oscan' : 'home');   // login แล้วเข้าหน้าเมนูหลักก่อนเสมอ (ลิงก์ ?oscan → หน้าบันทึกยอดแทนช่าง)
-    SOPage.refreshBadge(); setInterval(() => { if (!document.querySelector('dialog[open]')) SOPage.refreshBadge(true); }, 120000);
+    PaperPage.refreshBadge(); SOPage.refreshBadge(); setInterval(() => { if (!document.querySelector('dialog[open]')) SOPage.refreshBadge(true); }, 120000);
     setInterval(() => { if (this.tab === 'inbox' && this.view === 'pending' && !document.querySelector('dialog[open]') && !this.sel.size) this.loadInbox(true); }, 30000);
   },
   startBoss(s){
@@ -4365,6 +4553,7 @@ const Office = {
         <nav class="tabs bp-tabs">
           <button class="tab" data-t="boss" style="--tc:#0f766e">📊 ภาพรวม</button>
           <button class="tab" data-t="reports" style="--tc:#15803d">📈 รายงาน</button>
+          <button class="tab" data-t="paper" style="--tc:#a21caf">📦 สั่งกระดาษ</button>
           ${this.viewer ? '' : `<a class="tab" href="${location.pathname}" style="--tc:#475569;text-decoration:none">🏠 ระบบเต็ม</a>`}
         </nav>
         <div class="who"><span class="who-u" title="${esc(s.email)}">👤 ${esc(String(s.email).split('@')[0])}${this.viewer ? ' <small>(ดูอย่างเดียว)</small>' : ''}</span>${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
@@ -4386,10 +4575,10 @@ const Office = {
     $('#lg').onclick = go; $('#pw').onkeydown = e => { if (e.key === 'Enter') go(); };
   },
   go(t){
-    if (this.boss && !['boss', 'reports'].includes(t)) { if (this.viewer) toast('บัญชีนี้ดูได้อย่างเดียว — เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = 'boss'; }
+    if (this.boss && !['boss', 'reports', 'paper'].includes(t)) { if (this.viewer) toast('บัญชีนี้ดูได้อย่างเดียว — เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = 'boss'; }
     this.tab = t; if (!this.boss) store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
+    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), paper:()=>PaperPage.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
   },
 
   /* ----- รอตรวจ ----- */
