@@ -2636,6 +2636,7 @@ const QSPage = {
         remain: Math.max(0, r.po_qty - dl), perQty: period ? this.sumDl(x => m(x) && x.period === period) : dl}; })
       .sort((a, b) => a.po.localeCompare(b.po) || a.code.localeCompare(b.code));
   },
+  refocus(){ const i = $('#qsQ'); if (!i) return; i.focus(); const n = i.value.length; try { i.setSelectionRange(n, n); } catch {} },
   stockOf(code){ const C = this.cfg, st = C.start_date || '0000';
     return (+C.opening[code] || 0) + (this.D.prod[code]?.qty || 0) - this.sumDl(x => (x.product_code || '').trim() === code && (!x.delivery_date || x.delivery_date >= st)); },
   async page(){
@@ -2710,7 +2711,7 @@ const QSPage = {
       <div class="hint" style="margin-top:6px">ดูสต็อกคงเหลือได้ที่ ติดตามงาน → สต็อกตามสินค้า</div>`;
     this.perWarn(); $('#qsPer').onchange = e => { this.per = e.target.value; this.drawSum(); };
     $('#qsOpen').onchange = e => { store.set('vp_qs_open', e.target.checked); this.drawSum(); };
-    let t; $('#qsQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.drawSum(); $('#qsQ').focus(); }, 300); };
+    let t; $('#qsQ').oninput = e => { clearTimeout(t); if (e.isComposing) return; t = setTimeout(() => { this.q = e.target.value; this.drawSum(); this.refocus(); }, 400); };
     $('#qsCsv').onclick = () => this.csv(`สรุปPO_${per || 'ทั้งหมด'}`, ['PO','รหัสสินค้า','ชื่อสินค้า','หน่วย','รวม Forecast','ส่งแล้ว (ออกบิลแล้ว)','ส่งแล้ว (ค้างเปิดบิล)','รวมส่งจริงทั้งหมด','ส่งในงวด','ยอดค้างส่ง FC','รวมยอดตาม PO','ยอดค้างส่งตาม PO'],
       rows.map(r => [r.po, r.code, r.name, (r.unit || '').trim(), r.forecast, r.billed, r.unbilled, r.delivered, r.perQty, r.fc_left, r.po_qty, r.remain]));
   },
@@ -2756,7 +2757,7 @@ const QSPage = {
         return `<tr><td>${fmtD(x.recv_date)}</td><td><b>${esc(x.product_code)}</b></td><td class="pn">${esc(x.product_name || '')}</td><td class="num inp"><input class="ed" data-fq="${x.id}" value="${x.forecast_qty ? fmtN(x.forecast_qty) : ''}" placeholder="–" title="จำนวนเรียกเข้า / Forecast"></td><td><b>${esc(x.po_no || '')}</b></td><td class="num">${fmtN(x.po_qty)}</td><td>${esc((x.unit || '').trim())}</td>
           <td class="num">${fmtN(dl)}</td><td class="num ${rem ? 'qs-rem' : ''}">${fmtN(rem)}</td><td>${st}</td><td>${esc(x.job_type || '')}</td>
           <td style="white-space:nowrap"><button class="lnk" data-e="${x.id}">แก้ไข</button> · <button class="lnk" data-d="${x.id}" style="color:var(--bad)">ลบ</button></td></tr>`; }).join('') || '<tr><td colspan="12" class="wt-info">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>`;
-    let t; $('#qsQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.drawPo(); $('#qsQ').focus(); }, 300); };
+    let t; $('#qsQ').oninput = e => { clearTimeout(t); if (e.isComposing) return; t = setTimeout(() => { this.q = e.target.value; this.drawPo(); this.refocus(); }, 400); };
     $('#fcAdd').onclick = () => this.editFc();
     $('#qsBody').querySelectorAll('[data-fq]').forEach(el => el.onchange = async () => { const v = el.value.replace(/,/g, '').trim(); if (v && isNaN(+v)) return toast('ใส่ตัวเลขเท่านั้น');
       try { await API.fcSave({forecast_qty: v === '' ? null : +v}, +el.dataset.fq); D.fc.find(x => x.id === +el.dataset.fq).forecast_qty = v === '' ? null : +v; el.value = v ? fmtN(+v) : ''; toast('บันทึก Forecast แล้ว'); } catch (e) { toast(e.message); } });
@@ -2814,7 +2815,7 @@ const QSPage = {
     $('#dlAll').onchange = e => { $('#qsBody').querySelectorAll('.dlc').forEach(c => c.checked = e.target.checked); upd(); };
     $('#dlBGo')?.addEventListener('click', async () => { const v = $('#dlBP').value.trim(); if (!okP(v)) return toast('งวดเดือนใช้รูปแบบ ปป-ดด เช่น 69-10');
       const ids = sel(); try { for (const id of ids) await API.dlvSave({period: v}, id); toast(`ตั้งงวด ${v} ให้ ${ids.length} รายการแล้ว`); this.page(); } catch (e) { toast(e.message); } });
-    let t; $('#qsQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.drawDl(onlyUnbilled); $('#qsQ').focus(); }, 300); };
+    let t; $('#qsQ').oninput = e => { clearTimeout(t); if (e.isComposing) return; t = setTimeout(() => { this.q = e.target.value; this.drawDl(onlyUnbilled); this.refocus(); }, 400); };
     $('#dlAdd').onclick = () => this.editDl();
     $('#dlImp').onclick = () => $('#dlFile').click();
     $('#dlFile').onchange = e => { const f = e.target.files[0]; if (f) this.importDl(f); e.target.value = ''; };
@@ -2862,7 +2863,7 @@ const QSPage = {
         C.alias[this.norm(from)] = to; Object.keys(C.alias).forEach(k => { if (this.norm(C.alias[k]) === this.norm(from)) C.alias[k] = to; });
         try { await API.setMeta('qs_cfg', C); d.close(); toast(`รวม ${from} → ${to} แล้ว`); this.page(); } catch (e) { toast(e.message); } }; });
     $('#qsBody').querySelectorAll('[data-unal]').forEach(b => b.onclick = async () => { delete C.alias[b.dataset.unal]; try { await API.setMeta('qs_cfg', C); this.page(); } catch (e) { toast(e.message); } });
-    let t; $('#qsQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value; this.drawStk(); $('#qsQ').focus(); }, 300); };
+    let t; $('#qsQ').oninput = e => { clearTimeout(t); if (e.isComposing) return; t = setTimeout(() => { this.q = e.target.value; this.drawStk(); this.refocus(); }, 400); };
     $('#qsBody').querySelectorAll('[data-op]').forEach(el => el.onchange = async () => { const v = el.value.replace(/,/g, '').trim();
       if (v === '') delete this.cfg.opening[el.dataset.op]; else this.cfg.opening[el.dataset.op] = +v;
       try { await API.setMeta('qs_cfg', this.cfg); toast('บันทึกยอดยกมาแล้ว'); this.drawStk(); } catch (e) { toast(e.message); } });
