@@ -692,6 +692,12 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .kp-cb{display:flex;align-items:center;gap:8px;justify-content:flex-end}.kp-cb span{min-width:52px}.kp-cb .pv-bar{flex:1;min-width:80px}
 .pv-bar.kp i{background:#2563eb}.pv-bar.good i{background:#16a34a}.pv-bar.mid i{background:#f59e0b}.pv-bar.bad i{background:#dc2626}.pv-bar.lead i{background:linear-gradient(90deg,#38bdf8,#2563eb)}
 th.kp-w{min-width:170px} td.kp-b{font-weight:700}
+.os-wrap{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:14px;align-items:start}.os-card{padding:14px 16px}.os-card h3{margin:0 0 10px;color:#1f3a68}
+.os-seg{margin-bottom:12px}.os-seg button{font-size:15px;padding:8px 18px}
+.os-grid{display:grid;grid-template-columns:110px 1fr;gap:10px 12px;align-items:center}.os-grid>label{margin:0;font-size:14px;color:#475569}.os-grid .field{padding:8px 10px}
+.os-info{font-size:13px;color:#334155;margin-top:4px;line-height:1.5}.os-st{flex-wrap:wrap}.os-dt{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.os-dt .field{width:130px}#osTime{width:80px}
+@media (max-width:1000px){.os-wrap{grid-template-columns:1fr}.os-grid{grid-template-columns:1fr}.os-grid>label{margin-top:4px}}
+.qs-opt{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin:10px 0 4px}.qs-opt label{margin:0;font-size:13.5px;color:#475569}.qs-opt .field{padding:5px 8px}
 .le-grid{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center}.le-grid label{margin:0;font-size:13.5px;color:#475569}.le-grid .field{padding:7px 10px}
 .bp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin:0 0 12px}.bp-head h2{margin:0;color:#1f3a68;font-size:22px}
 .bp-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
@@ -1010,6 +1016,9 @@ const Demo = {
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
   async isViewer(){ return !!store.get('vp_demo_viewer', false); },
+  async logInsert(table, row){ const d = this.db(); (table === 'qc_logs' ? d.qc_logs : d.prod_logs).push({id: ++d.seq + 100000, ...row}); this.save(); },
+  async jobLogs(job){ const d = this.db(), by = (a, b) => String(a.logged_at).localeCompare(String(b.logged_at));
+    return {prod: d.prod_logs.filter(x => x.job_ticket === job).sort(by), qc: d.qc_logs.filter(x => x.job_ticket === job).sort(by), pending: d.inbox.filter(x => x.job_ticket === job && x.review_status === 'pending').length}; },
   async logUpdate(table, id, patch){ const d = this.db(), A = table === 'qc_logs' ? d.qc_logs : d.prod_logs, x = A.find(l => l.id === id); if (!x) throw new Error('ไม่พบรายการ'); Object.assign(x, patch); this.save(); },
   async logDelete(table, id){ const d = this.db(); if (table === 'qc_logs') d.qc_logs = d.qc_logs.filter(l => l.id !== id); else d.prod_logs = d.prod_logs.filter(l => l.id !== id); this.save(); },
   async viewers(){ return this.db().viewers || []; },
@@ -1084,6 +1093,12 @@ const Live = {
     else this.chk(await this.sb.from('lookups').update({value, sort}).eq('category', cat).eq('value', orig));
   },
   async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
+  async logInsert(table, row){ this.chk(await this.sb.from(table).insert(row)); },
+  async jobLogs(job){ const sel = 'id,source,job_ticket,employee_name,status,qty,note,logged_at';
+    const [prod, qc, pend] = await Promise.all([this.chk(await this.sb.from('production_logs').select(sel + ',step').eq('job_ticket', job).order('logged_at')),
+      this.chk(await this.sb.from('qc_logs').select(sel).eq('job_ticket', job).order('logged_at')),
+      this.sb.from('scan_inbox').select('id', {count: 'exact', head: true}).eq('job_ticket', job).eq('review_status', 'pending')]);
+    return {prod, qc, pending: pend.count || 0}; },
   async logUpdate(table, id, patch){ const r = this.chk(await this.sb.from(table).update(patch).eq('id', id).select('id')); if (!r.length) throw new Error('บันทึกไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
   async logDelete(table, id){ const r = this.chk(await this.sb.from(table).delete().eq('id', id).select('id')); if (!r.length) throw new Error('ลบไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
   async isViewer(){ try { const {data, error} = await this.sb.rpc('is_viewer'); return !error && data === true; } catch { return false; } },
@@ -2927,7 +2942,22 @@ const QRSheet = {
       <div class="hint">เลือก JOB ที่ยังผลิตไม่จบ แล้วพิมพ์เป็นแผ่น A4 (8 JOB/แผ่น) ตัดตามเส้นแล้วแปะบนใบเก่า · ช่างสแกน QR ใหม่ ยอดเข้าระบบใหม่ทันที</div>
       <div class="toolbar" style="margin:8px 0"><input id="qs_q" class="field" style="max-width:260px;padding:5px 10px;font-size:13px" placeholder="ค้นหา JOB / ลูกค้า"><label class="wc on"><input type="checkbox" id="qs_all" checked> เลือกทั้งหมด</label><span class="sp"></span><span class="wt-info" id="qs_n"></span></div>
       <div id="qs_l" class="ps-list"><div class="empty">กำลังโหลด…</div></div>
+      <div class="qs-opt">
+        <label>รูปแบบ</label><select id="qs_f" class="field"><option value="a4">📄 กระดาษ A4 (8 JOB/แผ่น ตัดตามเส้น)</option><option value="lb2">🏷 ลาเบล — 1 ดวง/JOB (QR ผลิต + QC ในดวงเดียว)</option><option value="lb1">🏷 ลาเบล — 1 ดวง/QR (แยกดวงผลิต กับ QC)</option></select>
+        <label>QR ที่พิมพ์</label><select id="qs_w" class="field"><option value="both">ทั้งฝ่ายผลิต + QC</option><option value="prod">เฉพาะฝ่ายผลิต</option><option value="qc">เฉพาะ QC</option></select>
+        <label class="qs-lb">ขนาดลาเบล (มม.)</label><span class="qs-lb"><select id="qs_pre" class="field" style="width:auto">${['100x50','100x75','100x100','100x150','80x50','75x50','60x40','50x30'].map(v => `<option>${v}</option>`).join('')}<option value="c">กำหนดเอง</option></select>
+          กว้าง <input id="qs_lw" class="field" style="width:64px" inputmode="decimal"> × สูง <input id="qs_lh" class="field" style="width:64px" inputmode="decimal"> มม.</span>
+      </div>
+      <div class="hint qs-lb">ตั้งค่าเครื่องพิมพ์ลาเบลให้ขนาดกระดาษตรงกับนี้ · เครื่องพิมพ์ความร้อน (ขาว-ดำ) ใช้ได้ ป้ายฝ่ายผลิต/QC จะเป็นแถบดำ</div>
       <div class="acts"><button class="btn ghost" id="qs_x">ยกเลิก</button><button class="btn" id="qs_p">🖨 พิมพ์ QR</button></div>`;
+    const O = {f: 'a4', w: 'both', lw: 100, lh: 50, ...store.get('vp_qrs', {})};
+    $('#qs_f').value = O.f; $('#qs_w').value = O.w; $('#qs_lw').value = O.lw; $('#qs_lh').value = O.lh;
+    const syncPre = () => { const k = `${$('#qs_lw').value}x${$('#qs_lh').value}`; $('#qs_pre').value = [...$('#qs_pre').options].some(o => o.value === k) ? k : 'c'; };
+    const showLb = () => document.querySelectorAll('#dlgBody .qs-lb').forEach(e => e.classList.toggle('hidden', $('#qs_f').value === 'a4'));
+    $('#qs_pre').onchange = e => { if (e.target.value !== 'c') { const [w, h] = e.target.value.split('x'); $('#qs_lw').value = w; $('#qs_lh').value = h; } cnt(); };
+    $('#qs_lw').oninput = $('#qs_lh').oninput = () => { syncPre(); cnt(); };
+    $('#qs_f').onchange = $('#qs_w').onchange = () => { showLb(); cnt(); };
+    syncPre(); showLb();
     const d = $('#dlg'); d.showModal(); $('#qs_x').onclick = () => d.close();
     let rows; try { rows = (await API.progress('', true, false)).filter(r => !r.closed && !r.cancelled); } catch (e) { $('#qs_l').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     rows.sort((a, b) => a.job_ticket.localeCompare(b.job_ticket, 'th', {numeric: true}));
@@ -2935,23 +2965,54 @@ const QRSheet = {
     const draw = () => { const q = $('#qs_q').value.trim().toLowerCase(), V = rows.filter(r => !q || (r.job_ticket + ' ' + r.customer_name + ' ' + r.product_name).toLowerCase().includes(q));
       $('#qs_l').innerHTML = `<table class="so-t"><thead><tr><th></th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะผลิต</th><th>QC</th></tr></thead><tbody>${V.map(r => `<tr><td><input type="checkbox" data-j="${esc(r.job_ticket)}" ${sel.has(r.job_ticket) ? 'checked' : ''}></td><td><b>${esc(r.job_ticket)}</b></td><td>${esc(r.customer_name || '')}</td><td>${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td>${esc(r.qc_status || '')}</td></tr>`).join('')}</tbody></table>`;
       $('#qs_l').querySelectorAll('[data-j]').forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.j) : sel.delete(c.dataset.j); cnt(); }); cnt(); };
-    const cnt = () => $('#qs_n').textContent = `เลือก ${sel.size} JOB · ${Math.ceil(sel.size / 8)} แผ่น`;
+    const cnt = () => { const f = $('#qs_f').value, n = sel.size * (f === 'lb1' && $('#qs_w').value === 'both' ? 2 : 1);
+      $('#qs_n').textContent = `เลือก ${sel.size} JOB · ${f === 'a4' ? Math.ceil(sel.size / 8) + ' แผ่น A4' : n + ' ดวง'}`; };
     $('#qs_q').oninput = draw; $('#qs_all').onchange = e => { rows.forEach(r => e.target.checked ? sel.add(r.job_ticket) : sel.delete(r.job_ticket)); draw(); };
     draw();
-    $('#qs_p').onclick = () => { const J = rows.filter(r => sel.has(r.job_ticket)); if (!J.length) return toast('เลือกอย่างน้อย 1 JOB'); d.close(); this.print(J, base); };
+    $('#qs_p').onclick = () => { const J = rows.filter(r => sel.has(r.job_ticket)); if (!J.length) return toast('เลือกอย่างน้อย 1 JOB');
+      const o = {f: $('#qs_f').value, w: $('#qs_w').value, lw: +$('#qs_lw').value, lh: +$('#qs_lh').value};
+      if (o.f !== 'a4' && (!(o.lw >= 25 && o.lw <= 220) || !(o.lh >= 15 && o.lh <= 300))) return toast('ขนาดลาเบลไม่ถูกต้อง (กว้าง 25–220, สูง 15–300 มม.)');
+      store.set('vp_qrs', o); d.close(); this.print(J, base, o); };
   },
   qr(text){ const box = document.createElement('div'); new QRCode(box, {text, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M});
     const c = box.querySelector('canvas'); return c ? c.toDataURL('image/png') : box.querySelector('img')?.src || ''; },
-  print(J, base){
+  print(J, base, o){
+    o = o || {f: 'a4', w: 'both'};
     const url = (dpt, j) => `${base}?scan=${dpt}&job=${encodeURIComponent(j)}`;
+    if (o.f !== 'a4') return this.printLabel(J, url, o);
+    const pick = o.w === 'both' ? ['prod', 'qc'] : [o.w];
     const cell = r => `<div class="qc"><div class="qh"><b>${esc(r.job_ticket)}</b><span>${esc((r.customer_name || '').slice(0, 40))}</span></div><div class="qp">${esc((r.product_name || '').slice(0, 70))}</div>
-      <div class="qq"><div><img src="${this.qr(url('prod', r.job_ticket))}"><i class="p">ฝ่ายผลิต</i></div><div><img src="${this.qr(url('qc', r.job_ticket))}"><i class="q">QC</i></div></div></div>`;
+      <div class="qq">${pick.map(dp => `<div><img src="${this.qr(url(dp, r.job_ticket))}"><i class="${dp === 'prod' ? 'p' : 'q'}">${dp === 'prod' ? 'ฝ่ายผลิต' : 'QC'}</i></div>`).join('')}</div></div>`;
     const pages = []; for (let k = 0; k < J.length; k += 8) pages.push(J.slice(k, k + 8));
     const css = `@page{size:A4;margin:8mm}body{margin:0;font-family:Tahoma,sans-serif}.pg{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:68mm;gap:0;page-break-after:always}.pg:last-child{page-break-after:auto}
       .qc{border:1px dashed #94a3b8;padding:3mm 4mm;box-sizing:border-box;overflow:hidden}.qh{display:flex;justify-content:space-between;gap:3mm;align-items:baseline}.qh b{font-size:15pt;color:#1f3a68}.qh span{font-size:8pt;color:#334155;text-align:right}
       .qp{font-size:8pt;color:#475569;height:9mm;overflow:hidden;margin:1mm 0}.qq{display:flex;justify-content:space-around}.qq div{text-align:center}.qq img{width:38mm;height:38mm;display:block}
       .qq i{font-style:normal;font-weight:700;font-size:10pt;display:block;margin-top:1mm;padding:0.5mm 3mm;border-radius:2mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.qq i.p{background:#0f6cbd}.qq i.q{background:#15803d}`;
     PrintKit.doc('QR ชุด', css, pages.map(pg => `<div class="pg">${pg.map(cell).join('')}</div>`).join(''), 500);
+  },
+  // ลาเบลม้วน: 1 หน้า = 1 ดวง ขนาดตามที่ตั้ง
+  printLabel(J, url, o){
+    const W = o.lw, H = o.lh, pad = Math.max(1.5, Math.min(W, H) * 0.04), dl = d => d === 'prod' ? 'ฝ่ายผลิต' : 'QC';
+    const pick = o.w === 'both' ? ['prod', 'qc'] : [o.w], fz = Math.max(7, Math.min(14, H / 4.2));
+    const css = `@page{size:${W}mm ${H}mm;margin:0}html,body{margin:0;padding:0}body{font-family:Tahoma,sans-serif;color:#000}
+      .lb{width:${W}mm;height:${H}mm;padding:${pad}mm;box-sizing:border-box;overflow:hidden;page-break-after:always;break-after:page;display:flex;flex-direction:column}.lb:last-child{page-break-after:auto;break-after:auto}
+      .lh{display:flex;justify-content:space-between;align-items:baseline;gap:2mm;line-height:1.1}.lh b{font-size:${fz}pt}.lh span{font-size:${Math.max(5.5, fz * 0.5)}pt;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:60%}
+      .lp{font-size:${Math.max(5.5, fz * 0.5)}pt;line-height:1.15;max-height:2.3em;overflow:hidden;margin:0.6mm 0 0.8mm}
+      .lq{flex:1;display:flex;justify-content:space-around;align-items:center;min-height:0}.lq div{text-align:center;display:flex;flex-direction:column;align-items:center}
+      .lq img{display:block;image-rendering:pixelated}.lq i,.l1 i{font-style:normal;font-weight:700;background:#000;color:#fff;border-radius:1mm;padding:0.2mm 2mm;margin-top:0.6mm;font-size:${Math.max(6, fz * 0.62)}pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .l1{display:flex;gap:${pad}mm;height:100%;align-items:center}.l1 img{display:block;image-rendering:pixelated;flex:none}.l1 .t{min-width:0;flex:1;display:flex;flex-direction:column;gap:0.8mm}.l1 .t b{font-size:${fz * 1.1}pt;line-height:1}.l1 .t span{font-size:${Math.max(5.5, fz * 0.5)}pt;line-height:1.15;overflow:hidden;max-height:3.5em}.l1 i{align-self:flex-start}`;
+    let body = '';
+    if (o.f === 'lb2') {   // 1 ดวง/JOB
+      const head = fz * 0.3528 * 1.2 + Math.max(5.5, fz * 0.5) * 0.3528 * 2.4 + 2, badge = Math.max(6, fz * 0.62) * 0.3528 + 2;
+      const q = Math.max(10, Math.min(H - 2 * pad - head - badge, (W - 2 * pad) / pick.length - 3));
+      body = J.map(r => `<div class="lb"><div class="lh"><b>${esc(r.job_ticket)}</b><span>${esc(r.customer_name || '')}</span></div><div class="lp">${esc(r.product_name || '')}</div>
+        <div class="lq">${pick.map(dp => `<div><img src="${this.qr(url(dp, r.job_ticket))}" style="width:${q}mm;height:${q}mm"><i>${dl(dp)}</i></div>`).join('')}</div></div>`).join('');
+    } else {               // 1 ดวง/QR
+      const q = Math.max(10, Math.min(H - 2 * pad, W * 0.55));
+      body = J.flatMap(r => pick.map(dp => `<div class="lb"><div class="l1"><img src="${this.qr(url(dp, r.job_ticket))}" style="width:${q}mm;height:${q}mm">
+        <div class="t"><b>${esc(r.job_ticket)}</b><i>${dl(dp)}</i><span>${esc(r.customer_name || '')}</span><span>${esc(r.product_name || '')}</span></div></div></div>`)).join('');
+    }
+    PrintKit.doc('QR ลาเบล', css, body, 500);
   }
 };
 
@@ -3755,7 +3816,7 @@ const Kpi = {
     if (o.dim === 'prod' || o.dim === 'qc') {
       const QC = o.dim === 'qc', A = (QC ? Q : P).sort((a, b) => String(a.logged_at).localeCompare(String(b.logged_at)));
       const head = [{l: 'วันที่', date: 1}, {l: 'เวลา'}, {l: 'เลขที่ JOB', job: 1}, {l: QC ? 'ชื่อ QC' : 'ชื่อช่าง'}, ...(QC ? [] : [{l: 'ขั้นตอน'}]), {l: 'สถานะ'}, {l: 'จำนวน', num: 1}, {l: 'หมายเหตุ'}, {l: 'ที่มา'}, {l: 'ตรวจซ้ำ'}, {l: 'เครื่อง'}, {l: 'ชื่อลูกค้า', cls: 'cu'}, {l: 'ชื่อสินค้า', cls: 'pn'}];
-      const srcL = x => /^import:/.test(x.source || '') ? 'Excel' : (x.source || 'scan') === 'scan' ? 'สแกน' : x.source;
+      const srcL = x => /^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : (x.source || 'scan') === 'scan' ? 'สแกน' : x.source;
       const G = new Map(); A.forEach(x => { if (!(+x.qty > 0)) return; const k = `${x.job_ticket}|${x.status}|${+x.qty}|${x.step || ''}`; (G.get(k) || G.set(k, []).get(k)).push(x); });
       const dup = x => { const g = G.get(`${x.job_ticket}|${x.status}|${+x.qty}|${x.step || ''}`) || []; if (g.length < 2) return '';
         if (new Set(g.map(srcL)).size > 1) return '⚠ Excel+สแกน';
@@ -3875,6 +3936,96 @@ const BossPage = {
   }
 };
 
+
+/* ================== บันทึกยอดแทนช่าง / สแกนย้อนหลัง (ออฟฟิศ) — ลิงก์ ?oscan ================== */
+const OfficeScan = {
+  dept: store.get('vp_os_dept', 'prod'),
+  async page(){
+    const D = () => DEPT[this.dept], now = new Date(Date.now() + 7 * 3600e3);
+    const link = location.origin + location.pathname + '?oscan';
+    $('#page').innerHTML = `<div class="os-wrap">
+      <div class="card os-card">
+        <h3>📝 บันทึกยอดแทนช่าง / สแกนย้อนหลัง</h3>
+        <div class="hint" style="margin:-4px 0 10px">ใช้เมื่อช่างหรือ QC ลืมสแกน · บันทึกแล้ว<b>เข้ายอดทันที</b> ไม่ต้องอนุมัติซ้ำ · ลิงก์หน้านี้: <code>${esc(link)}</code> <button class="btn ghost sm" id="osCopy">📋 คัดลอก</button></div>
+        <div class="seg os-seg" id="osDept"><button data-v="prod">🖨️ ฝ่ายผลิต</button><button data-v="qc">✅ QC</button></div>
+        <div class="os-grid">
+          <label>เลขที่ JOB</label><div><input id="osJob" class="field" list="osJobs" autocomplete="off" placeholder="พิมพ์เลข JOB / ชื่อลูกค้า เช่น 6910/30"><datalist id="osJobs"></datalist><div id="osInfo" class="os-info"></div></div>
+          <label id="osEmpL">ชื่อช่าง</label><div><select id="osEmp" class="field"></select></div>
+          <label class="os-step">ขั้นตอน</label><div class="os-step"><div class="seg" id="osStep"><button data-v="พิมพ์">พิมพ์</button><button data-v="ไดคัท">ไดคัท</button></div></div>
+          <label>สถานะ</label><div><div class="seg os-st" id="osSt"></div></div>
+          <label>จำนวน (ดวง)</label><div><input id="osQty" class="field" inputmode="decimal" placeholder="เว้นว่างได้ถ้าแค่แจ้งเริ่มงาน" style="max-width:220px"></div>
+          <label>วันที่ทำจริง</label><div class="os-dt"><input id="osDate" class="field" value="${pad2(now.getUTCDate())}/${pad2(now.getUTCMonth() + 1)}/${now.getUTCFullYear() + 543}" placeholder="วว/ดด/ปปปป"> เวลา <input id="osTime" class="field" value="${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}" placeholder="ชช:นน">
+            <button class="btn ghost sm" id="osNow">ตอนนี้</button><button class="btn ghost sm" id="osYest">เมื่อวาน</button></div>
+          <label>หมายเหตุ</label><div><input id="osNote" class="field" value="บันทึกแทน (ออฟฟิศ)"></div>
+        </div>
+        <div class="acts" style="justify-content:flex-start"><button class="btn" id="osSave">💾 บันทึกยอด</button><span class="hint" id="osMsg"></span></div>
+      </div>
+      <div class="card os-card"><h3>📋 ยอดที่บันทึกแล้วของ JOB นี้ <small id="osHn"></small></h3><div id="osHist" class="tbl-wrap"><div class="empty">เลือก JOB เพื่อดูว่าช่างส่งยอดอะไรมาแล้วบ้าง</div></div></div>
+    </div>`;
+    $('#osCopy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('คัดลอกลิงก์แล้ว'); } catch { prompt('คัดลอกลิงก์นี้', link); } };
+    let emps = []; try { emps = await API.employees(); } catch {}
+    this.step = this.step || 'พิมพ์';
+    const setDept = () => {
+      document.querySelectorAll('#osDept button').forEach(b => b.classList.toggle('on', b.dataset.v === this.dept));
+      document.querySelectorAll('.os-step').forEach(e => e.classList.toggle('hidden', this.dept !== 'prod'));
+      $('#osEmpL').textContent = this.dept === 'prod' ? 'ชื่อช่าง' : 'ชื่อ QC';
+      const list = emps.filter(e => e.dept === this.dept && e.active !== false).map(e => e.name);
+      $('#osEmp').innerHTML = [...list, 'Office'].map(n => `<option>${esc(n)}</option>`).join('');
+      const keep = store.get('vp_os_emp_' + this.dept); if (keep && [...list, 'Office'].includes(keep)) $('#osEmp').value = keep;
+      this.st = D().statuses.includes(this.st) ? this.st : D().statuses[1];
+      $('#osSt').innerHTML = D().statuses.map(s => `<button data-v="${esc(s)}" class="${s === this.st ? 'on' : ''}">${esc(s)}</button>`).join('');
+      document.querySelectorAll('#osSt button').forEach(b => b.onclick = () => { this.st = b.dataset.v; document.querySelectorAll('#osSt button').forEach(x => x.classList.toggle('on', x === b)); });
+      this.hist();
+    };
+    document.querySelectorAll('#osDept button').forEach(b => b.onclick = () => { this.dept = b.dataset.v; store.set('vp_os_dept', this.dept); setDept(); });
+    document.querySelectorAll('#osStep button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.step); b.onclick = () => { this.step = b.dataset.v; document.querySelectorAll('#osStep button').forEach(x => x.classList.toggle('on', x === b)); }; });
+    $('#osEmp').onchange = e => store.set('vp_os_emp_' + this.dept, e.target.value);
+    const setDT = ms => { const t = new Date(ms + 7 * 3600e3); $('#osDate').value = `${pad2(t.getUTCDate())}/${pad2(t.getUTCMonth() + 1)}/${t.getUTCFullYear() + 543}`; $('#osTime').value = `${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}`; };
+    $('#osNow').onclick = () => setDT(Date.now()); $('#osYest').onclick = () => setDT(Date.now() - 864e5);
+    $('#osQty').oninput = e => { const raw = e.target.value.replace(/[^\d.]/g, ''); e.target.value = raw ? Number(raw).toLocaleString('en-US', {maximumFractionDigits: 2}) + (raw.endsWith('.') ? '.' : '') : ''; };
+    let tm; $('#osJob').oninput = e => { clearTimeout(tm); tm = setTimeout(async () => { const v = e.target.value.trim();
+      try { const L = await API.searchJobs(v); $('#osJobs').innerHTML = L.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name || '')} · ${esc(j.product_name || '')}</option>`).join('');
+        if (L.some(j => j.job_ticket === v)) this.pick(v); } catch {} }, 250); };
+    $('#osJob').onchange = e => this.pick(e.target.value.trim());
+    $('#osSave').onclick = () => this.save();
+    setDept();
+    const j = params.get('job'); if (j) { $('#osJob').value = j; this.pick(j); }
+  },
+  async pick(job){
+    if (!job || job === this.job?.job_ticket) return;
+    let w; try { w = await API.getWorkOrder(job); } catch {}
+    this.job = w || null;
+    $('#osInfo').innerHTML = w ? `<b>${esc(w.customer_name || '')}</b><br>${esc(w.product_name || '')}<br>ยอดสั่ง ${fmtN(w.order_qty)} ดวง · เครื่อง ${esc(w.machine || '-')}${w.cancelled ? ' · <b style="color:var(--bad)">ยกเลิกแล้ว</b>' : w.closed ? ' · <b style="color:#b45309">ปิดจ๊อบแล้ว</b>' : ''}` : (job ? '<span style="color:var(--bad)">ไม่พบ JOB นี้</span>' : '');
+    this.hist();
+  },
+  async hist(){
+    const w = this.job; if (!w) { $('#osHn').textContent = ''; return; }
+    let L; try { L = await API.jobLogs(w.job_ticket); } catch (e) { $('#osHist').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    const sec = (A, qc) => { const t = A.reduce((a, x) => a + (+x.qty || 0), 0);
+      return `<h4 style="margin:8px 0 4px;color:#1f3a68">${qc ? '✅ QC' : '🖨️ ฝ่ายผลิต'} — ${A.length} รายการ · รวม ${fmtN(t)} ดวง</h4>` + (A.length ? `<table class="trk"><thead><tr><th>วันเวลา</th><th>ชื่อ</th>${qc ? '' : '<th>ขั้นตอน</th>'}<th>สถานะ</th><th class="num">จำนวน</th><th>หมายเหตุ</th><th>ที่มา</th></tr></thead><tbody>
+        ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${qc ? '' : `<td>${esc(x.step || '')}</td>`}<td>${esc(x.status || '')}</td><td class="num">${x.qty === null || x.qty === undefined ? '' : fmtN(x.qty)}</td><td>${esc(x.note || '')}</td><td>${/^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : 'สแกน'}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">ยังไม่มี</div>'); };
+    $('#osHn').textContent = `JOB ${w.job_ticket}`;
+    $('#osHist').innerHTML = (this.dept === 'prod' ? [sec(L.prod, false), sec(L.qc, true)] : [sec(L.qc, true), sec(L.prod, false)]).join('') + (L.pending ? `<div class="hint" style="margin-top:6px;color:#b45309">⚠ มีสแกนรอตรวจอีก ${L.pending} รายการ (ยังไม่นับในยอด) — ดูที่หน้า ตรวจสแกน ก่อน กันบันทึกซ้ำ</div>` : '');
+  },
+  async save(){
+    const w = this.job; if (!w) return toast('เลือก JOB ก่อน');
+    if (w.cancelled) return toast(`JOB ${w.job_ticket} ถูกยกเลิกแล้ว บันทึกยอดไม่ได้`);
+    const di = thToIso($('#osDate').value.trim()), tm = $('#osTime').value.trim().match(/^(\d{1,2})[:.](\d{2})$/);
+    if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
+    const at = new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`); if (at.getTime() > Date.now() + 5 * 60e3) return toast('วันเวลาเป็นอนาคต ตรวจอีกครั้ง');
+    const qv = $('#osQty').value.replace(/,/g, '').trim(), qty = qv === '' ? null : +qv; if (qv !== '' && (isNaN(qty) || qty < 0)) return toast('จำนวนไม่ถูกต้อง');
+    const needQty = this.st !== 'กำลังทำ'; if (needQty && qty === null && !(await Office.confirm(`สถานะ "${this.st}" แต่ไม่ได้ใส่จำนวน — บันทึกต่อไหม?`))) return;
+    const QC = this.dept === 'qc', row = {job_ticket: w.job_ticket, employee_name: $('#osEmp').value, status: this.st, qty, note: $('#osNote').value.trim() || null, logged_at: at.toISOString(), source: 'office:' + (Office.user?.email || '')};
+    if (!QC) row.step = this.step;
+    const msg = `บันทึกยอด${QC ? ' QC' : 'ฝ่ายผลิต'} JOB ${w.job_ticket}\n${row.employee_name}${QC ? '' : ' · ' + row.step} · ${row.status} · ${qty === null ? 'ไม่มียอด' : fmtN(qty) + ' ดวง'}\nวันที่ ${$('#osDate').value} ${$('#osTime').value}`;
+    if (w.closed && !(await Office.confirm(`JOB นี้ปิดจ๊อบแล้ว ยังจะบันทึกยอดไหม?\n\n${msg}`))) return;
+    $('#osSave').disabled = true;
+    try { await API.logInsert(QC ? 'qc_logs' : 'production_logs', row); toast('บันทึกแล้ว ✅'); $('#osMsg').textContent = `บันทึกล่าสุด: ${msg.split('\n').slice(0, 2).join(' · ')}`; $('#osQty').value = ''; Kpi._jobs = null; this.hist(); }
+    catch (e) { toast('บันทึกไม่ได้: ' + e.message); }
+    $('#osSave').disabled = false;
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
@@ -3898,6 +4049,7 @@ const HomePage = {
       { k:'print',   ic:'🖨️', c:'#475569', t:'พิมพ์ใบสั่งผลิต + QR', go:() => Office.go('qr') } ]},
     { g:'การผลิต / QC', items:[
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
+      { k:'oscan',   ic:'📝', c:'#9a3412', t:'บันทึกยอดแทนช่าง (สแกนย้อนหลัง)', go:() => Office.go('oscan') },
       { k:'track',   ic:'📊', c:'#0f7b6c', t:'ติดตามงาน (รายJOB)', go:() => { Office.pview = 'job'; store.set('vp_pview','job'); Office.go('progress'); } },
       { k:'stock',   ic:'📦', c:'#2e7d32', t:'สต็อกตามสินค้า', go:() => { Office.pview = 'stock'; store.set('vp_pview','stock'); Office.go('progress'); } } ]},
     { g:'Dashboard / รายงาน', items:[
@@ -4200,7 +4352,7 @@ const Office = {
     document.querySelectorAll('.tab').forEach(b => b.onclick = () => this.go(b.dataset.t));
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
     $('#logoHome').onclick = () => this.go('home');
-    this.go('home');   // login แล้วเข้าหน้าเมนูหลักก่อนเสมอ
+    this.go(params.has('oscan') ? 'oscan' : 'home');   // login แล้วเข้าหน้าเมนูหลักก่อนเสมอ (ลิงก์ ?oscan → หน้าบันทึกยอดแทนช่าง)
     SOPage.refreshBadge(); setInterval(() => { if (!document.querySelector('dialog[open]')) SOPage.refreshBadge(true); }, 120000);
     setInterval(() => { if (this.tab === 'inbox' && this.view === 'pending' && !document.querySelector('dialog[open]') && !this.sel.size) this.loadInbox(true); }, 30000);
   },
@@ -4236,7 +4388,7 @@ const Office = {
     if (this.boss && !['boss', 'reports'].includes(t)) { if (this.viewer) toast('บัญชีนี้ดูได้อย่างเดียว — เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = 'boss'; }
     this.tab = t; if (!this.boss) store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
+    ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
   },
 
   /* ----- รอตรวจ ----- */
@@ -4245,6 +4397,7 @@ const Office = {
       <div class="toolbar">
         <div class="seg" id="viewSeg"><button data-v="pending">สแกนรอตรวจ</button><button data-v="done">ตรวจแล้ว</button></div>
         <div class="seg" id="deptSeg"><button data-v="all">ทั้งหมด</button><button data-v="prod">ผลิต</button><button data-v="qc">QC</button></div>
+        <button class="btn ghost sm" id="goOscan" title="ช่างลืมสแกน — ออฟฟิศบันทึกแทน">📝 บันทึกยอดแทนช่าง</button>
         <div class="sp"></div>
         <span id="pendActs" class="rowact">
           <button class="btn ghost sm" id="approveClean">อนุมัติทั้งหมดที่ไม่มีคำเตือน</button>
@@ -4260,6 +4413,7 @@ const Office = {
     };
     document.querySelectorAll('#viewSeg button').forEach(b => b.onclick = () => { this.view = b.dataset.v; this.sel.clear(); segs(); this.loadInbox(); });
     document.querySelectorAll('#deptSeg button').forEach(b => b.onclick = () => { this.deptFilter = b.dataset.v; this.sel.clear(); segs(); this.drawInbox(); });
+    $('#goOscan').onclick = () => this.go('oscan');
     $('#approveSel').onclick = () => this.doApprove([...this.sel]);
     $('#rejectSel').onclick = () => this.doReject([...this.sel]);
     $('#approveClean').onclick = () => {
@@ -4465,7 +4619,7 @@ const Office = {
         <input id="qj" class="field" style="max-width:280px;padding:9px 12px" placeholder="เลขที่ JOB เช่น 6910/30" list="jobList" autocomplete="off" value="${esc(store.get('vp_lastjob',''))}">
         <datalist id="jobList"></datalist>
         <div class="seg" id="tplSeg"><button data-v="1">แบบเดิม (Excel)</button><button data-v="2">แบบระบบ</button></div>
-        <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint">🖨 พิมพ์ A4</button>
+        <button class="btn sm" id="qgo">แสดงใบสั่งผลิต</button><button class="btn ghost sm" id="qprint">🖨 พิมพ์ A4</button><button class="btn ghost sm" id="qclr" title="ล้างใบที่แสดงอยู่">🧹 ล้าง</button>
         <span id="qlinks" class="hidden"><button class="btn ghost sm" id="ql_p" title="คัดลอกลิงก์สแกนฝ่ายผลิต ไปวางใน LINE">🔗 ลิงก์ผลิต</button><button class="btn ghost sm" id="ql_q" title="คัดลอกลิงก์สแกน QC ไปวางใน LINE">🔗 ลิงก์ QC</button></span>
         <button class="btn ghost sm" id="qsheet" title="พิมพ์ QR หลายใบในแผ่นเดียว ไว้ตัดแปะใบสั่งผลิตเก่า">🏷 พิมพ์ QR ชุด (แปะใบเก่า)</button>
         <div class="sp"></div>
@@ -4477,6 +4631,7 @@ const Office = {
       const list = await API.searchJobs(e.target.value); $('#jobList').innerHTML = list.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name)} · ${esc(j.product_name)}</option>`).join(''); }, 250); };
     $('#qbase').onchange = e => store.set('vp_base', e.target.value.trim());
     $('#qsheet').onclick = () => QRSheet.open($('#qbase').value.trim() || base);
+    $('#qclr').onclick = () => { $('#qj').value = ''; $('#qout').innerHTML = ''; $('#qlinks').classList.add('hidden'); store.set('vp_lastjob', ''); $('#qj').focus(); };
     $('#qby').onchange = e => { store.set('vp_orderby', e.target.value.trim()); gen(); };
     const tkImg = () => { const el = $('#qout .tk'); if (el) RptImage.fromEl(el, {title: 'ใบสั่งผลิต ' + (store.get('vp_lastjob', '') || ''), hint: 'กด 📤 แชร์ → เลือก "พิมพ์" (เลือกกระดาษ A4) หรือส่งเข้า LINE'}); };
     $('#qprint').onclick = async () => {
