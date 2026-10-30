@@ -692,6 +692,7 @@ table.qs-t td,table.qs-rpt td{white-space:nowrap} table.qs-t td.pn,table.qs-rpt 
 .kp-cb{display:flex;align-items:center;gap:8px;justify-content:flex-end}.kp-cb span{min-width:52px}.kp-cb .pv-bar{flex:1;min-width:80px}
 .pv-bar.kp i{background:#2563eb}.pv-bar.good i{background:#16a34a}.pv-bar.mid i{background:#f59e0b}.pv-bar.bad i{background:#dc2626}.pv-bar.lead i{background:linear-gradient(90deg,#38bdf8,#2563eb)}
 th.kp-w{min-width:170px} td.kp-b{font-weight:700}
+.le-grid{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center}.le-grid label{margin:0;font-size:13.5px;color:#475569}.le-grid .field{padding:7px 10px}
 .bp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin:0 0 12px}.bp-head h2{margin:0;color:#1f3a68;font-size:22px}
 .bp-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 .bp-card{background:#fff;border:1px solid var(--line);border-top:4px solid var(--c);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;cursor:pointer;transition:transform .1s}.bp-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px #0001}
@@ -996,9 +997,9 @@ const Demo = {
     [...m.lookups].sort((a,b) => a.sort - b.sort).forEach(x => (spec[x.category] ||= []).push(x.value));
     return { customers: [...new Set(m.customers.map(x => x.short_name))].sort(), products: m.products.map(x => [x.code, x.name]),
       raw: m.raw_materials, suppliers: [...new Set(m.suppliers.map(x => x.short_name))].sort(), spec }; },
-  async masterList(t, M, q){ q = (q||'').toLowerCase();
+  async masterList(t, M, q, all){ q = (q||'').toLowerCase();
     const rows = this.m()[t].filter(r => !q || M.search.some(c => String(r[c]||'').toLowerCase().includes(q))).sort((a,b) => String(a[M.key]).localeCompare(String(b[M.key])));
-    return { rows: rows.slice(0,100), more: rows.length > 100 }; },
+    return all ? { rows, more: false } : { rows: rows.slice(0,100), more: rows.length > 100 }; },
   async masterSave(t, key, o, orig){ const arr = this.m()[t];
     if (arr.some(r => r[key] === o[key] && r[key] !== orig)) throw new Error('duplicate');
     if (orig === null) arr.push(o); else Object.assign(arr.find(r => r[key] === orig), o); this.save(); },
@@ -1009,6 +1010,8 @@ const Demo = {
     else Object.assign(m.lookups.find(x => x.category === cat && x.value === orig), {value, sort}); this.save(); },
   async specDelete(cat, value){ const m = this.m(); m.lookups = m.lookups.filter(x => !(x.category === cat && x.value === value)); this.save(); },
   async isViewer(){ return !!store.get('vp_demo_viewer', false); },
+  async logUpdate(table, id, patch){ const d = this.db(), A = table === 'qc_logs' ? d.qc_logs : d.prod_logs, x = A.find(l => l.id === id); if (!x) throw new Error('ไม่พบรายการ'); Object.assign(x, patch); this.save(); },
+  async logDelete(table, id){ const d = this.db(); if (table === 'qc_logs') d.qc_logs = d.qc_logs.filter(l => l.id !== id); else d.prod_logs = d.prod_logs.filter(l => l.id !== id); this.save(); },
   async viewers(){ return this.db().viewers || []; },
   async viewerAdd(email, note){ const d = this.db(); d.viewers ||= []; if (d.viewers.some(x => x.email === email.toLowerCase())) throw new Error('duplicate key'); d.viewers.push({email: email.toLowerCase(), note, created_at: new Date().toISOString()}); this.save(); },
   async viewerDel(email){ const d = this.db(); d.viewers = (d.viewers || []).filter(x => x.email !== email); this.save(); },
@@ -1063,9 +1066,10 @@ const Live = {
     const spec = {}; l.forEach(x => (spec[x.category] ||= []).push(x.value));
     return { customers: [...new Set(c.map(x => x.short_name))], products: p.map(x => [x.code, x.name]), raw: r, suppliers: [...new Set(s.map(x => x.short_name).filter(Boolean))], spec };
   },
-  async masterList(t, M, q){
-    let x = this.sb.from(t).select('*').order(M.key).limit(101);
+  async masterList(t, M, q, all){
     q = (q||'').replace(/[,()%]/g, ' ').trim();
+    if (all) return { rows: await this.pageAll(() => { let y = this.sb.from(t).select('*').order(M.key); if (q) y = y.or(M.search.map(c => `${c}.ilike.%${q}%`).join(',')); return y; }), more: false };
+    let x = this.sb.from(t).select('*').order(M.key).limit(101);
     if (q) x = x.or(M.search.map(c => `${c}.ilike.%${q}%`).join(','));
     const rows = this.chk(await x); return { rows: rows.slice(0,100), more: rows.length > 100 };
   },
@@ -1080,6 +1084,8 @@ const Live = {
     else this.chk(await this.sb.from('lookups').update({value, sort}).eq('category', cat).eq('value', orig));
   },
   async specDelete(cat, value){ this.chk(await this.sb.from('lookups').delete().eq('category', cat).eq('value', value)); },
+  async logUpdate(table, id, patch){ const r = this.chk(await this.sb.from(table).update(patch).eq('id', id).select('id')); if (!r.length) throw new Error('บันทึกไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
+  async logDelete(table, id){ const r = this.chk(await this.sb.from(table).delete().eq('id', id).select('id')); if (!r.length) throw new Error('ลบไม่ได้ (ไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); },
   async isViewer(){ try { const {data, error} = await this.sb.rpc('is_viewer'); return !error && data === true; } catch { return false; } },
   async viewers(){ const {data, error} = await this.sb.from('app_viewers').select('*').order('created_at'); if (error) { if (/app_viewers/.test(error.message)) return null; throw new Error(error.message); } return data; },
   async viewerAdd(email, note){ this.chk(await this.sb.from('app_viewers').insert({email: email.toLowerCase(), note: note || null})); },
@@ -1150,7 +1156,7 @@ const Live = {
       this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,customer_name,product_name,product_code,machine,order_qty,due_date,closed,cancelled,created_at,eff_prod,eff_qc,print_status,diecut_status,qc_status,last_prod_at,last_qc_at,ready_qty,backlog_qty,stock_qty').order('job_ticket')),
       this.pageAll(() => this.sb.from('work_orders').select('job_ticket,doc_date,due_note').order('job_ticket'))]);
     const m = new Map(w.map(x => [x.job_ticket, x])); p.forEach(r => { const x = m.get(r.job_ticket); r.doc_date = x?.doc_date || null; r.due_note = x?.due_note || null; }); return p; },
-  async kpiLogs(from, to){ const a = from + 'T00:00:00+07:00', b = to + 'T23:59:59.999+07:00', sel = 'job_ticket,employee_name,status,qty,note,logged_at';
+  async kpiLogs(from, to){ const a = from + 'T00:00:00+07:00', b = to + 'T23:59:59.999+07:00', sel = 'id,source,job_ticket,employee_name,status,qty,note,logged_at';
     const [prod, qc] = await Promise.all([this.pageAll(() => this.sb.from('production_logs').select(sel + ',step').gte('logged_at', a).lte('logged_at', b).order('id')),
       this.pageAll(() => this.sb.from('qc_logs').select(sel).gte('logged_at', a).lte('logged_at', b).order('id'))]);
     return {prod, qc}; },
@@ -1158,7 +1164,7 @@ const Live = {
     for (let k = 0; k < jobs.length; k += 150) { const r = await this.pageAll(() => this.sb.from('production_logs').select('job_ticket,logged_at').in('job_ticket', jobs.slice(k, k + 150)).order('id'));
       r.forEach(x => { if (x.logged_at && (!out[x.job_ticket] || Date.parse(x.logged_at) < Date.parse(out[x.job_ticket]))) out[x.job_ticket] = x.logged_at; }); }
     return out; },
-  async changeLog(tbl, key){ try { return this.chk(await this.sb.from('change_log').select('*').eq('tbl', tbl).eq('rec_key', key).order('changed_at', {ascending: false}).limit(200)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
+  async changeLog(tbl, key){ try { return this.chk(await this.sb.from('change_log').select('*').in('tbl', tbl === 'work_orders' ? ['work_orders', 'production_logs', 'qc_logs'] : [tbl]).eq('rec_key', key).order('changed_at', {ascending: false}).limit(200)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
   async recentChanges(n){ try { return this.chk(await this.sb.from('change_log').select('*').order('changed_at', {ascending: false}).limit(n || 150)); } catch (e) { if (/change_log/.test(e.message)) return null; throw e; } },
   async fetchTable(t, order){ let out = [], from = 0;
     for (;;) { const r = this.chk(await this.sb.from(t).select('*').order(order).range(from, from + 999));
@@ -2098,7 +2104,7 @@ const MasterPage = {
     if (this.t === 'lookups') return this.drawSpec();
     const M = MASTER[this.t];
     $('#mtBody').innerHTML = `
-      <div class="toolbar"><input id="mtQ" class="field" style="max-width:360px;padding:9px 12px" placeholder="ค้นหา ${M.title} (รหัส / ชื่อ)" value="${esc(this.q)}">
+      <div class="toolbar"><input id="mtQ" class="field" style="max-width:360px;padding:9px 12px" placeholder="ค้นหา ${M.title} (รหัส / ชื่อ)" value="${esc(this.q)}"><span class="wt-info" id="mtCnt"></span>
         <div class="sp"></div><button class="btn sm" id="mtAdd">+ เพิ่ม${M.title}ใหม่</button></div>
       <div class="card tbl-wrap" id="mtList"><div class="empty">กำลังโหลด…</div></div>`;
     let tm; $('#mtQ').oninput = e => { clearTimeout(tm); tm = setTimeout(() => { this.q = e.target.value; this.load(); }, 300); };
@@ -2107,9 +2113,10 @@ const MasterPage = {
   },
   async load(){
     const M = MASTER[this.t];
-    try { const r = await API.masterList(this.t, M, this.q); this.rows = r.rows; this.more = r.more; }
+    try { const r = await API.masterList(this.t, M, this.q, true); this.rows = r.rows; this.more = r.more; }
     catch (e) { $('#mtList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     const shown = M.cols.filter(c => c[2]?.list !== 0);
+    $('#mtCnt').textContent = `${this.q ? 'ค้นเจอ' : 'ทั้งหมด'} ${fmtN(this.rows.length)} รายการ`;
     $('#mtList').innerHTML = this.rows.length ? `<table><thead><tr>${shown.map(([c,l,o]) => `<th class="${o?.num?'num':''}">${l}</th>`).join('')}<th></th></tr></thead><tbody>
       ${this.rows.map((r,i) => `<tr>${shown.map(([c,l,o]) => `<td class="${o?.num?'num':''}">${o?.num ? fmtN(r[c]) : esc(r[c] ?? '')}</td>`).join('')}
         <td><div class="rowact"><button class="btn ghost sm" data-e="${i}">แก้ไข</button><button class="btn ghost sm" data-d="${i}" style="color:var(--bad)">ลบ</button></div></td></tr>`).join('')}
@@ -2896,11 +2903,11 @@ const ChangeLog = {
     if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return fmtT(v);
     if (typeof v === 'number') return fmtN(v);
     return esc(typeof v === 'object' ? JSON.stringify(v) : String(v)).slice(0, 200); },
-  label(k){ return ({closed: 'ปิดจ๊อบ', adj_prod_qty: 'ยอดผลิตปรับปรุง', adj_qc_qty: 'ยอด QC ปรับปรุง', reduce_qty: 'ปรับลด/ปิดยอด', stock_cut_qty: 'ตัดสต็อก', track_note: 'หมายเหตุติดตาม',
+  label(k){ return ({closed: 'ปิดจ๊อบ', employee_name: 'ชื่อ', status: 'สถานะ', note: 'หมายเหตุ', logged_at: 'วันเวลาสแกน', step: 'ขั้นตอน', job_ticket: 'JOB', adj_prod_qty: 'ยอดผลิตปรับปรุง', adj_qc_qty: 'ยอด QC ปรับปรุง', reduce_qty: 'ปรับลด/ปิดยอด', stock_cut_qty: 'ตัดสต็อก', track_note: 'หมายเหตุติดตาม',
     cancelled: 'ยกเลิก', cancel_reason: 'เหตุผลยกเลิก', cancelled_at: 'ยกเลิกเมื่อ', cancelled_by: 'ยกเลิกโดย', period: 'งวดเดือน', si_no: 'ใบกำกับ', qty: 'จำนวน', po_qty: 'จำนวนใน PO', forecast_qty: 'Forecast'})[k] || WO_LABELS[k] || BK_HEAD[k] || k; },
   rows(list, showKey){
     const act = {insert: '<span class="so-st ok">สร้าง</span>', update: '<span class="so-st part">แก้ไข</span>', delete: '<span class="so-st x">ลบ</span>'};
-    return list.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.changed_at)}</td><td>${esc(x.changed_by || '')}</td>${showKey ? `<td><b>${esc(x.rec_key)}</b><div class="so-rm">${esc(({work_orders: 'ใบสั่งผลิต', deliveries: 'ส่งของ', fc_po: 'PO/Forecast'})[x.tbl] || x.tbl)}</div></td>` : ''}<td>${act[x.action] || x.action}</td>
+    return list.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.changed_at)}</td><td>${esc(x.changed_by || '')}</td>${showKey ? `<td><b>${esc(x.rec_key)}</b><div class="so-rm">${esc(({work_orders: 'ใบสั่งผลิต', deliveries: 'ส่งของ', fc_po: 'PO/Forecast', production_logs: 'สแกนผลิต', qc_logs: 'สแกน QC'})[x.tbl] || x.tbl)}</div></td>` : ''}<td>${act[x.action] || x.action}${!showKey && /_logs$/.test(x.tbl) ? `<div class="so-rm">${x.tbl === 'qc_logs' ? 'ยอดสแกน QC' : 'ยอดสแกนผลิต'}</div>` : ''}</td>
       <td>${x.changes ? Object.entries(x.changes).map(([k, [a, b]]) => `<div class="cl-r"><b>${esc(this.label(k))}:</b> <span class="cl-a">${this.val(k, a)}</span> → <span class="cl-b">${this.val(k, b)}</span></div>`).join('') : ''}</td></tr>`).join(''); },
   async show(job){
     $('#dlgBody').innerHTML = `<h3>🕘 ประวัติการแก้ไข JOB ${esc(job)}</h3><div id="cl_b" class="cl-box"><div class="empty">กำลังโหลด…</div></div><div class="acts"><button class="btn" id="cl_x">ปิด</button></div>`;
@@ -3416,6 +3423,45 @@ const PivotRpt = {
 };
 
 
+/* ---------- แก้ / ลบ ยอดสแกนที่อนุมัติแล้ว (แทนชีต DATA_ผลิต / DATA_QC) ---------- */
+const LogEdit = {
+  open(x, onDone){
+    if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
+    if (!x.id) return toast('รายการนี้ไม่มีรหัส แก้ไขไม่ได้');
+    const QC = x.table === 'qc_logs', D = DEPT[QC ? 'qc' : 'prod'], t = new Date(new Date(x.logged_at || Date.now()).getTime() + 7 * 3600e3);
+    const sts = [...new Set([...D.statuses, x.status].filter(Boolean))];
+    $('#dlgBody').innerHTML = `<h3>✏️ แก้ยอดสแกน${QC ? ' QC' : 'ฝ่ายผลิต'} · JOB ${esc(x.job_ticket)}</h3>
+      <div class="hint" style="margin-bottom:6px">ที่มา: ${/^import:/.test(x.source || '') ? 'Excel (DATA_' + (QC ? 'QC' : 'ผลิต') + ' Id ' + esc(x.source.slice(7)) + ')' : 'สแกนในระบบ'} · การแก้/ลบจะเก็บในประวัติการแก้ไขของใบสั่งผลิต</div>
+      <div class="le-grid">
+        <label>วันที่</label><input id="le_d" class="field" value="${pad2(t.getUTCDate())}/${pad2(t.getUTCMonth() + 1)}/${t.getUTCFullYear() + 543}" placeholder="วว/ดด/ปปปป">
+        <label>เวลา</label><input id="le_t" class="field" value="${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}" placeholder="ชช:นน">
+        <label>เลขที่ JOB</label><input id="le_j" class="field" value="${esc(x.job_ticket)}">
+        <label>${QC ? 'ชื่อ QC' : 'ชื่อช่าง'}</label><input id="le_e" class="field" value="${esc(x.employee_name || '')}">
+        ${QC ? '' : `<label>ขั้นตอน</label><select id="le_s" class="field">${[...new Set([...D.steps, x.step].filter(Boolean))].map(v => `<option ${v === x.step ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`}
+        <label>สถานะ</label><select id="le_st" class="field">${sts.map(v => `<option ${v === x.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+        <label>จำนวน (ดวง)</label><input id="le_q" class="field" inputmode="decimal" value="${x.qty === null || x.qty === undefined ? '' : +x.qty}" placeholder="เว้นว่าง = ไม่มียอด">
+        <label>หมายเหตุ</label><input id="le_n" class="field" value="${esc(x.note || '')}">
+      </div>
+      <div class="acts"><button class="btn ghost" id="le_del" style="color:var(--bad);margin-right:auto">🗑 ลบรายการนี้</button><button class="btn ghost" id="le_x">ยกเลิก</button><button class="btn" id="le_ok">💾 บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#le_x').onclick = () => d.close();
+    $('#le_ok').onclick = async () => {
+      const di = thToIso($('#le_d').value.trim()), tm = $('#le_t').value.trim().match(/^(\d{1,2})[:.](\d{2})$/);
+      if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
+      const qv = $('#le_q').value.trim().replace(/,/g, ''), q = qv === '' ? null : +qv; if (qv !== '' && isNaN(q)) return toast('จำนวนต้องเป็นตัวเลข');
+      const job = $('#le_j').value.trim(); if (!job) return toast('ใส่เลข JOB');
+      const p = {logged_at: new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`).toISOString(), job_ticket: job, employee_name: $('#le_e').value.trim() || null, status: $('#le_st').value, qty: q, note: $('#le_n').value.trim() || null};
+      if (!QC) p.step = $('#le_s').value;
+      if (job !== x.job_ticket && !(await API.getWorkOrder(job).catch(() => null))) return toast('ไม่พบ JOB ' + job);
+      $('#le_ok').disabled = true;
+      try { await API.logUpdate(x.table, x.id, p); d.close(); toast('บันทึกแล้ว'); onDone && onDone(); } catch (e) { $('#le_ok').disabled = false; toast(e.message); }
+    };
+    $('#le_del').onclick = async () => {
+      if (!(await Office.confirm(`ลบรายการสแกนนี้?\nJOB ${x.job_ticket} · ${x.employee_name || ''} · ${x.status || ''} · ${x.qty === null || x.qty === undefined ? 'ไม่มียอด' : fmtN(x.qty) + ' ดวง'}\n\nยอดของ JOB นี้จะลดลงตามรายการที่ลบ`))) return LogEdit.open(x, onDone);
+      try { await API.logDelete(x.table, x.id); toast('ลบแล้ว'); onDone && onDone(); } catch (e) { toast(e.message); }
+    };
+  }
+};
+
 /* ---------- แก้กำหนดส่งแบบเร็ว (1 JOB หรือหลาย JOB พร้อมกัน) ---------- */
 const DueEdit = {
   open(list, onDone){   // list = [{job_ticket, due_date, customer_name, product_name}]
@@ -3545,7 +3591,7 @@ const Kpi = {
     const td = (c, h, k) => { const bar = c && typeof c === 'object' && c.bar !== undefined, st = B[k] ? ` style="background:${B[k][0]}"` : '';
       if (screen && c && c.due) return `<td class="${h.cls || ''}"${st}><a href="#" class="kp-due" data-due="${esc(c.due)}">${esc(c.t)} ✏️</a></td>`;
       return `<td${st} class="${h.num ? 'num' : ''} ${h.cls || ''} ${c && c.c || ''}">${screen && bar ? `<div class="kp-cb"><span>${esc(this.cv(c))}</span><div class="pv-bar kp ${c.bc || ''}"><i style="width:${Math.max(0, Math.min(100, c.bar))}%"></i></div></div>` : esc(this.cv(c))}</td>`; };
-    const body = T.rows.map((r, i) => `<tr ${screen && T.lists ? `class="pv-r" data-i="${i}"` : ''}>${r.map((c, k) => td(c, T.head[k], k)).join('')}</tr>`).join('')
+    const body = T.rows.map((r, i) => `<tr ${screen && (T.lists || T.editable) ? `class="pv-r" data-i="${i}"` : ''}>${r.map((c, k) => td(c, T.head[k], k)).join('')}</tr>`).join('')
       || `<tr><td colspan="${T.head.length}" class="wt-info" style="text-align:center;padding:16px">ไม่มีข้อมูล</td></tr>`;
     const tot = T.total ? `<tr class="${screen ? 'md-tot' : 'sub'}">${T.total.map((c, k) => `<td class="${T.head[k].num ? 'num' : ''}" style="text-align:${T.head[k].num ? 'right' : 'left'}"><b>${esc(this.cv(c))}</b></td>`).join('')}</tr>` : '';
     return `<table class="${screen ? 'trk kp-t' + (F ? ' xl' : '') : ''}"><thead><tr>${head}</tr></thead><tbody>${body}${tot}</tbody></table>`;
@@ -3563,7 +3609,9 @@ const Kpi = {
       ${R.main ? `${R.main.title ? `<h4 class="kp-h">${esc(R.main.title)}</h4>` : ''}<div class="card tbl-wrap trk-wrap">${this.tbl(R.main, true)}</div>` : ''}
       ${(R.extra || []).map(T => `<h4 class="kp-h">${esc(T.title)}</h4><div class="card tbl-wrap" style="max-height:60vh">${this.tbl(T, true)}</div>`).join('')}
       <div class="hint" style="margin-top:8px;line-height:1.6">${R.note || ''}${R.main?.lists ? ' · คลิกแถวเพื่อดูรายการ JOB' : ''}</div>`;
-    $('#kpBody').querySelectorAll('.kp-t .pv-r').forEach(tr => tr.onclick = () => this.detail(R.main.rows[+tr.dataset.i][0], R.main.lists[+tr.dataset.i]));
+    $('#kpBody').querySelectorAll('.kp-t .pv-r').forEach(tr => tr.onclick = () => { const i = +tr.dataset.i;
+      if (R.main.lists) return this.detail(R.main.rows[i][0], R.main.lists[i]);
+      if (R.main.editable && R.main.rows[i]._log) LogEdit.open(R.main.rows[i]._log, () => { this._jobs = null; this.run(o, true); }); });
     $('#kpBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
     $('#kpBody').querySelectorAll('[data-due]').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); this.editDue([a.dataset.due]); });
     $('#kpBody').querySelectorAll('[data-kf]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = +b.dataset.kf, T = R.mainAll, h = T.head[k];
@@ -3706,11 +3754,17 @@ const Kpi = {
     const note = 'ข้อมูลจากสแกนที่อนุมัติแล้วเท่านั้น (รายการที่ยังรอตรวจไม่นับ) · วันที่ตามเวลาที่สแกน';
     if (o.dim === 'prod' || o.dim === 'qc') {
       const QC = o.dim === 'qc', A = (QC ? Q : P).sort((a, b) => String(a.logged_at).localeCompare(String(b.logged_at)));
-      const head = [{l: 'วันที่', date: 1}, {l: 'เวลา'}, {l: 'เลขที่ JOB', job: 1}, {l: QC ? 'ชื่อ QC' : 'ชื่อช่าง'}, ...(QC ? [] : [{l: 'ขั้นตอน'}]), {l: 'สถานะ'}, {l: 'จำนวน', num: 1}, {l: 'หมายเหตุ'}, {l: 'เครื่อง'}, {l: 'ชื่อลูกค้า', cls: 'cu'}, {l: 'ชื่อสินค้า', cls: 'pn'}];
+      const head = [{l: 'วันที่', date: 1}, {l: 'เวลา'}, {l: 'เลขที่ JOB', job: 1}, {l: QC ? 'ชื่อ QC' : 'ชื่อช่าง'}, ...(QC ? [] : [{l: 'ขั้นตอน'}]), {l: 'สถานะ'}, {l: 'จำนวน', num: 1}, {l: 'หมายเหตุ'}, {l: 'ที่มา'}, {l: 'ตรวจซ้ำ'}, {l: 'เครื่อง'}, {l: 'ชื่อลูกค้า', cls: 'cu'}, {l: 'ชื่อสินค้า', cls: 'pn'}];
+      const srcL = x => /^import:/.test(x.source || '') ? 'Excel' : (x.source || 'scan') === 'scan' ? 'สแกน' : x.source;
+      const G = new Map(); A.forEach(x => { if (!(+x.qty > 0)) return; const k = `${x.job_ticket}|${x.status}|${+x.qty}|${x.step || ''}`; (G.get(k) || G.set(k, []).get(k)).push(x); });
+      const dup = x => { const g = G.get(`${x.job_ticket}|${x.status}|${+x.qty}|${x.step || ''}`) || []; if (g.length < 2) return '';
+        if (new Set(g.map(srcL)).size > 1) return '⚠ Excel+สแกน';
+        return g.some(y => y !== x && Math.abs(Date.parse(y.logged_at) - Date.parse(x.logged_at)) < 3600e3) ? '⚠ ซ้ำใน 1 ชม.' : ''; };
       const qi = QC ? 5 : 6, hm = t => fmtT(t).split(' ')[1] || '';
-      const rows = A.map(x => [{t: fmtD(x._d), n: x.logged_at || ''}, {t: hm(x.logged_at), n: x.logged_at || ''}, x.job_ticket, x.employee_name || '', ...(QC ? [] : [x.step || '']), x.status || '', x.qty === null || x.qty === undefined || x.qty === '' ? '' : +x.qty, x.note || '', x.machine || '', x.customer_name || '', x.product_name || '']);
-      return {sub: `${QC ? 'QC' : 'ฝ่ายผลิต'} ${A.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel · ช่องค้นหา JOB พิมพ์บางส่วนได้ เช่น 6910/3',
-        mainAll: {filter: true, head, rows, titleFn: R => `${QC ? '✅ QC' : '🖨️ ฝ่ายผลิต'} (${fmtN(R.length)} รายการ)`,
+      const rows = A.map(x => [{t: fmtD(x._d), n: x.logged_at || ''}, {t: hm(x.logged_at), n: x.logged_at || ''}, x.job_ticket, x.employee_name || '', ...(QC ? [] : [x.step || '']), x.status || '', x.qty === null || x.qty === undefined || x.qty === '' ? '' : +x.qty, x.note || '', srcL(x), (d => d ? {t: d, c: 'stock-neg kp-b'} : '')(dup(x)), x.machine || '', x.customer_name || '', x.product_name || '']);
+      rows.forEach((r, i) => r._log = {...A[i], table: QC ? 'qc_logs' : 'production_logs'});
+      return {sub: `${QC ? 'QC' : 'ฝ่ายผลิต'} ${A.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel · ช่องค้นหา JOB พิมพ์บางส่วนได้ เช่น 6910/3' + (Office.viewer ? '' : ' · <b>คลิกแถวเพื่อแก้ยอด/ลบรายการ</b> (แทนการแก้ในชีต DATA_ผลิต / DATA_QC)') + ' · "ตรวจซ้ำ" = JOB/สถานะ/จำนวนเดียวกันมาจากทั้ง Excel และสแกน หรือซ้ำกันภายใน 1 ชม.',
+        mainAll: {filter: true, editable: !Office.viewer, head, rows, titleFn: R => `${QC ? '✅ QC' : '🖨️ ฝ่ายผลิต'} (${fmtN(R.length)} รายการ)`,
           totalFn: R => head.map((h, k) => k === 0 ? 'รวม' : k === qi ? R.reduce((a, r) => a + (+this.craw(r[k]) || 0), 0) : '')}};
     }
     const src = [...P, ...Q].filter(x => x.step === o.step), col = x => (o.dim === 'machine' ? x.machine : x.employee_name) || '(ไม่ระบุ)';
