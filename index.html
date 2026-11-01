@@ -616,6 +616,8 @@ table.trk.xl tr.is-closed td{color:#4b5563}
 .md-due{font-size:11.5px;color:#475569;margin-left:auto}.md-due.late{color:#b42318;font-weight:700}
 .md-c{font-size:12px;color:#475569;margin-top:3px}.md-p{font-size:12.5px;line-height:1.35;margin-top:1px}
 .md-bar{height:7px;background:#e5e7eb;border-radius:9px;margin:7px 0 3px;overflow:hidden}.md-bar i{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}
+.md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
+.st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
 .md-empty{color:#94a3b8;font-size:13px;text-align:center;padding:14px 0}
 tr.md-subt td{background:#f1f5f9;font-size:12px} tr.md-tot td{background:#e2e8f0}
@@ -3327,13 +3329,15 @@ const MachineDash = {
     const by = m => pick.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m);
     if (pick.some(r => !r.machine)) machines.push('(ไม่ระบุเครื่อง)');
     const pct = r => { const o = +r.order_qty || 0, d = Math.max(+r.prod_qty || 0, +r.print_qty || 0); return o ? Math.min(100, Math.round(d / o * 100)) : 0; };
+    const stc = v => /ปั๊มเปล่า/.test(v || '') ? 'st-ok2' : /กำลัง|ทยอย/.test(v || '') ? 'st-run' : /ยังไม่เริ่ม/.test(v || '') ? 'st-no' : 'st-ok';
+    const bar = p => p >= 100 ? 'b100' : p >= 75 ? 'b75' : p >= 50 ? 'b50' : p >= 25 ? 'b25' : 'b0';
     const card = m => { const js = by(m), run = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isRun(r)).length, q = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isQueue(r)).length;
       return `<div class="md-card ${run ? 'busy' : 'idle'}"><div class="md-h"><b>${esc(m)}</b><span class="md-badge">${run ? `🟢 กำลังทำ ${run} งาน` : '⚪ ว่าง'}</span></div>
         <div class="md-sub">คิวรอผลิต ${q} งาน · รวมยอดสั่งที่แสดง ${fmtN(js.reduce((a, r) => a + (+r.order_qty || 0), 0))} ดวง</div>
         ${js.length ? js.map(r => `<div class="md-job" data-open="${esc(r.job_ticket)}">
-          <div class="md-j1"><a href="#" class="jl">${esc(r.job_ticket)}</a><span class="st ${/กำลัง|ทยอย/.test(r.print_status) ? 'st-run' : /ยังไม่เริ่ม/.test(r.print_status) ? 'st-no' : 'st-ok'}">${esc(r.print_status)}</span><span class="md-due ${r.due_date && r.due_date < todayISO() ? 'late' : ''}" data-due="${esc(r.job_ticket)}" title="แตะเพื่อแก้กำหนดส่ง">${r.due_date ? 'ส่ง ' + fmtD(r.due_date) : 'ไม่ระบุวันส่ง'} ✏️</span></div>
+          <div class="md-j1"><a href="#" class="jl">${esc(r.job_ticket)}</a><span class="st ${stc(r.print_status)}">${esc(r.print_status)}</span><span class="md-due ${r.due_date && r.due_date < todayISO() ? 'late' : ''}" data-due="${esc(r.job_ticket)}" title="แตะเพื่อแก้กำหนดส่ง">${r.due_date ? 'ส่ง ' + fmtD(r.due_date) : 'ไม่ระบุวันส่ง'} ✏️</span></div>
           <div class="md-c">${esc(r.customer_name || '')}</div><div class="md-p">${esc(r.product_name || '')}</div>
-          <div class="md-bar"><i style="width:${pct(r)}%"></i></div>
+          <div class="md-bar"><i class="${bar(pct(r))}" style="width:${pct(r)}%"></i></div>
           <div class="md-n"><span>ผลิตแล้ว ${fmtN(Math.max(+r.prod_qty || 0, +r.print_qty || 0))} / ${fmtN(r.order_qty)} (${pct(r)}%)</span><span>${r.printer && r.printer !== '-' ? '👷 ' + esc(r.printer) : ''}${r.last_prod_at ? ' · ' + fmtT(r.last_prod_at) : ''}</span></div></div>`).join('')
           : `<div class="md-empty">— ไม่มีงาน${this.mode === 'run' ? 'ที่กำลังทำ' : this.mode === 'queue' ? 'รอคิว' : ''} —</div>`}</div>`; };
     const tot = pick.reduce((a, r) => a + (+r.order_qty || 0), 0);
@@ -3341,7 +3345,7 @@ const MachineDash = {
     $('#mdBody').innerHTML = `<div class="md-grid">${machines.map(card).join('')}</div>
       <h4 style="margin:18px 0 6px;color:#1f3a68">ตารางสรุป (แบบ DASHBOARD_LOAD)</h4>
       <div class="card tbl-wrap"><table class="trk"><thead><tr><th>เครื่องพิมพ์</th><th>JOB TICKET</th><th>ชื่อลูกค้า</th><th>ชื่อสินค้าที่ผลิต</th><th>สถานะผลิต</th><th class="num">จำนวนที่สั่งผลิต (ดวง)</th></tr></thead><tbody>
-      ${machines.filter(m => by(m).length).map(m => by(m).map((r, i) => `<tr><td>${i ? '' : `<b>${esc(m)}</b>`}</td><td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td class="num">${fmtN(r.order_qty)}</td></tr>`).join('')
+      ${machines.filter(m => by(m).length).map(m => by(m).map((r, i) => `<tr><td>${i ? '' : `<b>${esc(m)}</b>`}</td><td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td><td>${r.print_status ? `<span class="st ${stc(r.print_status)}">${esc(r.print_status)}</span>` : ''}</td><td class="num">${fmtN(r.order_qty)}</td></tr>`).join('')
         + (by(m).length > 1 ? `<tr class="md-subt"><td></td><td colspan="4">รวม ${esc(m)}</td><td class="num"><b>${fmtN(by(m).reduce((a, r) => a + (+r.order_qty || 0), 0))}</b></td></tr>` : '')).join('')}
       <tr class="md-tot"><td colspan="5"><b>ผลรวมทั้งหมด</b></td><td class="num"><b>${fmtN(tot)}</b></td></tr></tbody></table></div>`;
     $('#mdBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { if (e.target.closest('[data-due]')) return; e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
