@@ -2879,7 +2879,7 @@ const QSPage = {
       ${rows.map(x => `<tr><td><input type="checkbox" class="dlc" data-id="${x.id}"></td><td>${fmtD(x.delivery_date)}</td><td><input class="ed per-ed ${x.period ? '' : 'miss'}" data-per="${x.id}" list="qsPerL" value="${esc(x.period || '')}" placeholder="ระบุ"></td><td><b>${esc(x.product_code || '')}</b></td><td class="pn">${esc(x.product_name || '')}</td><td>${esc(x.do_no || '')}</td><td class="num"><b>${fmtN(x.qty)}</b></td><td>${esc((x.unit || '').trim())}</td>
         <td>${esc(x.po_no || '')}</td><td>${x.si_no ? 'SI01/' + esc(x.si_no) : ''}</td><td>${x.si_date ? fmtD(x.si_date) : ''}</td>
         <td>${x.si_no ? '<span class="so-st ok">✅ เปิดใบกำกับแล้ว</span>' : '<span class="so-st wait">⚠️ ค้างใบกำกับ</span>'}</td><td class="so-rm">${esc(x.note || '')}</td>
-        <td style="white-space:nowrap"><button class="lnk" data-e="${x.id}">แก้ไข</button>${x.source === 'csv' ? '' : ` · <button class="lnk" data-d="${x.id}" style="color:var(--bad)">ลบ</button>`}</td></tr>`).join('') || '<tr><td colspan="14" class="wt-info">ไม่มีรายการ</td></tr>'}</tbody></table></div><datalist id="qsPerL">${this.periodChoices().map(p => `<option value="${p}">`).join('')}</datalist>
+        <td style="white-space:nowrap"><button class="lnk" data-e="${x.id}">แก้ไข</button> · <button class="lnk" data-d="${x.id}" data-csv="${x.source === 'csv' ? 1 : ''}" style="color:var(--bad)">ลบ</button></td></tr>`).join('') || '<tr><td colspan="14" class="wt-info">ไม่มีรายการ</td></tr>'}</tbody></table></div><datalist id="qsPerL">${this.periodChoices().map(p => `<option value="${p}">`).join('')}</datalist>
       <div class="hint" style="margin-top:6px">นำเข้า PREFLI02.CSV ได้ทั้งไฟล์ (ทุกลูกค้า) · รายการ Temp DO ที่ยังไม่มีใบกำกับ จะถูกจับคู่ให้เองเมื่อเจอใบกำกับที่ PO + รหัสสินค้า + จำนวนตรงกัน · นำเข้าซ้ำได้ไม่ซ้ำ</div>`;
     $('#dlPer')?.addEventListener('change', e => { this.dper = e.target.value; this.drawDl(onlyUnbilled); });
     const okP = v => /^\d{2}-\d{2}$/.test(v);
@@ -2897,7 +2897,7 @@ const QSPage = {
     $('#dlImp').onclick = () => $('#dlFile').click();
     $('#dlFile').onchange = e => { const f = e.target.files[0]; if (f) this.importDl(f); e.target.value = ''; };
     $('#qsBody').querySelectorAll('[data-e]').forEach(b => b.onclick = () => this.editDl(this.D.dl.find(x => x.id === +b.dataset.e)));
-    $('#qsBody').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { if (!(await Office.confirm('ลบรายการส่งของนี้?'))) return; await API.dlvDelete(+b.dataset.d); this.page(); });
+    $('#qsBody').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { if (!(await Office.confirm(b.dataset.csv ? 'ลบรายการส่งของนี้?\n\nรายการนี้มาจากไฟล์ PREFLI02 (Autoflight) — ถ้านำเข้าไฟล์ที่มีใบกำกับนี้อีก รายการจะกลับมาใหม่\nถ้าใบกำกับถูกยกเลิกใน Autoflight แล้ว ลบได้เลย' : 'ลบรายการส่งของนี้?'))) return; await API.dlvDelete(+b.dataset.d); this.page(); });
   },
   editDl(x){ const C = this.cfg;
     const openPo = [...new Set(this.D.fc.filter(f => f.po_no && !f.closed).map(f => f.po_no.trim()))];
