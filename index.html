@@ -3971,7 +3971,7 @@ const Kpi = {
   // รายงานการจัดส่งแยกตาม PO: หัว PO (ยอด PO / ส่งในช่วง / ส่งสะสม / คงค้าง / สถานะ) + รายการส่งแต่ละครั้ง
   async shipPo(o, force, D, cards, note, docOf, unitOf){
     const S = await ShipPage.load(force), byId = new Map();
-    S.lines.forEach(L => L.dl.forEach(d => byId.set(d.id, L)));
+    const obj = new Map(); S.lines.forEach(L => L.dl.forEach(d => { byId.set(d.id, L); obj.set(d.id, d); })); D = D.map(d => obj.get(d.id) || d);
     const groups = new Map();
     D.forEach(d => { const L = byId.get(d.id), k = L ? L.key : 'x|' + ShipPage.key(d.po_no || '(ไม่ระบุ PO)', d.product_code);
       if (!groups.has(k)) groups.set(k, L ? {L, po: L.po_no, cu: L.customer_name, code: L.product_code, name: L.product_name, unit: L.unit, qty: L.qty, all: L.dl, st: ShipPage.ST[L.status][0], list: []}
@@ -3983,13 +3983,13 @@ const Kpi = {
     const head = [{l: 'เลขที่ PO'}, {l: 'ลูกค้า', cls: 'cu'}, {l: 'รหัสสินค้า'}, {l: 'ชื่อสินค้า', cls: 'pn'}, {l: 'ยอด PO', num: 1}, {l: 'วันที่ส่ง'}, {l: 'ใบกำกับ / ใบส่งของ'}, {l: 'จำนวนส่ง', num: 1}, {l: 'ส่งสะสม', num: 1}, {l: 'คงค้าง', num: 1}, {l: 'สถานะ'}];
     const rows = [], rowCls = [], N = x => +x || 0, byDate = (a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date)) || (a.id - b.id);
     G.forEach(g => {
-      const inR = g.list.reduce((a, d) => a + N(d.qty), 0), all = g.all ? [...g.all].sort(byDate) : null, cumAll = all ? all.reduce((a, d) => a + N(d.qty), 0) : inR;
+      const E = d => ShipPage.eq(d), inR = g.list.reduce((a, d) => a + E(d), 0), all = g.all ? [...g.all].sort(byDate) : null, cumAll = all ? all.reduce((a, d) => a + E(d), 0) : inR;
       const remain = g.qty === null ? '' : Math.max(0, g.qty - Math.max(cumAll, g.L?.shipped || 0));
       const u = (g.unit || '').trim(); rows.push([{t: g.po, c: 'sh-pocell'}, g.cu || '', g.code || '', g.name || '', g.qty === null ? '–' : g.qty, '', `ส่ง ${g.list.length} ครั้ง`, inR, cumAll, remain, g.st]); rowCls.push('kp-poh');
-      const cum = new Map(); let c = 0; (all || [...g.list].sort(byDate)).forEach(d => { c += N(d.qty); cum.set(d.id, c); });
-      [...g.list].sort(byDate).forEach(d => { rows.push(['', '', '', '', '', {t: fmtD(d.delivery_date), n: d.delivery_date}, docOf(d) || (d.source === 'manual' ? 'ยังไม่มีเลขที่' : ''), N(d.qty), cum.get(d.id), g.qty === null ? '' : Math.max(0, g.qty - cum.get(d.id)), (d.unit || u) && unitOf(d) !== 'ดวง' ? (d.unit || u).trim() : '']); rowCls.push('kp-pod'); });
+      const cum = new Map(); let c = 0; (all || [...g.list].sort(byDate)).forEach(d => { c += E(d); cum.set(d.id, c); });
+      [...g.list].sort(byDate).forEach(d => { rows.push(['', '', '', '', '', {t: fmtD(d.delivery_date), n: d.delivery_date}, docOf(d) || (d.source === 'manual' ? 'ยังไม่มีเลขที่' : ''), E(d), cum.get(d.id), g.qty === null ? '' : Math.max(0, g.qty - cum.get(d.id)), E(d) !== +d.qty ? `บิล ${fmtN(d.qty)} ${(d.unit || '').trim()}` : (d.unit || u) && unitOf(d) !== 'ดวง' ? (d.unit || u).trim() : '']); rowCls.push('kp-pod'); });
     });
-    const tq = G.reduce((a, g) => a + g.list.reduce((x, d) => x + N(d.qty), 0), 0), FL = G.flatMap(g => g.list);
+    const tq = G.reduce((a, g) => a + g.list.reduce((x, d) => x + ShipPage.eq(d), 0), 0), FL = G.flatMap(g => g.list);
     const dots = FL.filter(d => unitOf(d) === 'ดวง').reduce((a, d) => a + N(d.qty), 0), oth = new Map(); FL.filter(d => unitOf(d) !== 'ดวง').forEach(d => oth.set(unitOf(d), (oth.get(unitOf(d)) || 0) + N(d.qty)));
     cards = [['PO / สินค้า', `${fmtN(G.length)}<em> รายการ</em>`, `${fmtN(new Set(G.map(g => g.po)).size)} เลขที่ PO`, '#0f766e'], ['ส่งของ', `${fmtN(FL.length)}<em> ครั้ง</em>`, `${fmtN(new Set(FL.map(docOf).filter(Boolean)).size)} ใบกำกับ / ใบส่งของ`, '#2563eb'],
       ['ส่งครบแล้ว', `${fmtN(G.filter(g => g.L && ['toclose', 'closed'].includes(g.L.status)).length)}<em> รายการ</em>`, `ยังค้างส่ง ${fmtN(G.filter(g => g.L && !['toclose', 'closed'].includes(g.L.status)).length)} รายการ`, '#7c3aed'],
@@ -4369,6 +4369,11 @@ const ShipPage = {
   n: s => String(s || '').toLowerCase().replace(/[\s ​]+/g, ''),
   key(po, code){ return this.n(po) + '|' + this.n(code); },
   wkey(w){ return this.key((w.po_no || '').trim() || 'JOB ' + w.job_ticket, w.product_code); },
+  // จำนวนที่ใช้ตัดยอด PO: ship_qty (เทียบเป็นหน่วยในใบสั่ง เช่น ม้วน → ดวง) ถ้าไม่ได้ระบุ ใช้จำนวนในใบกำกับ
+  eq(d){ return d._sq ?? (d.ship_qty !== null && d.ship_qty !== undefined && d.ship_qty !== '' ? +d.ship_qty : +d.qty || 0); },
+  isPcs(u){ u = String(u || '').trim(); return !u || /ดวง|pcs|ชิ้น|แผ่น/i.test(u); },
+  perRoll(name){ const m = String(name || '').replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(?:ดวง|pcs\.?|ชิ้น|แผ่น|sheets?)\s*\/\s*(?:ม้วน|roll|rl|ห่อ|pack|แพ็ค|กล่อง|box)/i); return m ? +m[1] : null; },
+  qtyTxt(d){ const u = String(d.unit || '').trim(); return d.ship_qty != null && d.ship_qty !== '' || d._sq != null ? `${fmtN(d.qty)} ${u} <small class="hint">(= ${fmtN(this.eq(d))}${d._sq != null ? ' อัตโนมัติ' : ''})</small>` : fmtN(d.qty); },
   // รหัสสินค้าใกล้เคียง (ใบกำกับกับใบสั่งผลิตสะกดต่างกันเล็กน้อย)
   codeSim(a, b){ a = this.n(a); b = this.n(b); if (!a || !b) return false; if (a.startsWith(b) || b.startsWith(a)) return true;
     const sz = x => (x.match(/\d+(\.\d+)?x\d+(\.\d+)?/) || [''])[0], seg = x => x.split('-')[0];
@@ -4423,11 +4428,14 @@ const ShipPage = {
         const c = (byPo.get(this.n(d.po_no)) || []).filter(x => this.codeSim(x.product_code, d.product_code));
         L = c.length === 1 ? c[0] : c.find(x => +x.qty === +d.qty) || null; if (L) d._auto = true; }
       if (L) L.dl.push(d); else if ((d.delivery_date || '9999') >= C.start) orphan.push(d); });
+    // เทียบหน่วยอัตโนมัติ: สินค้า+หน่วยเดียวกันที่เคยระบุ "จำนวนตัดยอด" ไว้แล้ว → ใช้อัตราเดิม
+    const ratio = new Map(); D.dl.filter(d => d.ship_qty != null && d.ship_qty !== '' && +d.qty > 0 && !this.isPcs(d.unit)).forEach(d => ratio.set(this.n(d.product_code) + '|' + this.n(d.unit), +d.ship_qty / +d.qty));
+    D.dl.forEach(d => { delete d._sq; if ((d.ship_qty == null || d.ship_qty === '') && !this.isPcs(d.unit)) { const r = ratio.get(this.n(d.product_code) + '|' + this.n(d.unit)); if (r) d._sq = Math.round(+d.qty * r); } });
     // สต็อกตามรหัสสินค้า
     const stock = new Map(); D.prog.forEach(r => { const w = D.wo.find(x => x.job_ticket === r.job_ticket); if (!w?.product_code || w.cancelled) return; const k = this.n(w.product_code); stock.set(k, (stock.get(k) || 0) + N(r.stock_qty)); });
     const closed = new Map((D.close || []).map(c => [c.key, c]));
     lines.forEach(L => {
-      L.shipped = Math.max(L.dl.reduce((a, d) => a + N(d.qty), 0), L.af_shipped); L.remain = Math.max(0, L.qty - L.shipped);
+      L.shipped = Math.max(L.dl.reduce((a, d) => a + this.eq(d), 0), L.af_shipped); L.remain = Math.max(0, L.qty - L.shipped);
       L.stock = Math.max(0, stock.get(this.n(L.product_code)) || 0); L.close = closed.get(L.key) || null;
       L.docs = L.dl.map(d => d.si_no ? 'SI01/' + d.si_no : d.do_no).filter(Boolean);
       L.missingDoc = L.dl.filter(d => !d.si_no && !d.do_no).length;
@@ -4547,7 +4555,7 @@ const ShipPage = {
       <h4 class="kp-h">🖨️ การผลิต</h4>${L.jobs.length ? `<div class="tbl-wrap"><table class="trk"><thead><tr><th>JOB</th><th class="num">ยอดสั่งผลิต</th><th>พิมพ์</th><th>QC</th><th class="num">พร้อมส่ง</th><th class="num">สต็อก JOB นี้</th></tr></thead><tbody>
         ${L.jobs.map(j => `<tr><td><b>${esc(j.job_ticket)}</b>${j.closed ? ' <small class="hint">(ปิดจ๊อบ)</small>' : ''}</td><td class="num">${fmtN(j.order_qty)}</td><td>${esc(j.print_status || '')}</td><td>${esc(j.qc_status || '')}</td><td class="num">${fmtN(j.ready_qty || 0)}</td><td class="num">${fmtN(j.stock_qty || 0)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="hint">ยังไม่มีใบสั่งผลิตที่ผูกกับ PO นี้</div>'}
       <h4 class="kp-h">🚚 การส่งของ</h4>${L.dl.length ? `<div class="tbl-wrap"><table class="trk"><thead><tr><th>วันที่ส่ง</th><th class="num">จำนวน</th><th>ใบส่งของ</th><th>ใบกำกับ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
-        ${L.dl.sort((a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date))).map((d, i) => `<tr><td>${fmtD(d.delivery_date)}</td><td class="num">${fmtN(d.qty)}</td><td>${esc(d.do_no || '')}</td><td>${d.si_no ? 'SI01/' + esc(d.si_no) : '<span class="hint">รอใบกำกับ</span>'}</td><td>${esc(d.note || '')}${d.ship_key && d.ship_key !== '__keep' ? ' <small class="hint">🔗 จับคู่เอง</small>' : d._auto ? ` <small class="hint">🔗 รหัสในใบกำกับ ${esc(d.product_code)}</small>` : ''}</td><td>${RO || L.close ? '' : `<button class="btn ghost sm" data-de="${i}">แก้ไข</button>${d.ship_key && d.ship_key !== '__keep' ? ` <button class="btn ghost sm" data-unm="${i}" title="ยกเลิกการจับคู่">✖</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
+        ${L.dl.sort((a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date))).map((d, i) => `<tr><td>${fmtD(d.delivery_date)}</td><td class="num">${this.qtyTxt(d)}</td><td>${esc(d.do_no || '')}</td><td>${d.si_no ? 'SI01/' + esc(d.si_no) : '<span class="hint">รอใบกำกับ</span>'}</td><td>${esc(d.note || '')}${d.ship_key && d.ship_key !== '__keep' ? ' <small class="hint">🔗 จับคู่เอง</small>' : d._auto ? ` <small class="hint">🔗 รหัสในใบกำกับ ${esc(d.product_code)}</small>` : ''}</td><td>${RO || L.close ? '' : `<button class="btn ghost sm" data-de="${i}">แก้ไข</button>${d.ship_key && d.ship_key !== '__keep' ? ` <button class="btn ghost sm" data-unm="${i}" title="ยกเลิกการจับคู่">✖</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
         : `<div class="hint">ยังไม่มีการส่ง${L.af_shipped ? ` (Autoflight แจ้งส่งแล้ว ${fmtN(L.af_shipped)} — นำเข้า PREFLI02.CSV เพื่อดูเลขใบกำกับ)` : ''}</div>`}
       ${L.close ? `<div class="pf-bar" style="margin-top:8px">🔒 ปิดงานเมื่อ ${fmtT(L.close.closed_at)} โดย ${esc(L.close.closed_by || '')}${L.close.doc_nos ? ' · ' + esc(L.close.doc_nos) : ''}${L.close.note ? ' · ' + esc(L.close.note) : ''}</div>` : ''}
       <div class="acts">${RO ? '' : L.close ? '<button class="btn ghost" id="sd_re">↩ เปิดงานอีกครั้ง</button>' : `<button class="btn ghost" id="sd_add">+ บันทึกส่ง</button><button class="btn ${canClose ? 'ok' : 'ghost'}" id="sd_close" ${canClose ? '' : 'disabled'} title="${L.remain ? 'ยังส่งไม่ครบยอด PO' : L.missingDoc ? 'ใส่เลขที่ใบส่งของ/ใบกำกับให้ครบก่อน' : ''}">🔒 ปิดงาน</button>`}<button class="btn" id="sd_x">ปิด</button></div>
@@ -4590,29 +4598,36 @@ const ShipPage = {
         <label>ชื่อสินค้า</label><input id="sd_pn" class="field" value="${esc(r.product_name || '')}" ${L ? 'readonly' : ''}>
         ${jobs.length ? `<label>JOB</label><select id="sd_j" class="field" style="width:auto"><option value="">— ไม่ระบุ —</option>${jobs.map(j => `<option ${j.job_ticket === r.job_ticket ? 'selected' : ''}>${esc(j.job_ticket)}</option>`).join('')}</select>` : ''}
         <label>วันที่ส่ง</label><input id="sd_d" class="field" value="${isoToTh(r.delivery_date || todayISO())}" placeholder="วว/ดด/ปปปป" style="max-width:180px">
-        <label>จำนวนที่ส่ง</label><div><input id="sd_q" class="field" inputmode="decimal" value="${r.qty ?? ''}" style="max-width:180px"> <small>${esc(r.unit || '')}${L ? ` · ค้างส่ง ${fmtN(L.remain)}` : ''}</small></div>
+        <label>จำนวนที่ส่ง</label><div><input id="sd_q" class="field" inputmode="decimal" value="${r.qty ?? ''}" style="max-width:180px" ${x?.source === 'csv' ? 'readonly title="จำนวนตามใบกำกับใน Autoflight"' : ''}> <small>${esc(r.unit || '')}${L ? ` · ค้างส่ง ${fmtN(L.remain)}` : ''}</small></div>
+        <label>จำนวนตัดยอด PO</label><div><input id="sd_sq" class="field" inputmode="decimal" value="${r.ship_qty ?? ''}" placeholder="${r._sq != null ? fmtN(r._sq) + ' (อัตโนมัติ)' : 'เว้นว่าง = เท่ากับจำนวนที่ส่ง'}" style="max-width:180px"> <small>${esc(L?.unit && !this.isPcs(L.unit) ? L.unit : 'ดวง')}</small>
+          <span id="sd_sg"></span><div class="hint" style="margin-top:3px">ใช้เมื่อเปิดบิลคนละหน่วยกับใบสั่งผลิต เช่น บิล 100 ม้วน แต่ PO สั่งเป็นดวง → ใส่ 50,000</div></div>
         <label>เลขที่ใบส่งของ</label><input id="sd_do" class="field" value="${esc(r.do_no || '')}" placeholder="เช่น FR003/69100012 (ใบส่งของชั่วคราว)">
         <label>เลขที่ใบกำกับ</label><input id="sd_si" class="field" value="${esc(r.si_no || '')}" placeholder="เช่น 69100055 — ใส่ทีหลังได้">
         <label>หมายเหตุ</label><input id="sd_n" class="field" value="${esc(r.note || '')}">
       </div>
       <div class="acts">${x && x.source !== 'csv' ? '<button class="btn ghost" id="sd_del" style="color:var(--bad);margin-right:auto">🗑 ลบ</button>' : ''}<button class="btn ghost" id="sd_c">ยกเลิก</button><button class="btn" id="sd_ok">💾 บันทึก</button></div>
-      ${x?.source === 'csv' ? '<div class="hint">รายการนี้นำเข้าจาก Autoflight — แก้ได้เฉพาะ PO / ใบส่งของ / หมายเหตุ</div>' : ''}`;
-    const d = $('#dlg'); if (!d.open) d.showModal(); numInput($('#sd_q'));
+      ${x?.source === 'csv' ? '<div class="hint">รายการนี้นำเข้าจาก Autoflight — แก้ได้เฉพาะ PO / JOB / จำนวนตัดยอด PO / ใบส่งของ / หมายเหตุ</div>' : ''}`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); numInput($('#sd_q')); numInput($('#sd_sq'));
+    const sug = () => { const per = this.perRoll(r.product_name || L?.product_name), q = +String($('#sd_q').value).replace(/,/g, '');
+      $('#sd_sg').innerHTML = per && q && !this.isPcs(r.unit) ? ` <button class="btn ghost sm" id="sd_sgb" type="button">${fmtN(q)} × ${fmtN(per)} ดวง/ม้วน = ${fmtN(q * per)}</button>` : '';
+      $('#sd_sgb')?.addEventListener('click', () => { $('#sd_sq').value = fmtN(q * per); }); };
+    sug(); $('#sd_q').addEventListener('input', sug);
     $('#sd_c').onclick = () => L ? this.detail(L) : d.close();
     $('#sd_del')?.addEventListener('click', async () => { if (!(await Office.confirm('ลบรายการส่งของนี้?'))) return this.editDl(x, L); try { await API.dlvDelete(x.id); toast('ลบแล้ว'); this.page(true); } catch (e) { toast(e.message); } });
     $('#sd_ok').onclick = async () => {
       const di = thToIso($('#sd_d').value.trim()); if (!di) return toast('วันที่ไม่ถูกต้อง');
       const qty = +String($('#sd_q').value).replace(/,/g, ''); if (!(qty > 0)) return toast('ใส่จำนวนที่ส่ง');
-      const lim = L ? L.remain + (x ? +x.qty || 0 : 0) : null;
-      if (lim !== null && qty > lim && !(await Office.confirm(`จำนวนที่ส่ง ${fmtN(qty)} มากกว่ายอดค้างส่ง ${fmtN(lim)}\nส่งเกิน ${fmtN(qty - lim)} — ถูกต้องไหม?`))) return this.editDl(x, L);
+      const sqv = String($('#sd_sq').value).replace(/,/g, '').trim(), sq = sqv === '' ? null : +sqv; if (sq !== null && !(sq >= 0)) return toast('จำนวนตัดยอดไม่ถูกต้อง');
+      const lim = L ? L.remain + (x ? this.eq(x) : 0) : null, eff = sq ?? qty;
+      if (lim !== null && eff > lim && !(await Office.confirm(`จำนวนที่ส่ง ${fmtN(eff)} มากกว่ายอดค้างส่ง ${fmtN(lim)}\nส่งเกิน ${fmtN(eff - lim)} — ถูกต้องไหม?`))) return this.editDl(x, L);
       const code = $('#sd_pc').value.trim(); if (!code) return toast('ใส่รหัสสินค้า');
       const si = $('#sd_si').value.trim().split('/').pop().trim(), doNo = $('#sd_do').value.trim();
       if (!si && !doNo && !(await Office.confirm('ยังไม่ได้ใส่เลขที่ใบส่งของ / ใบกำกับ\nบันทึกไว้ก่อนได้ แต่จะปิดงานไม่ได้จนกว่าจะใส่ — บันทึกต่อไหม?'))) return this.editDl(x, L);
       if (si && this.D.dl.some(o => o.id !== x?.id && o.si_no === si && this.n(o.product_code) === this.n(code))) return toast(`มีใบกำกับ SI01/${si} ของสินค้านี้ในระบบแล้ว`);
       const custName = $('#sd_cu').value.trim(), cc = r.customer_code || this.D.lines.find(l => l.customer_name === custName && l.customer_code)?.customer_code || null;
-      const row = x?.source === 'csv' ? {po_no: $('#sd_po').value.trim() || null, do_no: doNo || null, note: $('#sd_n').value.trim() || null}
+      const row = x?.source === 'csv' ? {po_no: $('#sd_po').value.trim() || null, do_no: doNo || null, note: $('#sd_n').value.trim() || null, ship_qty: sq, ...($('#sd_j') ? {job_ticket: $('#sd_j').value || null} : {})}
         : {delivery_date: di, customer_name: custName || null, customer_code: cc, po_no: $('#sd_po').value.trim() || null, product_code: code, product_name: $('#sd_pn').value.trim() || null, unit: r.unit || null,
-           qty, do_no: doNo || null, si_no: si || null, si_date: si ? (x?.si_date || di) : null, note: $('#sd_n').value.trim() || null, job_ticket: $('#sd_j')?.value || null};
+           qty, ship_qty: sq, do_no: doNo || null, si_no: si || null, si_date: si ? (x?.si_date || di) : null, note: $('#sd_n').value.trim() || null, job_ticket: $('#sd_j')?.value || null};
       if (!x) row.created_by = Office.user?.email || '';
       $('#sd_ok').disabled = true;
       try { await API.dlvSave(row, x?.id); toast('บันทึกแล้ว'); await this.load(true); this.draw();
