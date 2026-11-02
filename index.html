@@ -1056,6 +1056,8 @@ const Demo = {
   async viewerAdd(email, note, role){ const d = this.db(); d.viewers ||= []; if (d.viewers.some(x => x.email === email.toLowerCase())) throw new Error('duplicate key'); d.viewers.push({email: email.toLowerCase(), note, role: role || 'viewer', created_at: new Date().toISOString()}); this.save(); },
   async viewerDel(email){ const d = this.db(); d.viewers = (d.viewers || []).filter(x => x.email !== email); this.save(); },
   async woValueCounts(col){ const m = {}; this.db().wo.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
+  async woCount(m){ return this.db().wo.filter(x => Object.entries(m).every(([k, v]) => x[k] === v)).length; },
+  async woUpdate(m, patch){ let n = 0; this.db().wo.forEach(x => { if (Object.entries(m).every(([k, v]) => x[k] === v)) { Object.assign(x, patch); n++; } }); this.save(); return n; },
   async woRename(col, olds, nv){ let n = 0; this.db().wo.forEach(x => { if (olds.includes(x[col])) { x[col] = nv; n++; } }); this.save(); return n; },
   async lastJobFor(code){ return [...this.db().wo].filter(w => (w.product_code||'').trim() === (code||'').trim()).sort((a,b) => b.job_ticket.localeCompare(a.job_ticket))[0] || null; },
   async getWorkOrder(job){ return this.db().wo.find(w => w.job_ticket === job.trim()) || null; },
@@ -1156,6 +1158,8 @@ const Live = {
   async viewerDel(email){ this.chk(await this.sb.from('app_viewers').delete().eq('email', email)); },
   async woValueCounts(col){ const r = await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,' + col).order('job_ticket')), m = {};
     r.forEach(x => { const v = x[col]; if (v !== null && v !== undefined && String(v).trim() !== '') m[v] = (m[v] || 0) + 1; }); return m; },
+  async woCount(m){ let q = this.sb.from('work_orders').select('job_ticket', {count: 'exact', head: true}); Object.entries(m).forEach(([k, v]) => q = q.eq(k, v)); const r = await q; if (r.error) throw new Error(r.error.message); return r.count || 0; },
+  async woUpdate(m, patch){ let q = this.sb.from('work_orders').update(patch); Object.entries(m).forEach(([k, v]) => q = q.eq(k, v)); return this.chk(await q.select('job_ticket')).length; },
   async woRename(col, olds, nv){ const r = this.chk(await this.sb.from('work_orders').update({[col]: nv}).in(col, olds).select('job_ticket')); return r.length; },
   async nextJobTicket(){ return this.chk(await this.sb.rpc('next_job_ticket')); },
   async createWorkOrder(p, mode, base, pull){ return this.chk(await this.sb.rpc('create_work_order', {p, p_mode: mode, p_base: base || null, p_pull: !!pull})); },
@@ -2218,9 +2222,27 @@ const MasterPage = {
       const miss = M.cols.filter(([c,,op]) => op?.req && (o[c] === null)).map(x => x[1]);
       if (miss.length) return toast('กรุณากรอก: ' + miss.join(', '));
       if (!o.code) o.code = (this.t === 'customers' ? 'C-' : this.t === 'suppliers' ? 'S-' : 'X-') + Date.now().toString(36).toUpperCase();
-      try { await API.masterSave(this.t, M.key, o, isNew ? null : row[M.key]); WOForm.L = null; d.close(); toast('บันทึกแล้ว'); this.load(); }
-      catch (e) { toast(/duplicate|unique/i.test(e.message) ? 'รหัสนี้มีอยู่แล้ว' : 'บันทึกไม่ได้: ' + e.message); }
+      try { await API.masterSave(this.t, M.key, o, isNew ? null : row[M.key]); WOForm.L = null; d.close(); toast('บันทึกแล้ว'); }
+      catch (e) { return toast(/duplicate|unique/i.test(e.message) ? 'รหัสนี้มีอยู่แล้ว' : 'บันทึกไม่ได้: ' + e.message); }
+      if (!isNew) await this.syncWO(row, o);
+      this.load();
     };
+  },
+  // แก้ชื่อในฐานข้อมูล → ถามว่าจะเปลี่ยนในใบสั่งผลิตที่เปิดไปแล้วด้วยไหม
+  WO_MAP: {customers: [['short_name', 'customer_name', 'ชื่อลูกค้า']], suppliers: [['short_name', 'supplier', 'ซัพพลายเออร์']],
+    products: [['name', 'product_name', 'ชื่อสินค้า', 'product_code'], ['code', 'product_code', 'รหัสสินค้า']],
+    raw_materials: [['name', 'paper_name', 'ชื่อกระดาษ', 'paper_code'], ['code', 'paper_code', 'รหัสกระดาษ']]},
+  async syncWO(oldR, newR){
+    const map = this.WO_MAP[this.t]; if (!map) return; const ch = [];
+    try { for (const [mc, wc, label, byCode] of map) { const ov = oldR[mc], nv = newR[mc]; if (!ov || !nv || ov === nv) continue;
+        const m = {[wc]: ov}; if (byCode && oldR.code) m[byCode] = oldR.code;   // ชื่อสินค้า/กระดาษ: เฉพาะใบที่ใช้รหัสนี้
+        const n = await API.woCount(m); if (n) ch.push({m, patch: {[wc]: nv}, label, ov, nv, n}); }
+    } catch (e) { return toast('ตรวจใบสั่งผลิตเก่าไม่ได้: ' + e.message); }
+    if (!ch.length) return;
+    const msg = `มีใบสั่งผลิตที่เปิดไปแล้วใช้ข้อมูลเดิม\n\n${ch.map(c => `${c.label}: "${c.ov}"\n→ "${c.nv}"  (${fmtN(c.n)} ใบ)`).join('\n\n')}\n\nต้องการแก้ในใบสั่งผลิตเก่าด้วยไหม?`;
+    if (!(await Office.confirm(msg))) return toast('ใบสั่งผลิตเก่าคงข้อมูลเดิม');
+    let n = 0; try { for (const c of ch) n = Math.max(n, await API.woUpdate(c.m, c.patch)); toast(`แก้ในใบสั่งผลิตแล้ว ${fmtN(n)} ใบ`); Kpi._jobs = null; }
+    catch (e) { toast('แก้ในใบเก่าไม่ได้: ' + e.message); }
   },
   async drawSpec(){
     $('#mtBody').innerHTML = `<div class="spec-wrap">
