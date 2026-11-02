@@ -945,7 +945,8 @@ const Demo = {
   async fcDelete(id){ const d = this.qsDb(); d.fc = d.fc.filter(x => x.id !== id); this.save(); },
   async dlvSave(row, id){ const d = this.qsDb(); if (id) Object.assign(d.dlv.find(x => x.id === id), row); else d.dlv.push({id: ++d.seq, source: 'manual', ...row}); this.save(); },
   async dlvDelete(id){ const d = this.qsDb(); d.dlv = d.dlv.filter(x => x.id !== id); this.save(); },
-  async dlvImport(items){ const d = this.qsDb(), plan = DlvImport.plan(items, d.dlv);
+  async dlvImport(items){ const d = this.qsDb(), fm = DlvImport.fixNames(items, [...d.wo, ...d.fc, ...d.dlv.filter(e => e.source !== 'csv')]), plan = DlvImport.plan(items, d.dlv);
+    d.dlv.filter(e => e.source === 'csv' && DlvImport.cut(e.product_name)).forEach(e => { const f = fm[String(e.product_code || '').trim().toLowerCase()]; if (f && f.length > e.product_name.trim().length) e.product_name = f; });
     plan.ins.forEach(x => d.dlv.push({id: ++d.seq, ...x})); plan.upd.forEach(u => Object.assign(d.dlv.find(x => x.id === u.id), u.patch)); this.save(); return plan.stats; },
   soDb(){ const d = this.db(); d.so_h ||= []; d.so_i ||= []; return d; },
   async soList(){ const d = this.soDb(); return {heads: d.so_h, items: d.so_i}; },
@@ -1209,7 +1210,14 @@ const Live = {
     const sis = [...new Set(items.map(x => x.si_no))]; let ex = [];
     for (let k = 0; k < sis.length; k += 150) ex = ex.concat(this.chk(await this.sb.from('deliveries').select('*').in('si_no', sis.slice(k, k + 150))));
     ex = ex.concat(await this.pageAll(() => this.sb.from('deliveries').select('*').is('si_no', null)));
+    const codes = [...new Set(items.map(x => x.product_code).filter(Boolean))]; let known = [];
+    for (let k = 0; k < codes.length; k += 150) { const c = codes.slice(k, k + 150);
+      known = known.concat(this.chk(await this.sb.from('work_orders').select('product_code,product_name').in('product_code', c)), this.chk(await this.sb.from('fc_po').select('product_code,product_name').in('product_code', c))); }
+    const fm = DlvImport.fixNames(items, known.concat(ex.filter(e => e.source !== 'csv')));
     const plan = DlvImport.plan(items, ex), now = new Date().toISOString();
+    // แถวที่นำเข้าไว้ก่อนแล้วชื่อถูกตัด → แก้เป็นชื่อเต็ม
+    for (const e of ex.filter(e => e.source === 'csv' && DlvImport.cut(e.product_name))) { const f = fm[String(e.product_code || '').trim().toLowerCase()];
+      if (f && f.length > String(e.product_name).trim().length) this.chk(await this.sb.from('deliveries').update({product_name: f, updated_at: now}).eq('id', e.id)); }
     for (let k = 0; k < plan.ins.length; k += 500) this.chk(await this.sb.from('deliveries').insert(plan.ins.slice(k, k + 500)));
     for (const u of plan.upd) this.chk(await this.sb.from('deliveries').update({...u.patch, updated_at: now}).eq('id', u.id));
     return plan.stats; },
@@ -2639,6 +2647,10 @@ const DlvImport = {
     }
     return out;
   },
+  // Autoflight ตัดชื่อสินค้าในรายงานเหลือ 40 ตัวอักษร → เติมชื่อเต็มจากใบสั่งผลิต / PO ที่มีรหัสเดียวกัน
+  nameMap(list){ const m = {}; list.forEach(x => { const c = String(x.product_code || '').trim().toLowerCase(), n = String(x.product_name || '').trim(); if (c && n.length > (m[c] || '').length) m[c] = n; }); return m; },
+  cut(n){ return String(n || '').trim().length >= 38; },
+  fixNames(items, known){ const m = this.nameMap(known); items.forEach(x => { const f = m[String(x.product_code || '').trim().toLowerCase()]; if (f && this.cut(x.product_name) && f.length > String(x.product_name).trim().length) x.product_name = f; }); return m; },
   plan(items, ex){
     const ins = [], upd = [], used = new Set(), stats = {rows: items.length, ins: 0, upd: 0, matched: 0, codeDiff: [], customers: new Set(items.map(x => x.customer_code)).size};
     items.forEach(x => {
@@ -2674,6 +2686,7 @@ const QSPage = {
     // ใบกำกับที่นำเข้าจาก PREFLI02 นับเฉพาะ PO ที่ติดตามในหน้านี้ (PO อื่นของลูกค้าไม่เกี่ยวกับรายงาน Forecast)
     const poSet = new Set(raw.fc.filter(x => x.po_no).map(x => this.norm(x.po_no)));
     const fc = raw.fc.map(x => ({...x, product_code: canon(x.product_code)})), dl = raw.dl.filter(x => x.source !== 'csv' || poSet.has(this.norm(x.po_no))).map(x => ({...x, product_code: canon(x.product_code)})), pr = raw.pr.map(x => ({...x, product_code: canon(x.product_code)}));
+    { const fm = DlvImport.nameMap([...fc, ...pr, ...dl.filter(x => x.source !== 'csv')]); dl.forEach(x => { const f = fm[String(x.product_code || '').trim().toLowerCase()]; if (f && DlvImport.cut(x.product_name) && f.length > String(x.product_name).trim().length) x.product_name = f; }); }
     const startM = C.start_date ? C.start_date.slice(0, 7) : '0000-00';
     const jobMonth = j => { const m = String(j).match(/^(\d{2})(\d{2})\//); return m ? `${+m[1] + 1957}-${m[2]}` : '9999-99'; };
     const prod = {}; pr.forEach(r => { if (r.cancelled || !r.product_code || jobMonth(r.job_ticket) < startM) return; const k = r.product_code.trim(); (prod[k] ||= {qty: 0, jobs: []}); prod[k].qty += +r.eff_qc || 0; if (+r.eff_qc) prod[k].jobs.push(r.job_ticket); });
