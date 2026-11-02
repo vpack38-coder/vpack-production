@@ -621,6 +621,7 @@ table.trk.xl tr.is-closed td{color:#4b5563}
 .md-c{font-size:12px;color:#475569;margin-top:3px}.md-p{font-size:12.5px;line-height:1.35;margin-top:1px}
 .md-bar{height:7px;background:#e5e7eb;border-radius:9px;margin:7px 0 3px;overflow:hidden}.md-bar i{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}
 table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top:2px solid #94a3b8} table.kp-t tr.kp-pod td:nth-child(-n+5){background:#fff !important}
+#kpQ.kp-q{border:2px solid #60a5fa;background:#f0f7ff}#kpQ.kp-q:focus{border-color:#2563eb;background:#fff}#kpQ.kp-q:not(:placeholder-shown){border-color:#f59e0b;background:#fffbeb}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
@@ -3722,7 +3723,7 @@ const Kpi = {
         ${V.range ? `<select id="kpPre" class="field kp-s">${PRE.map(([k, l]) => `<option value="${k}" ${k === o.pre ? 'selected' : ''}>📅 ${l}</option>`).join('')}</select>
           <input id="kpFrom" class="field kp-d" value="${isoToTh(o.from)}" placeholder="วว/ดด/ปปปป"> ถึง <input id="kpTo" class="field kp-d" value="${isoToTh(o.to)}" placeholder="วว/ดด/ปปปป">` : `<span class="hint">ข้อมูล ณ วันนี้ ${isoToTh(todayISO())}</span>`}
         ${['daily', 'shipr'].includes(v) ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
-        ${['daily', 'shipr'].includes(v) ? `<input id="kpQ" class="field kp-d ${['prod', 'qc', 'list', 'po'].includes(o.dim) ? '' : 'hidden'}" style="width:${v === 'shipr' ? 230 : 150}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
+        ${['daily', 'shipr'].includes(v) ? `<input id="kpQ" class="field kp-d kp-q ${['prod', 'qc', 'list', 'po'].includes(o.dim) ? '' : 'hidden'}" style="width:${v === 'shipr' ? 230 : 150}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
         ${v === 'daily' ? `<select id="kpStep" class="field kp-s ${['prod', 'qc'].includes(o.dim) ? 'hidden' : ''}">${['พิมพ์', 'ไดคัท', 'QC'].map(s => `<option ${s === o.step ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
         ${v === 'aging' ? `<select id="kpAge" class="field kp-s">${[[0,'ทุกอายุ'], [30,'ค้างเกิน 30 วัน'], [90,'ค้างเกิน 90 วัน'], [180,'ค้างเกิน 180 วัน'], [365,'ค้างเกิน 1 ปี']].map(([n, l]) => `<option value="${n}" ${+o.minAge === n ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         <button class="btn ghost sm" id="kpRe" title="โหลดข้อมูลใหม่">↻</button>
@@ -3741,7 +3742,8 @@ const Kpi = {
         n.from = a <= b ? a : b; n.to = a <= b ? b : a; }
       if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value;
       Object.assign(o, n); store.set('vp_kpi_' + v, n); return n; };
-    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L); await this.run(n, force); };
+    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L);
+      if ($('#kpQ') && v === 'shipr') $('#kpQ').placeholder = n.dim === 'po' ? '🔍 พิมพ์เลข PO (ค้นทุกช่วงวันที่)' : '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ'; await this.run(n, force); };
     if (this._fv !== v) { this.flt = {}; this.fsort = null; this._fv = v; }
     if (V.range) {
       $('#kpPre').onchange = () => { const p = this.preset($('#kpPre').value); if (p) { $('#kpFrom').value = isoToTh(p[0]); $('#kpTo').value = isoToTh(p[1]); redraw(); } };
@@ -3822,7 +3824,7 @@ const Kpi = {
     $('#dlgBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); d.close(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
   },
   DCOLS: [['job_ticket','JOB'], ['customer_name','ลูกค้า'], ['product_name','สินค้า'], ['machine','เครื่อง'], ['order_qty','สั่งผลิต', 1, r => fmtN(r.order_qty)], ['due_date','กำหนดส่ง', 0, r => fmtD(r.due_date)]],
-  rangeTxt(o){ return this.VIEWS[this.v].range ? `ช่วงวันที่ ${isoToTh(o.from)} – ${isoToTh(o.to)}` : `ข้อมูล ณ วันที่ ${isoToTh(todayISO())}`; },
+  rangeTxt(o){ if (this.R?.rangeTxt) return this.R.rangeTxt; return this.VIEWS[this.v].range ? `ช่วงวันที่ ${isoToTh(o.from)} – ${isoToTh(o.to)}` : `ข้อมูล ณ วันที่ ${isoToTh(todayISO())}`; },
   print(o){
     const R = this.R, V = this.VIEWS[this.v];
     const cards = R.cards ? `<table style="margin-bottom:3mm"><tr>${R.cards.map(([l, v, s]) => `<td style="border:.5px solid #cbd5e1;padding:1.5mm 2mm;vertical-align:top"><div style="font-size:.85em;color:#475569">${esc(l)}</div><div style="font-size:1.35em;font-weight:700;color:#1f3a68">${String(v).replace(/<em>/g, '<span style="font-size:.7em;font-weight:400;color:#475569">').replace(/<\/em>/g, '</span>')}</div><div style="font-size:.8em;color:#64748b">${esc(s || '')}</div></td>`).join('')}</tr></table>` : '';
@@ -3960,7 +3962,9 @@ const Kpi = {
 
   /* ---------- 6) รายงานการจัดส่ง ---------- */
   async shipr(o, force){
-    const key = o.from + '|' + o.to; if (force || !this._shD || this._shD.k !== key || Date.now() - this._shD.at > 60000) this._shD = {k: key, at: Date.now(), d: await API.kpiDeliveries(o.from, o.to)};
+    // ตาม PO + พิมพ์ค้นหา → ค้นทุกช่วงวันที่ (ดูประวัติส่งทั้งหมดของ PO นั้น)
+    const allT = o.dim === 'po' && !!(this.q || '').trim(), F = allT ? '2000-01-01' : o.from, T = allT ? '2999-12-31' : o.to;
+    const key = F + '|' + T; if (force || !this._shD || this._shD.k !== key || Date.now() - this._shD.at > 60000) this._shD = {k: key, at: Date.now(), d: await API.kpiDeliveries(F, T)};
     const D = this._shD.d.filter(d => !d.ship_ignore).map(d => ({...d, delivery_date: String(d.delivery_date || '').slice(0, 10)})).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.delivery_date));
     const unitOf = d => { const u = String(d.unit || '').trim(); return !u || /ดวง|pcs|ชิ้น/i.test(u) ? 'ดวง' : u; };
     const docOf = d => d.si_no ? 'SI01/' + d.si_no : d.do_no || '';
@@ -4022,8 +4026,9 @@ const Kpi = {
     cards = [['PO / สินค้า', `${fmtN(G.length)}<em> รายการ</em>`, `${fmtN(new Set(G.map(g => g.po)).size)} เลขที่ PO`, '#0f766e'], ['ส่งของ', `${fmtN(FL.length)}<em> ครั้ง</em>`, `${fmtN(new Set(FL.map(docOf).filter(Boolean)).size)} ใบกำกับ / ใบส่งของ`, '#2563eb'],
       ['ส่งครบแล้ว', `${fmtN(G.filter(g => g.L && ['toclose', 'closed'].includes(g.L.status)).length)}<em> รายการ</em>`, `ยังค้างส่ง ${fmtN(G.filter(g => g.L && !['toclose', 'closed'].includes(g.L.status)).length)} รายการ`, '#7c3aed'],
       ['รวมจำนวนส่ง (ในช่วงนี้)', `${fmtN(dots)}<em> ดวง</em>`, oth.size ? 'และ ' + [...oth].map(([u, n]) => `${fmtN(n)} ${u}`).join(', ') : '', '#d97706']];
-    return {sub: `${fmtN(G.length)} PO/สินค้า · ${fmtN(FL.length)} รายการ`, cards, qRun: true,
-      note: note + ' · ส่งสะสม/คงค้าง นับการส่งทั้งหมดของ PO นั้น (รวมก่อนช่วงวันที่ที่เลือก) · ค้นหาเลข PO / ลูกค้า / สินค้า เพื่อพิมพ์เฉพาะ PO ที่ต้องการ',
+    const allT = !!q, ds = FL.map(d => d.delivery_date).filter(Boolean).sort();
+    return {sub: `${fmtN(G.length)} PO/สินค้า · ${fmtN(FL.length)} รายการ`, cards, qRun: true, rangeTxt: allT ? `ค้นหา "${this.q.trim()}" · ทุกช่วงวันที่${ds.length ? ` (ส่ง ${isoToTh(ds[0])} – ${isoToTh(ds[ds.length - 1])})` : ''}` : null,
+      note: (allT ? `🔍 กำลังค้นหา "${esc(this.q.trim())}" จากการส่งของทุกช่วงวันที่ (ไม่ใช้ช่วงวันที่ด้านบน) — ลบคำค้นหาเพื่อกลับไปดูตามช่วงวันที่ · ` : 'พิมพ์เลข PO ในช่องค้นหา เพื่อดูเฉพาะ PO นั้น (ค้นทุกช่วงวันที่) · ') + note + ' · ส่งสะสม/คงค้าง นับการส่งทั้งหมดของ PO นั้น',
       main: {title: `การจัดส่งแยกตาม PO (${fmtN(G.length)} รายการ PO/สินค้า)`, head, rows, rowCls, total: ['รวมทั้งหมด', '', '', '', '', '', '', tq, '', '', '']}};
   },
 
