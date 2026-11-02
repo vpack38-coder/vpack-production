@@ -47,6 +47,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
+.chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
+.st-pause{background:#e2e8f0;color:#334155}.md-job.md-pause{opacity:.75;background:repeating-linear-gradient(135deg,#fff,#fff 8px,#f4f6f9 8px,#f4f6f9 16px)}
+table.trk.xl td.c-pause{background:#e2e8f0;color:#334155;text-align:center}
 .chip{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:13px 10px;text-align:center;cursor:pointer;font-size:15px;line-height:1.3;min-height:52px;transition:.12s}
 .chip:active{transform:scale(.98)}
 .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
@@ -788,8 +791,9 @@ const store = {
 };
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 2600); }
 function deviceId(){ let d = store.get('vp_device'); if (!d) { d = 'D' + Math.random().toString(36).slice(2, 10); store.set('vp_device', d); } return d; }
+const PAUSE_ST = 'พักงาน (ถูกแทรก)', isPause = v => /พักงาน/.test(v || '');
 const DEPT = {
-  prod: { title:'แผนกผลิต', statuses:['กำลังทำ','ทยอยส่ง','เสร็จแล้ว'], final:'เสร็จแล้ว', steps:['พิมพ์','ไดคัท'] },
+  prod: { title:'แผนกผลิต', statuses:['กำลังทำ','ทยอยส่ง','เสร็จแล้ว','พักงาน (ถูกแทรก)'], final:'เสร็จแล้ว', steps:['พิมพ์','ไดคัท'] },
   qc:   { title:'แผนกควบคุมสินค้า QC', statuses:['กำลังทำ','ทยอยส่ง','ส่งยอดสุดท้าย (จบ JOB)','ส่งจากสต็อก'], final:'ส่งยอดสุดท้าย (จบ JOB)', steps:[] }
 };
 const USE_DEMO = !SUPABASE_URL || !SUPABASE_ANON_KEY;
@@ -1353,8 +1357,8 @@ async function renderScan(dept, job){
     ${dept === 'prod' ? `<div class="sec"><h2>${num()} ขั้นตอนการทำงาน <span class="req">*</span></h2>
       <div class="chips" id="stepChips">${D.steps.map(s => `<button class="chip" data-v="${s}">${s}</button>`).join('')}</div></div>` : ''}
     <div class="sec"><h2>${num()} สถานะ <span class="req">*</span></h2>
-      <div class="chips three" id="stChips">${D.statuses.map(s => `<button class="chip ${s===D.final?'st-done':''} ${s==='ส่งจากสต็อก'?'st-stock':''}" data-v="${esc(s)}">${s==='ส่งจากสต็อก'?'📦 ':''}${esc(s)}</button>`).join('')}</div>
-      ${dept === 'qc' ? '<div class="hint" style="margin-top:6px">📦 ส่งจากสต็อก = ส่งของจากสต็อกให้ลูกค้าก่อนงานใหม่เสร็จ (ไม่นับเป็นยอด QC)</div>' : ''}</div>
+      <div class="chips three" id="stChips">${D.statuses.map(s => `<button class="chip ${s===D.final?'st-done':''} ${s==='ส่งจากสต็อก'?'st-stock':''} ${isPause(s)?'st-stock st-pause':''}" data-v="${esc(s)}">${s==='ส่งจากสต็อก'?'📦 ':''}${isPause(s)?'⏸ ':''}${esc(s)}</button>`).join('')}</div>
+      ${dept === 'qc' ? '<div class="hint" style="margin-top:6px">📦 ส่งจากสต็อก = ส่งของจากสต็อกให้ลูกค้าก่อนงานใหม่เสร็จ (ไม่นับเป็นยอด QC)</div>' : '<div class="hint" style="margin-top:6px">⏸ พักงาน = ถอดงานนี้ออกจากเครื่องเพื่อขึ้นงานแทรก (ใส่จำนวนที่ทำได้ถ้ามี) · กลับมาทำต่อให้สแกน "กำลังทำ"</div>'}</div>
     <div class="sec hidden" id="qtySec"><h2>${num()} จำนวน${dept==='prod'?'ที่ผลิตได้':' QC'} (ดวง) <span class="req">*</span></h2>
       <input id="qty" class="field qty" inputmode="numeric" placeholder="0" autocomplete="off">
       <div class="hint" id="qtyHint"></div></div>
@@ -1367,14 +1371,15 @@ async function renderScan(dept, job){
   if (info.closed) return;
 
   const needQty = () => st.status && st.status !== 'กำลังทำ';
+  const optQty = () => isPause(st.status);
   const refresh = () => {
     document.querySelectorAll('#empChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === (st.other !== null && st.employee === '__other' ? '__other' : st.employee)));
     $('#otherName').classList.toggle('hidden', st.employee !== '__other');
     document.querySelectorAll('#stepChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.step));
     document.querySelectorAll('#stChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.status));
-    $('#qtySec').classList.toggle('hidden', !needQty());
+    $('#qtySec').classList.toggle('hidden', !needQty()); { const rq = $('#qtySec .req'); if (rq) rq.textContent = optQty() ? '(ถ้ามี)' : '*'; }
     const name = st.employee === '__other' ? st.other.trim() : st.employee;
-    const qtyOk = !needQty() || (+st.qty > 0);
+    const qtyOk = !needQty() || optQty() || (+st.qty > 0);
     $('#submit').disabled = !(name && st.status && qtyOk && (dept !== 'prod' || st.step));
     const hint = $('#qtyHint');
     if (needQty() && +st.qty > 0 && info.order_qty) hint.textContent = `= ${(st.qty / info.order_qty * 100).toFixed(0)}% ของยอดสั่ง ${fmtN(info.order_qty)}`;
@@ -1390,7 +1395,7 @@ async function renderScan(dept, job){
   $('#submit').onclick = async () => {
     const btn = $('#submit'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
     const employee = st.employee === '__other' ? st.other.trim() : st.employee;
-    const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty: needQty() ? +st.qty : null, note: st.note, device: deviceId() };
+    const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty: needQty() ? (+st.qty || null) : null, note: st.note, device: deviceId() };
     try {
       const res = await API.submitScan(payload);
       if (st.employee !== '__other') store.set('vp_name_' + dept, employee);
@@ -3362,18 +3367,18 @@ const MachineDash = {
     try { [rows, L] = await Promise.all([API.progress('', true, false), WOForm.L ? WOForm.L : API.lookups()]); WOForm.L = L; }
     catch (e) { $('#mdBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     rows = rows.filter(r => !r.closed && !r.cancelled);
-    const isRun = r => /กำลัง|ทยอย/.test(r.print_status || ''), isQueue = r => /ยังไม่เริ่ม/.test(r.print_status || '');
-    const pick = this.mode === 'run' ? rows.filter(isRun) : this.mode === 'queue' ? rows.filter(isQueue) : rows;
+    const isRun = r => /กำลัง|ทยอย/.test(r.print_status || ''), isQueue = r => /ยังไม่เริ่ม/.test(r.print_status || ''), isP = r => isPause(r.print_status);
+    const pick = this.mode === 'run' ? rows.filter(r => isRun(r) || isP(r)) : this.mode === 'queue' ? rows.filter(isQueue) : rows;
     const machines = [...new Set([...(L.spec?.machine || []), ...rows.map(r => r.machine).filter(Boolean)])];
     const by = m => pick.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m);
     if (pick.some(r => !r.machine)) machines.push('(ไม่ระบุเครื่อง)');
     const pct = r => { const o = +r.order_qty || 0, d = Math.max(+r.prod_qty || 0, +r.print_qty || 0); return o ? Math.min(100, Math.round(d / o * 100)) : 0; };
-    const stc = v => /ปั๊มเปล่า/.test(v || '') ? 'st-ok2' : /กำลัง|ทยอย/.test(v || '') ? 'st-run' : /ยังไม่เริ่ม/.test(v || '') ? 'st-no' : 'st-ok';
+    const stc = v => /ปั๊มเปล่า/.test(v || '') ? 'st-ok2' : isPause(v) ? 'st-pause' : /กำลัง|ทยอย/.test(v || '') ? 'st-run' : /ยังไม่เริ่ม/.test(v || '') ? 'st-no' : 'st-ok';
     const bar = p => p >= 100 ? 'b100' : p >= 75 ? 'b75' : p >= 50 ? 'b50' : p >= 25 ? 'b25' : 'b0';
-    const card = m => { const js = by(m), run = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isRun(r)).length, q = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isQueue(r)).length;
-      return `<div class="md-card ${run ? 'busy' : 'idle'}"><div class="md-h"><b>${esc(m)}</b><span class="md-badge">${run ? `🟢 กำลังทำ ${run} งาน` : '⚪ ว่าง'}</span></div>
+    const card = m => { const js = by(m).sort((a, b) => (isRun(b) - isRun(a)) || (isP(b) - isP(a))), run = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isRun(r)).length, pz = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isP(r)).length, q = rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m && isQueue(r)).length;
+      return `<div class="md-card ${run ? 'busy' : 'idle'}"><div class="md-h"><b>${esc(m)}</b><span class="md-badge">${run ? `🟢 กำลังทำ ${run} งาน` : '⚪ ว่าง'}${pz ? ` · ⏸ พัก ${pz} งาน` : ''}</span></div>
         <div class="md-sub">คิวรอผลิต ${q} งาน · รวมยอดสั่งที่แสดง ${fmtN(js.reduce((a, r) => a + (+r.order_qty || 0), 0))} ดวง</div>
-        ${js.length ? js.map(r => `<div class="md-job" data-open="${esc(r.job_ticket)}">
+        ${js.length ? js.map(r => `<div class="md-job ${isP(r) ? 'md-pause' : ''}" data-open="${esc(r.job_ticket)}">
           <div class="md-j1"><a href="#" class="jl">${esc(r.job_ticket)}</a><span class="st ${stc(r.print_status)}">${esc(r.print_status)}</span><span class="md-due ${r.due_date && r.due_date < todayISO() ? 'late' : ''}" data-due="${esc(r.job_ticket)}" title="แตะเพื่อแก้กำหนดส่ง">${r.due_date ? 'ส่ง ' + fmtD(r.due_date) : 'ไม่ระบุวันส่ง'} ✏️</span></div>
           <div class="md-c">${esc(r.customer_name || '')}</div><div class="md-p">${esc(r.product_name || '')}</div>
           <div class="md-bar"><i class="${bar(pct(r))}" style="width:${pct(r)}%"></i></div>
@@ -4201,7 +4206,7 @@ const OfficeScan = {
     if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
     const at = new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`); if (at.getTime() > Date.now() + 5 * 60e3) return toast('วันเวลาเป็นอนาคต ตรวจอีกครั้ง');
     const qv = $('#osQty').value.replace(/,/g, '').trim(), qty = qv === '' ? null : +qv; if (qv !== '' && (isNaN(qty) || qty < 0)) return toast('จำนวนไม่ถูกต้อง');
-    const needQty = this.st !== 'กำลังทำ'; if (needQty && qty === null && !(await Office.confirm(`สถานะ "${this.st}" แต่ไม่ได้ใส่จำนวน — บันทึกต่อไหม?`))) return;
+    const needQty = this.st !== 'กำลังทำ' && !isPause(this.st); if (needQty && qty === null && !(await Office.confirm(`สถานะ "${this.st}" แต่ไม่ได้ใส่จำนวน — บันทึกต่อไหม?`))) return;
     const QC = this.dept === 'qc', row = {job_ticket: w.job_ticket, employee_name: $('#osEmp').value, status: this.st, qty, note: $('#osNote').value.trim() || null, logged_at: at.toISOString(), source: 'office:' + (Office.user?.email || '')};
     if (!QC) row.step = this.step;
     const msg = `บันทึกยอด${QC ? ' QC' : 'ฝ่ายผลิต'} JOB ${w.job_ticket}\n${row.employee_name}${QC ? '' : ' · ' + row.step} · ${row.status} · ${qty === null ? 'ไม่มียอด' : fmtN(qty) + ' ดวง'}\nวันที่ ${$('#osDate').value} ${$('#osTime').value}`;
@@ -5246,7 +5251,7 @@ const Office = {
   drawProgress(){
     this.pfil ||= {};
     const rows = this.pFiltered(), C = this.PCOLS;
-    const stc = v => /ปั๊มเปล่า/.test(v) ? 'c-ok2' : /เสร็จ|จบ JOB/.test(v) ? 'c-ok' : /กำลัง|ทยอย|ส่ง QC|ปรู๊ฟ/.test(v) ? 'c-run' : /ยังไม่เริ่ม/.test(v) ? 'c-no' : '';
+    const stc = v => /ปั๊มเปล่า/.test(v) ? 'c-ok2' : isPause(v) ? 'c-pause' : /เสร็จ|จบ JOB/.test(v) ? 'c-ok' : /กำลัง|ทยอย|ส่ง QC|ปรู๊ฟ/.test(v) ? 'c-run' : /ยังไม่เริ่ม/.test(v) ? 'c-no' : '';
     const ed = (r, c) => `<input class="ed" data-j="${esc(r.job_ticket)}" data-f="${c}" value="${r[c] === null || r[c] === undefined ? '' : (c === 'track_note' ? esc(r[c]) : fmtN(r[c]))}" ${c === 'track_note' ? '' : 'inputmode="decimal"'}>`;
     const cell = (r, [k, , t, band]) => {
       const num = ['num','pct'].includes(t) || (t === 'ed' && k !== 'track_note') ? ' num' : '';
