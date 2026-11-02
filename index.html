@@ -2659,7 +2659,10 @@ const DlvImport = {
       let o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && (e.si_line == null || e.si_line === x.si_line) && +e.qty === +x.qty)
            || ex.find(e => !used.has(e.id) && e.si_no === x.si_no && e.product_code === x.product_code && (e.si_line == null || e.si_line === x.si_line));
       if (o) { used.add(o.id); const patch = {si_line: x.si_line, si_date: x.si_date, qty: x.qty, po_no: o.po_no || x.po_no};
-        if (+o.qty !== +x.qty || o.si_line !== x.si_line) { upd.push({id: o.id, patch}); stats.upd++; } return; }
+        const longer = (a, b) => String(b || '').trim().length > String(a || '').trim().length;   // ไฟล์ใหม่ชื่อยาวกว่า (ตั้งความยาวชื่อในรายงานเพิ่ม) → อัปเดตชื่อ
+        const nm = longer(o.product_name, x.product_name), cn = o.source === 'csv' && longer(o.customer_name, x.customer_name);
+        if (nm) patch.product_name = x.product_name; if (cn) patch.customer_name = x.customer_name;
+        if (+o.qty !== +x.qty || o.si_line !== x.si_line || nm || cn) { upd.push({id: o.id, patch}); stats.upd++; } return; }
       o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && +e.qty === +x.qty && e.customer_code === x.customer_code);
       if (o) { used.add(o.id); stats.codeDiff.push(`SI01/${x.si_no}: ในระบบ ${o.product_code} ↔ Autoflight ${x.product_code}`); if (o.si_line == null) upd.push({id: o.id, patch: {si_line: x.si_line}}); return; }
       o = ex.filter(e => !used.has(e.id) && !e.si_no && e.customer_code === x.customer_code && e.product_code === x.product_code && (!e.po_no || !x.po_no || e.po_no === x.po_no))
