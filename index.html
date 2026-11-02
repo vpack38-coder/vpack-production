@@ -4685,6 +4685,7 @@ const ShipPage = {
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
+    LeaveBoardCtl.sync();
     $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
@@ -4978,6 +4979,17 @@ const StockReport = {
 };
 
 /* ================== หน้าออฟฟิศ ================== */
+/* ================== กระดานคนลา (ดึงจากระบบลางาน vpack-leave) ==================
+   แสดงที่: หน้าหลัก, ติดตามงาน (รายJOB), รายงาน > สถานะเครื่องพิมพ์, หน้าภาพรวมผู้บริหาร */
+const LeaveBoardCtl = {
+  sync(){
+    const el = document.getElementById('lvbWrap'); if (!el) return;
+    const t = Office.tab;
+    const show = t === 'home' || t === 'boss' || (t === 'progress' && Office.pview !== 'stock') || (t === 'reports' && Reports.view === 'machine');
+    el.classList.toggle('hidden', !show);
+  }
+};
+
 const Office = {
   tab: store.get('vp_tab', 'wo'),
   view: 'pending', deptFilter: 'all', sel: new Set(), rows: [], hideClosed: true, search: '',
@@ -5008,7 +5020,7 @@ const Office = {
           <button class="tab" data-t="maint" style="--tc:#0e7490">บำรุงรักษา</button>
         </nav>
         <div class="who"><span class="who-u" title="${esc(s.email)}">👤 ${esc(String(s.email).split('@')[0])}</span>${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
-      </div></div><div class="page" id="page"></div>`;
+      </div></div><div id="lvbWrap" class="hidden" style="padding:14px clamp(12px,1.5vw,28px) 0"><div class="vpack-leave-board"></div></div><div class="page" id="page"></div>`;
     document.querySelectorAll('.tab').forEach(b => b.onclick = () => this.go(b.dataset.t));
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
     $('#logoHome').onclick = () => this.go('home');
@@ -5027,7 +5039,7 @@ const Office = {
           ${this.shipping ? '' : `<a class="tab" href="${location.pathname}" style="--tc:#475569;text-decoration:none">🏠 ระบบเต็ม</a>`}
         </nav>
         <div class="who"><span class="who-u" title="${esc(s.email)}">👤 ${esc(String(s.email).split('@')[0])}${this.shipping ? ' <small>(ฝ่ายจัดส่ง)</small>' : ''}</span>${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
-      </div></div><div class="page" id="page"></div>`;
+      </div></div><div id="lvbWrap" class="hidden" style="padding:14px clamp(12px,1.5vw,28px) 0"><div class="vpack-leave-board"></div></div><div class="page" id="page"></div>`;
     this.boss = true; this.bossTabs = ['ship', 'reports'];
     document.querySelectorAll('.tab[data-t]').forEach(b => b.onclick = () => this.go(b.dataset.t));
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
@@ -5046,7 +5058,7 @@ const Office = {
           ${this.viewer ? '' : `<a class="tab" href="${location.pathname}" style="--tc:#475569;text-decoration:none">🏠 ระบบเต็ม</a>`}
         </nav>
         <div class="who"><span class="who-u" title="${esc(s.email)}">👤 ${esc(String(s.email).split('@')[0])}${this.viewer ? ' <small>(ดูอย่างเดียว)</small>' : ''}</span>${USE_DEMO ? '' : '<button class="btn ghost sm" id="logout">ออก</button>'}</div>
-      </div></div><div class="page" id="page"></div>`;
+      </div></div><div id="lvbWrap" class="hidden" style="padding:14px clamp(12px,1.5vw,28px) 0"><div class="vpack-leave-board"></div></div><div class="page" id="page"></div>`;
     this.boss = true;
     document.querySelectorAll('.tab[data-t]').forEach(b => b.onclick = () => this.go(b.dataset.t));
     $('#logout')?.addEventListener('click', async () => { await API.logout(); location.reload(); });
@@ -5067,6 +5079,7 @@ const Office = {
     if (this.boss && !(this.bossTabs || ['boss', 'reports', 'paper']).includes(t)) { if (this.ro) toast('บัญชีนี้เปิดหน้านี้ไม่ได้'); else { location.href = location.pathname; return; } t = (this.bossTabs || ['boss'])[0]; }
     this.tab = t; if (!this.boss) store.set('vp_tab', t);
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    LeaveBoardCtl.sync();
     ({home:()=>HomePage.page(), wo:()=>WOForm.page(), wotable:()=>WOTable.page(), inbox:()=>this.inboxPage(), progress:()=>this.progressPage(), qr:()=>this.qrPage(), emp:()=>this.empPage(), master:()=>MasterPage.page(), maint:()=>Maint.page(), reports:()=>Reports.page(), boss:()=>BossPage.page(), oscan:()=>OfficeScan.page(), paper:()=>PaperPage.page(), ship:()=>ShipPage.page(), so:()=>SOPage.page(), qs:()=>QSPage.page()})[t]();
   },
 
@@ -5191,6 +5204,7 @@ const Office = {
   /* ----- ติดตามงาน (แทนชีต ติดตามงาน + Prod_Status) ----- */
   pview: store.get('vp_pview', 'job'), onlyStock: false,
   progressPage(){
+    LeaveBoardCtl.sync();
     $('#page').innerHTML = `<div class="toolbar">
         <div class="seg" id="pvSeg"><button data-v="job">ติดตามรายJOB</button><button data-v="stock">สต็อกตามสินค้า</button></div>
         <input id="ps" class="field" style="max-width:300px;padding:6px 10px;font-size:14px" placeholder="ค้นหา JOB / ลูกค้า / สินค้า" value="${esc(this.search)}">
@@ -5366,5 +5380,7 @@ const Office = {
 if (scanDept === 'prod' || scanDept === 'qc') renderScan(scanDept, params.get('job'));
 else Office.start();
 </script>
+<!-- กระดานคนลา: วันนี้ใครลา / ลาล่วงหน้า (จากระบบลางาน V-pack) -->
+<script src="https://vpack38-coder.github.io/vpack-leave/leave-board.js"></script>
 </body>
 </html>
