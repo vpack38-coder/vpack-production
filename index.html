@@ -616,6 +616,7 @@ table.trk.xl tr.is-closed td{color:#4b5563}
 .md-due{font-size:11.5px;color:#475569;margin-left:auto}.md-due.late{color:#b42318;font-weight:700}
 .md-c{font-size:12px;color:#475569;margin-top:3px}.md-p{font-size:12.5px;line-height:1.35;margin-top:1px}
 .md-bar{height:7px;background:#e5e7eb;border-radius:9px;margin:7px 0 3px;overflow:hidden}.md-bar i{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}
+table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top:2px solid #94a3b8} table.kp-t tr.kp-pod td:nth-child(-n+5){background:#fff !important}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
@@ -3668,7 +3669,7 @@ const Kpi = {
     backlog: {t: 'รายงานงานค้างตามกำหนดส่ง', range: false, dims: [['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]},
     aging:   {t: 'รายงานสต็อกค้างนาน', range: false, dims: [['product','ลูกค้า + สินค้า'], ['customer_name','ลูกค้า']]},
     daily:   {t: 'รายงานการผลิต/QC ประจำวัน', range: true, dims: [['prod','🖨️ ฝ่ายผลิต'], ['qc','✅ QC'], ['machine','📊 สรุปรายวัน × เครื่อง'], ['employee','👷 สรุปรายวัน × พนักงาน']]},
-    shipr:   {t: 'รายงานการจัดส่ง', range: true, dims: [['list','📋 รายการส่งของ'], ['day','📅 รายวัน'], ['week','🗓 รายสัปดาห์'], ['month','📆 รายเดือน'], ['customer','🏢 ตามลูกค้า'], ['product','🏷 ตามสินค้า']]},
+    shipr:   {t: 'รายงานการจัดส่ง', range: true, dims: [['list','📋 รายการส่งของ'], ['po','🧾 ตาม PO'], ['day','📅 รายวัน'], ['week','🗓 รายสัปดาห์'], ['month','📆 รายเดือน'], ['customer','🏢 ตามลูกค้า'], ['product','🏷 ตามสินค้า']]},
     lead:    {t: 'รายงานระยะเวลาผลิต (Lead time)', range: true, dims: [['ym','เดือน (ที่เสร็จ)'], ['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]}
   },
   preset(k){ const t = todayISO(), y = +t.slice(0, 4), m = +t.slice(5, 7), iso = (Y, M, D) => `${Y}-${pad2(M)}-${pad2(D)}`, last = (Y, M) => new Date(Date.UTC(Y, M, 0)).getUTCDate();
@@ -3693,32 +3694,32 @@ const Kpi = {
         ${V.range ? `<select id="kpPre" class="field kp-s">${PRE.map(([k, l]) => `<option value="${k}" ${k === o.pre ? 'selected' : ''}>📅 ${l}</option>`).join('')}</select>
           <input id="kpFrom" class="field kp-d" value="${isoToTh(o.from)}" placeholder="วว/ดด/ปปปป"> ถึง <input id="kpTo" class="field kp-d" value="${isoToTh(o.to)}" placeholder="วว/ดด/ปปปป">` : `<span class="hint">ข้อมูล ณ วันนี้ ${isoToTh(todayISO())}</span>`}
         ${['daily', 'shipr'].includes(v) ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
-        ${['daily', 'shipr'].includes(v) ? `<input id="kpQ" class="field kp-d ${['prod', 'qc', 'list'].includes(o.dim) ? '' : 'hidden'}" style="width:${v === 'shipr' ? 230 : 150}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
+        ${['daily', 'shipr'].includes(v) ? `<input id="kpQ" class="field kp-d ${['prod', 'qc', 'list', 'po'].includes(o.dim) ? '' : 'hidden'}" style="width:${v === 'shipr' ? 230 : 150}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
         ${v === 'daily' ? `<select id="kpStep" class="field kp-s ${['prod', 'qc'].includes(o.dim) ? 'hidden' : ''}">${['พิมพ์', 'ไดคัท', 'QC'].map(s => `<option ${s === o.step ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
         ${v === 'aging' ? `<select id="kpAge" class="field kp-s">${[[0,'ทุกอายุ'], [30,'ค้างเกิน 30 วัน'], [90,'ค้างเกิน 90 วัน'], [180,'ค้างเกิน 180 วัน'], [365,'ค้างเกิน 1 ปี']].map(([n, l]) => `<option value="${n}" ${+o.minAge === n ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         <button class="btn ghost sm" id="kpRe" title="โหลดข้อมูลใหม่">↻</button>
         <span class="sp"></span>
         <select id="kpOr" class="field kp-s"><option value="portrait" ${o.orient !== 'landscape' ? 'selected' : ''}>📄 แนวตั้ง</option><option value="landscape" ${o.orient === 'landscape' ? 'selected' : ''}>📃 แนวนอน</option></select>
-        ${fontSel('kpFont', o.font)}${fsSel('kpFs', o.fs)}
+        ${fontSel('kpFont', o.font)}${fsSel('kpFs', o.fs)}<select id="kpBand" class="field kp-s" title="แถบสีแต่ละคอลัมน์ตอนพิมพ์ / บันทึกรูป"><option value="on" ${o.band !== 'off' ? 'selected' : ''}>🎨 พิมพ์มีแถบสี</option><option value="off" ${o.band === 'off' ? 'selected' : ''}>⬜ พิมพ์ไม่มีแถบสี</option></select>
         <button class="btn sm" id="kpImg" style="background:#06c755">🖼 รูปภาพ</button><button class="btn ghost sm" id="kpPrint">🖨 พิมพ์</button><button class="btn ghost sm" id="kpCsv">⬇ Excel (CSV)</button></div>
       ${['daily', 'shipr'].includes(v) ? `<div class="seg kp-tabs" id="kpTabs">${V.dims.map(([k, l]) => `<button data-v="${k}" class="${k === o.dim ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <div id="kpBody"><div class="empty">กำลังโหลด…</div></div>`;
     document.querySelectorAll('#kpTabs button').forEach(b => b.onclick = () => { $('#kpDim').value = b.dataset.v; this.flt = {}; this.fsort = null;
       document.querySelectorAll('#kpTabs button').forEach(x => x.classList.toggle('on', x === b)); redraw(); });
-    if ($('#kpQ')) { let tq; $('#kpQ').oninput = e => { clearTimeout(tq); tq = setTimeout(() => { this.q = e.target.value.trim(); if (this.R) this.draw(o); }, 250); }; }
-    const read = () => { const n = {...o, dim: $('#kpDim').value, orient: $('#kpOr').value, font: $('#kpFont').value, fs: +$('#kpFs').value};
+    if ($('#kpQ')) { let tq; $('#kpQ').oninput = e => { clearTimeout(tq); tq = setTimeout(() => { this.q = e.target.value.trim(); if (this.R?.qRun) this.run(o); else if (this.R) this.draw(o); }, 250); }; }
+    const read = () => { const n = {...o, dim: $('#kpDim').value, orient: $('#kpOr').value, band: $('#kpBand').value, font: $('#kpFont').value, fs: +$('#kpFs').value};
       if (V.range) { n.pre = $('#kpPre').value; const a = thToIso($('#kpFrom').value.trim()), b = thToIso($('#kpTo').value.trim());
         if (!a || !b) { toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป เช่น 01/10/2569'); return null; }
         n.from = a <= b ? a : b; n.to = a <= b ? b : a; }
       if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value;
       Object.assign(o, n); store.set('vp_kpi_' + v, n); return n; };
-    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L); await this.run(n, force); };
+    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L); await this.run(n, force); };
     if (this._fv !== v) { this.flt = {}; this.fsort = null; this._fv = v; }
     if (V.range) {
       $('#kpPre').onchange = () => { const p = this.preset($('#kpPre').value); if (p) { $('#kpFrom').value = isoToTh(p[0]); $('#kpTo').value = isoToTh(p[1]); redraw(); } };
       ['kpFrom', 'kpTo'].forEach(id => { $('#' + id).onchange = () => { $('#kpPre').value = 'c'; redraw(); }; $('#' + id).onkeydown = e => { if (e.key === 'Enter') e.target.blur(); }; }); }
     ['kpDim', 'kpStep', 'kpAge'].forEach(id => { if ($('#' + id)) $('#' + id).onchange = () => redraw(); });
-    $('#kpOr').onchange = $('#kpFont').onchange = $('#kpFs').onchange = read;
+    $('#kpOr').onchange = $('#kpFont').onchange = $('#kpFs').onchange = $('#kpBand').onchange = read;
     $('#kpRe').onclick = () => redraw(true);
     $('#kpPrint').onclick = () => { if (read() && this.R) this.print(o); };
     $('#kpImg').onclick = () => { if (read() && this.R) { RptPrint._img = true; this.print(o); } };
@@ -3734,15 +3735,15 @@ const Kpi = {
   craw(c){ return c === null || c === undefined ? '' : typeof c === 'object' ? (c.n ?? c.t) : c; },
   // แถบสีอ่อนแต่ละคอลัมน์ [สีพื้น, สีขีดใต้หัวตาราง]
   BAND: [['#eef5ff','#60a5fa'], ['#effbf3','#4ade80'], ['#fffbea','#facc15'], ['#fff4ec','#fb923c'], ['#fdf1f7','#f472b6'], ['#f4f1ff','#a78bfa'], ['#ebfbfd','#22d3ee'], ['#f3f6ee','#a3b86c']],
-  tbl(T, screen){
+  tbl(T, screen, plain){
     if (!T) return '';
-    const B = T.head.map((h, k) => h.band || (k === 0 ? null : this.BAND[(k - 1) % this.BAND.length]));
+    const B = T.head.map((h, k) => plain ? null : h.band || (k === 0 ? null : this.BAND[(k - 1) % this.BAND.length]));
     const F = screen && T.filter, fl = this.flt || {};
     const head = T.head.map((h, k) => `<th class="${h.num ? 'num' : ''} ${F && fl[k] ? 'f-on' : ''}" style="${B[k] ? (screen ? `box-shadow:inset 0 -4px 0 ${B[k][1]}` : `border-bottom:3px solid ${B[k][1]}`) : ''}">${F ? `<div class="h"><span>${esc(h.l)}${this.fsort?.k === k ? (this.fsort.dir > 0 ? ' ▲' : ' ▼') : ''}</span><button class="fb" data-kf="${k}" title="กรอง / เรียง">${fl[k] ? '⧩' : '▼'}</button></div>` : esc(h.l)}</th>`).join('');
     const td = (c, h, k) => { const bar = c && typeof c === 'object' && c.bar !== undefined, st = B[k] ? ` style="background:${B[k][0]}"` : '';
       if (screen && c && c.due) return `<td class="${h.cls || ''}"${st}><a href="#" class="kp-due" data-due="${esc(c.due)}">${esc(c.t)} ✏️</a></td>`;
       return `<td${st} class="${h.num ? 'num' : ''} ${h.cls || ''} ${c && c.c || ''}">${screen && bar ? `<div class="kp-cb"><span>${esc(this.cv(c))}</span><div class="pv-bar kp ${c.bc || ''}"><i style="width:${Math.max(0, Math.min(100, c.bar))}%"></i></div></div>` : esc(this.cv(c))}</td>`; };
-    const body = T.rows.map((r, i) => `<tr ${screen && (T.lists || T.editable) ? `class="pv-r" data-i="${i}"` : ''}>${r.map((c, k) => td(c, T.head[k], k)).join('')}</tr>`).join('')
+    const body = T.rows.map((r, i) => `<tr class="${screen && (T.lists || T.editable) ? 'pv-r' : ''} ${T.rowCls?.[i] || ''}" ${screen && (T.lists || T.editable) ? `data-i="${i}"` : ''}>${r.map((c, k) => td(c, T.head[k], k)).join('')}</tr>`).join('')
       || `<tr><td colspan="${T.head.length}" class="wt-info" style="text-align:center;padding:16px">ไม่มีข้อมูล</td></tr>`;
     const tot = T.total ? `<tr class="${screen ? 'md-tot' : 'sub'}">${T.total.map((c, k) => `<td class="${T.head[k].num ? 'num' : ''}" style="text-align:${T.head[k].num ? 'right' : 'left'}"><b>${esc(this.cv(c))}</b></td>`).join('')}</tr>` : '';
     return `<table class="${screen ? 'trk kp-t' + (F ? ' xl' : '') : ''}"><thead><tr>${head}</tr></thead><tbody>${body}${tot}</tbody></table>`;
@@ -3798,8 +3799,8 @@ const Kpi = {
     const R = this.R, V = this.VIEWS[this.v];
     const cards = R.cards ? `<table style="margin-bottom:3mm"><tr>${R.cards.map(([l, v, s]) => `<td style="border:.5px solid #cbd5e1;padding:1.5mm 2mm;vertical-align:top"><div style="font-size:.85em;color:#475569">${esc(l)}</div><div style="font-size:1.35em;font-weight:700;color:#1f3a68">${String(v).replace(/<em>/g, '<span style="font-size:.7em;font-weight:400;color:#475569">').replace(/<\/em>/g, '</span>')}</div><div style="font-size:.8em;color:#64748b">${esc(s || '')}</div></td>`).join('')}</tr></table>` : '';
     const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(V.t)}</h2></div><div class="rpt-meta">${esc(this.rangeTxt(o))}<br>${esc(R.sub || '')}<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
-      ${cards}${R.main ? (R.main.title ? `<div style="font-weight:700;color:#1f3a68;margin:2mm 0 1mm">${esc(R.main.title)}</div>` : '') + this.tbl(R.main, false) : ''}
-      ${(R.extra || []).map(T => `<div style="font-weight:700;color:#1f3a68;margin:4mm 0 1mm">${esc(T.title)}</div>${this.tbl(T, false)}`).join('')}
+      ${cards}${R.main ? (R.main.title ? `<div style="font-weight:700;color:#1f3a68;margin:2mm 0 1mm">${esc(R.main.title)}</div>` : '') + this.tbl(R.main, false, o.band === 'off') : ''}
+      ${(R.extra || []).map(T => `<div style="font-weight:700;color:#1f3a68;margin:4mm 0 1mm">${esc(T.title)}</div>${this.tbl(T, false, o.band === 'off')}`).join('')}
       ${R.note ? `<div class="rpt-note" style="color:#64748b">${R.note.replace(/<[^>]+>/g, '')}</div>` : ''}</div>`;
     RptPrint.go({title: V.t, orient: o.orient, fs: o.fs, font: o.font}, html);
   },
@@ -3931,7 +3932,8 @@ const Kpi = {
 
   /* ---------- 6) รายงานการจัดส่ง ---------- */
   async shipr(o, force){
-    const D = (await API.kpiDeliveries(o.from, o.to)).filter(d => !d.ship_ignore).map(d => ({...d, delivery_date: String(d.delivery_date || '').slice(0, 10)})).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.delivery_date));
+    const key = o.from + '|' + o.to; if (force || !this._shD || this._shD.k !== key || Date.now() - this._shD.at > 60000) this._shD = {k: key, at: Date.now(), d: await API.kpiDeliveries(o.from, o.to)};
+    const D = this._shD.d.filter(d => !d.ship_ignore).map(d => ({...d, delivery_date: String(d.delivery_date || '').slice(0, 10)})).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.delivery_date));
     const unitOf = d => { const u = String(d.unit || '').trim(); return !u || /ดวง|pcs|ชิ้น/i.test(u) ? 'ดวง' : u; };
     const docOf = d => d.si_no ? 'SI01/' + d.si_no : d.do_no || '';
     const qtyTxt = A => { const m = new Map(); A.forEach(d => m.set(unitOf(d), (m.get(unitOf(d)) || 0) + (+d.qty || 0))); return m; };
@@ -3948,6 +3950,7 @@ const Kpi = {
       return {sub: `${D.length} รายการ`, cards, note: note + ' · กด ▼ ที่หัวคอลัมน์เพื่อกรอง/เรียงแบบ Excel',
         mainAll: {filter: true, qAll: true, head, rows, titleFn: R => `📋 รายการส่งของ (${fmtN(R.length)} รายการ)`, totalFn: R => head.map((h, k) => k === 0 ? 'รวม' : k === 5 ? R.reduce((a, r) => a + (+r[5] || 0), 0) : '')}};
     }
+    if (o.dim === 'po') return this.shipPo(o, force, D, cards, note, docOf, unitOf);
     const WD = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
     const monday = iso => new Date(Date.parse(iso) - ((new Date(iso).getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
     const K = {day: d => d.delivery_date, week: d => monday(d.delivery_date), month: d => (d.delivery_date || '').slice(0, 7), customer: d => d.customer_name || d.customer_code || '(ไม่ระบุ)', product: d => `${d.product_code || ''}\u0001${d.product_name || ''}\u0001${d.customer_name || ''}`}[o.dim];
@@ -3963,6 +3966,37 @@ const Kpi = {
       main: {title: `สรุปการจัดส่ง${{day: 'รายวัน', week: 'รายสัปดาห์', month: 'รายเดือน', customer: 'ตามลูกค้า', product: 'ตามสินค้า'}[o.dim]}`, head, rows: keys.map(k => row(k, g.get(k), true)), total: (r => { r[0] = 'รวมทั้งหมด'; if (P) { r[1] = ''; r[2] = ''; } return r; })(row('', D, false)),
         lists: keys.map(k => g.get(k))},
       detailCols: [['delivery_date', 'วันที่ส่ง', 0, r => fmtD(r.delivery_date)], ['customer_name', 'ลูกค้า'], ['po_no', 'PO'], ['product_code', 'รหัส'], ['product_name', 'สินค้า'], ['qty', 'จำนวน', 1, r => fmtN(r.qty) + ' ' + (r.unit || '')], ['si_no', 'ใบกำกับ / ใบส่งของ', 0, r => docOf(r)]]};
+  },
+
+  // รายงานการจัดส่งแยกตาม PO: หัว PO (ยอด PO / ส่งในช่วง / ส่งสะสม / คงค้าง / สถานะ) + รายการส่งแต่ละครั้ง
+  async shipPo(o, force, D, cards, note, docOf, unitOf){
+    const S = await ShipPage.load(force), byId = new Map();
+    S.lines.forEach(L => L.dl.forEach(d => byId.set(d.id, L)));
+    const groups = new Map();
+    D.forEach(d => { const L = byId.get(d.id), k = L ? L.key : 'x|' + ShipPage.key(d.po_no || '(ไม่ระบุ PO)', d.product_code);
+      if (!groups.has(k)) groups.set(k, L ? {L, po: L.po_no, cu: L.customer_name, code: L.product_code, name: L.product_name, unit: L.unit, qty: L.qty, all: L.dl, st: ShipPage.ST[L.status][0], list: []}
+        : {po: d.po_no || '(ไม่ระบุ PO)', cu: d.customer_name || d.customer_code, code: d.product_code, name: d.product_name, unit: d.unit, qty: null, all: null, st: 'ไม่พบ PO ในระบบ', list: []});
+      groups.get(k).list.push(d); });
+    const q = (this.q || '').toLowerCase();
+    let G = [...groups.values()].filter(g => !q || [g.po, g.cu, g.code, g.name, ...g.list.map(docOf)].join(' ').toLowerCase().includes(q));
+    G.sort((a, b) => String(a.cu || '').localeCompare(String(b.cu || ''), 'th') || String(a.po).localeCompare(String(b.po)) || String(a.code).localeCompare(String(b.code)));
+    const head = [{l: 'เลขที่ PO'}, {l: 'ลูกค้า', cls: 'cu'}, {l: 'รหัสสินค้า'}, {l: 'ชื่อสินค้า', cls: 'pn'}, {l: 'ยอด PO', num: 1}, {l: 'วันที่ส่ง'}, {l: 'ใบกำกับ / ใบส่งของ'}, {l: 'จำนวนส่ง', num: 1}, {l: 'ส่งสะสม', num: 1}, {l: 'คงค้าง', num: 1}, {l: 'สถานะ'}];
+    const rows = [], rowCls = [], N = x => +x || 0, byDate = (a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date)) || (a.id - b.id);
+    G.forEach(g => {
+      const inR = g.list.reduce((a, d) => a + N(d.qty), 0), all = g.all ? [...g.all].sort(byDate) : null, cumAll = all ? all.reduce((a, d) => a + N(d.qty), 0) : inR;
+      const remain = g.qty === null ? '' : Math.max(0, g.qty - Math.max(cumAll, g.L?.shipped || 0));
+      const u = (g.unit || '').trim(); rows.push([{t: g.po, c: 'sh-pocell'}, g.cu || '', g.code || '', g.name || '', g.qty === null ? '–' : g.qty, '', `ส่ง ${g.list.length} ครั้ง`, inR, cumAll, remain, g.st]); rowCls.push('kp-poh');
+      const cum = new Map(); let c = 0; (all || [...g.list].sort(byDate)).forEach(d => { c += N(d.qty); cum.set(d.id, c); });
+      [...g.list].sort(byDate).forEach(d => { rows.push(['', '', '', '', '', {t: fmtD(d.delivery_date), n: d.delivery_date}, docOf(d) || (d.source === 'manual' ? 'ยังไม่มีเลขที่' : ''), N(d.qty), cum.get(d.id), g.qty === null ? '' : Math.max(0, g.qty - cum.get(d.id)), (d.unit || u) && unitOf(d) !== 'ดวง' ? (d.unit || u).trim() : '']); rowCls.push('kp-pod'); });
+    });
+    const tq = G.reduce((a, g) => a + g.list.reduce((x, d) => x + N(d.qty), 0), 0), FL = G.flatMap(g => g.list);
+    const dots = FL.filter(d => unitOf(d) === 'ดวง').reduce((a, d) => a + N(d.qty), 0), oth = new Map(); FL.filter(d => unitOf(d) !== 'ดวง').forEach(d => oth.set(unitOf(d), (oth.get(unitOf(d)) || 0) + N(d.qty)));
+    cards = [['PO / สินค้า', `${fmtN(G.length)}<em> รายการ</em>`, `${fmtN(new Set(G.map(g => g.po)).size)} เลขที่ PO`, '#0f766e'], ['ส่งของ', `${fmtN(FL.length)}<em> ครั้ง</em>`, `${fmtN(new Set(FL.map(docOf).filter(Boolean)).size)} ใบกำกับ / ใบส่งของ`, '#2563eb'],
+      ['ส่งครบแล้ว', `${fmtN(G.filter(g => g.L && ['toclose', 'closed'].includes(g.L.status)).length)}<em> รายการ</em>`, `ยังค้างส่ง ${fmtN(G.filter(g => g.L && !['toclose', 'closed'].includes(g.L.status)).length)} รายการ`, '#7c3aed'],
+      ['รวมจำนวนส่ง (ในช่วงนี้)', `${fmtN(dots)}<em> ดวง</em>`, oth.size ? 'และ ' + [...oth].map(([u, n]) => `${fmtN(n)} ${u}`).join(', ') : '', '#d97706']];
+    return {sub: `${fmtN(G.length)} PO/สินค้า · ${fmtN(FL.length)} รายการ`, cards, qRun: true,
+      note: note + ' · ส่งสะสม/คงค้าง นับการส่งทั้งหมดของ PO นั้น (รวมก่อนช่วงวันที่ที่เลือก) · ค้นหาเลข PO / ลูกค้า / สินค้า เพื่อพิมพ์เฉพาะ PO ที่ต้องการ',
+      main: {title: `การจัดส่งแยกตาม PO (${fmtN(G.length)} รายการ PO/สินค้า)`, head, rows, rowCls, total: ['รวมทั้งหมด', '', '', '', '', '', '', tq, '', '', '']}};
   },
 
   /* ---------- 5) Lead time ---------- */
@@ -4744,7 +4778,7 @@ const RPT_FONTS = [['Tahoma','Tahoma'], ['Sarabun','Sarabun (สารบรร�
 const fontSel = (id, v) => `<select id="${id}" class="field" style="width:auto;padding:4px 8px" title="แบบตัวอักษร">${RPT_FONTS.map(([f, l]) => `<option value="${f}" ${f === (v || 'Tahoma') ? 'selected' : ''}>🔤 ${l}</option>`).join('')}</select>`;
 const fsSel = (id, v, list) => `<select id="${id}" class="field" style="width:auto;padding:4px 8px">${(list || [7,8,9,10,11,12,14,16]).map(n => `<option value="${n}" ${+v === n ? 'selected' : ''}>ขนาด ${n} pt</option>`).join('')}</select>`;
 const RptPrint = {
-  css: `.rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}\n.rpt-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:3mm}\n.rpt-h b{color:#1f3a68}.rpt-h h2{margin:0;font-size:1.5em;color:#1f3a68}\n.rpt-meta{text-align:right;font-size:.9em;color:#334155}\n.rpt table{width:100%;border-collapse:collapse}\n.rpt th{background:#1f3a68;color:#fff;padding:1.5mm 2mm;font-size:.95em;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt td{padding:1.2mm 2mm;border-bottom:.5px solid #cbd5e1;vertical-align:top}\n.rpt .num{text-align:right;white-space:nowrap}\n.rpt .no{width:10mm;text-align:center;color:#64748b}\n.rpt td.stock_qty{font-weight:700;color:#c8102e}\n.rpt td.stock_jobs{font-size:.85em;color:#334155}\n.rpt tr.grp td{background:#e8eef8;font-weight:700;color:#1f3a68;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt tr.sub td{text-align:right;font-size:.9em;border-bottom:1px solid #1f3a68}\n.rpt thead{display:table-header-group}\n.rpt tr{page-break-inside:avoid}\n.rpt-note{margin-top:3mm;font-size:.9em}\n.rpt-sign{display:flex;justify-content:space-around;margin-top:12mm;font-size:.95em}\n`,
+  css: `.rpt{font-family:Tahoma,Calibri,sans-serif;font-size:10pt;color:#111}\n.rpt-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:3mm}\n.rpt-h b{color:#1f3a68}.rpt-h h2{margin:0;font-size:1.5em;color:#1f3a68}\n.rpt-meta{text-align:right;font-size:.9em;color:#334155}\n.rpt table{width:100%;border-collapse:collapse}\n.rpt th{background:#1f3a68;color:#fff;padding:1.5mm 2mm;font-size:.95em;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt td{padding:1.2mm 2mm;border-bottom:.5px solid #cbd5e1;vertical-align:top}\n.rpt .num{text-align:right;white-space:nowrap}\n.rpt .no{width:10mm;text-align:center;color:#64748b}\n.rpt td.stock_qty{font-weight:700;color:#c8102e}\n.rpt td.stock_jobs{font-size:.85em;color:#334155}\n.rpt tr.grp td{background:#e8eef8;font-weight:700;color:#1f3a68;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt tr.sub td{text-align:right;font-size:.9em;border-bottom:1px solid #1f3a68}\n.rpt thead{display:table-header-group}\n.rpt tr{page-break-inside:avoid}\n.rpt tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top:1.5px solid #64748b;-webkit-print-color-adjust:exact;print-color-adjust:exact}\n.rpt tr.kp-pod td:nth-child(-n+5){background:#fff !important}\n.rpt td.sh-pocell{color:#c8102e;white-space:nowrap}\n.rpt-note{margin-top:3mm;font-size:.9em}\n.rpt-sign{display:flex;justify-content:space-around;margin-top:12mm;font-size:.95em}\n`,
   go(o, html){
     if (this._img) { this._img = false; return RptImage.go(o, html); }
     if (PrintKit.ios) {
