@@ -624,6 +624,7 @@ table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top
 #kpQ.kp-q{border:2px solid #60a5fa;background:#f0f7ff}#kpQ.kp-q:focus{border-color:#2563eb;background:#fff}#kpQ.kp-q:not(:placeholder-shown){border-color:#f59e0b;background:#fffbeb}
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
 #dlg:has(#sl_q){width:min(680px,94vw)}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
+.so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
@@ -947,7 +948,8 @@ const Demo = {
   async recentChanges(n){ return (this.db().clog || []).slice(-(n || 150)).reverse(); },
   qsDb(){ const d = this.db(); d.fc ||= []; d.dlv ||= []; return d; },
   async qsData(cfg){ const d = this.qsDb(); return {fc: d.fc.filter(x => x.customer_code === cfg.customer_code), dl: d.dlv.filter(x => x.customer_code === cfg.customer_code),
-    pr: (await this.calc()).filter(r => (r.customer_name || '').includes(cfg.name_match || 'ควาร์ค'))}; },
+    pr: (await this.calc()).filter(r => (r.customer_name || '').includes(cfg.name_match || 'ควาร์ค')),
+    wo: this.db().wo.filter(w => (w.customer_name || '').includes(cfg.name_match || 'ควาร์ค'))}; },
   async fcmList(cc){ const d = this.qsDb(); d.fcm ||= []; return d.fcm.filter(x => x.customer_code === cc); },
   async fcmSave(row){ const d = this.qsDb(); d.fcm ||= []; d.fcm = d.fcm.filter(x => !(x.customer_code === row.customer_code && x.product_code === row.product_code && x.period === row.period)); if (row.qty !== null) d.fcm.push({id: ++d.seq, ...row}); this.save(); },
   async fcSave(row, id){ const d = this.qsDb(); if (id) Object.assign(d.fc.find(x => x.id === id), row); else d.fc.push({id: ++d.seq, job_type: 'Direct PO', ...row}); this.save(); },
@@ -1211,7 +1213,8 @@ const Live = {
       this.pageAll(() => this.sb.from('fc_po').select('*').eq('customer_code', cfg.customer_code).order('id')),
       this.pageAll(() => this.sb.from('deliveries').select('*').eq('customer_code', cfg.customer_code).order('delivery_date').order('id')),
       this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,customer_name,product_code,product_name,eff_qc,qc_qty,cancelled').ilike('customer_name', '%' + (cfg.name_match || 'ควาร์ค') + '%'))]);
-    return {fc, dl, pr}; },
+    let wo = []; try { wo = await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_code,product_name,po_no,so_no,job_label,order_qty,cancelled,closed,doc_date').ilike('customer_name', '%' + (cfg.name_match || 'ควาร์ค') + '%').order('job_ticket')); } catch {}
+    return {fc, dl, pr, wo}; },
   async fcmList(cc){ try { return await this.pageAll(() => this.sb.from('fc_monthly').select('*').eq('customer_code', cc).order('id')); } catch (e) { if (/fc_monthly/.test(e.message)) return null; throw e; } },
   async fcmSave(row){ if (row.qty === null) this.chk(await this.sb.from('fc_monthly').delete().eq('customer_code', row.customer_code).eq('product_code', row.product_code).eq('period', row.period));
     else this.chk(await this.sb.from('fc_monthly').upsert({...row, updated_at: new Date().toISOString()}, {onConflict: 'customer_code,product_code,period'})); },
@@ -2727,7 +2730,12 @@ const QSPage = {
     const prod = {}; pr.forEach(r => { if (r.cancelled || !r.product_code || jobMonth(r.job_ticket) < startM) return; const k = r.product_code.trim(); (prod[k] ||= {qty: 0, jobs: []}); prod[k].qty += +r.eff_qc || 0; if (+r.eff_qc) prod[k].jobs.push(r.job_ticket); });
     const names = {}; [...fc, ...dl].forEach(x => { if (x.product_code) names[x.product_code.trim()] ||= {name: x.product_name, unit: x.unit}; });
     (fcm || []).forEach(x => { names[x.product_code] ||= {name: x.product_name, unit: null}; });
-    this.D = {fc, dl, prod, names, fcm: fcm || [], fcmMissing: fcm === null};
+    // ใบสั่งผลิตงาน FORECAST ที่ยังไม่มีเลข PO → แสดงในรายงานโดยใช้เลขใบ Forecast (ช่อง S/O) แทนเลข PO
+    const qcOf = new Map(pr.map(r => [r.job_ticket, +r.eff_qc || 0]));
+    const fcJobs = (raw.wo || []).filter(w => !w.cancelled && !String(w.po_no || '').trim() && w.product_code && jobMonth(w.job_ticket) >= startM && !/-R\d+$/.test(w.job_ticket)
+        && (/forecast/i.test(w.job_label || '') || /^FC/i.test(String(w.so_no || '').trim())))
+      .map(w => ({...w, product_code: canon(w.product_code), fc_no: String(w.so_no || '').trim() || 'FORECAST', qc: qcOf.get(w.job_ticket) || 0}));
+    this.D = {fc, dl, prod, names, fcJobs, fcm: fcm || [], fcmMissing: fcm === null};
     return this.D;
   },
   sumDl(f){ return this.D.dl.filter(f).reduce((a, x) => a + (+x.qty || 0), 0); },
@@ -2735,13 +2743,16 @@ const QSPage = {
     const D = this.D, g = new Map();
     D.fc.filter(x => x.po_no).forEach(x => { const k = x.po_no.trim() + '|' + x.product_code.trim(); const r = g.get(k) || {po: x.po_no.trim(), code: x.product_code.trim(), name: x.product_name, unit: x.unit, po_qty: 0, closed: true, recv: x.recv_date, ids: []};
       r.po_qty += +x.po_qty || 0; r.closed = r.closed && x.closed; r.ids.push(x.id); if (x.recv_date && (!r.recv || x.recv_date < r.recv)) r.recv = x.recv_date; g.set(k, r); });
+    (D.fcJobs || []).forEach(w => { const k = w.fc_no + '|' + w.product_code.trim(); if (g.has(k) && !g.get(k).fcJob) return;
+      const r = g.get(k) || {po: w.fc_no, code: w.product_code.trim(), name: w.product_name, unit: 'ดวง', po_qty: 0, closed: true, fcJob: true, jobs: [], qc: 0, ids: []};
+      r.po_qty += +w.order_qty || 0; r.closed = r.closed && !!w.closed; r.jobs.push(w.job_ticket); r.qc += w.qc; g.set(k, r); });
     D.dl.filter(x => x.po_no && !g.has(x.po_no.trim() + '|' + (x.product_code || '').trim())).forEach(x => g.set(x.po_no.trim() + '|' + x.product_code.trim(), {po: x.po_no.trim(), code: x.product_code.trim(), name: x.product_name, unit: x.unit, po_qty: 0, closed: false, noPo: true, ids: []}));
     const fcByCode = {}; D.fc.forEach(x => fcByCode[x.product_code.trim()] = (fcByCode[x.product_code.trim()] || 0) + (+x.forecast_qty || 0));
     const fcm = {}; D.fcm.filter(x => x.period === period).forEach(x => fcm[x.product_code] = (fcm[x.product_code] || 0) + (+x.qty || 0));
     return [...g.values()].map(r => { const m = x => (x.po_no || '').trim() === r.po && (x.product_code || '').trim() === r.code;
       const billed = this.sumDl(x => m(x) && x.si_no), unbilled = this.sumDl(x => m(x) && !x.si_no), dl = billed + unbilled;
       const fcq = fcByCode[r.code] || 0, inPer = this.sumDl(x => (x.product_code || '').trim() === r.code && x.period === period);
-      return {...r, forecast: fcq, produced: dl, billed, unbilled, delivered: dl, stock: this.stockOf(r.code), fc_left: period ? Math.max(0, fcq - inPer) : null,
+      return {...r, forecast: fcq, produced: r.fcJob ? r.qc : dl, billed, unbilled, delivered: dl, stock: this.stockOf(r.code), fc_left: period ? Math.max(0, fcq - inPer) : null,
         remain: Math.max(0, r.po_qty - dl), perQty: period ? this.sumDl(x => m(x) && x.period === period) : dl}; })
       .sort((a, b) => a.po.localeCompare(b.po) || a.code.localeCompare(b.code));
   },
@@ -2812,7 +2823,7 @@ const QSPage = {
         <input id="qsQ" class="field" style="max-width:260px;padding:5px 10px;font-size:13px" placeholder="ค้นหา PO / รหัส / ชื่อสินค้า" value="${esc(this.q)}">
         <span class="sp"></span><button class="btn ghost sm" id="qsCsv">⬇ Excel (CSV)</button></div>
       <div class="card tbl-wrap trk-wrap"><table class="trk qs-t"><thead><tr><th>PO</th><th>รหัสสินค้า</th><th>ชื่อสินค้า</th><th>หน่วย</th><th class="num">รวม Forecast</th><th class="num">ส่งแล้ว (ออกบิลแล้ว)</th><th class="num">ส่งแล้ว (ค้างเปิดบิล)</th><th class="num">รวมส่งจริงทั้งหมด</th><th class="num">ส่งในงวด ${per || '(ทั้งหมด)'}</th><th class="num">ยอดค้างส่ง FC</th><th class="num">รวมยอดตาม PO</th><th class="num">ยอดค้างส่งตาม PO</th><th></th></tr></thead><tbody>
-      ${rows.map((r, i) => `<tr class="${r.closed ? 'is-closed' : ''}"><td>${i && rows[i - 1].po === r.po ? '' : `<b>${esc(r.po)}</b>`}${r.noPo ? ' <span class="so-st x" title="มีการส่งของอ้าง PO นี้ แต่ยังไม่ได้บันทึก PO">ไม่มี PO</span>' : ''}</td><td>${esc(r.code)}</td><td class="pn">${esc(r.name || '')}</td><td>${esc((r.unit || '').trim())}</td>
+      ${rows.map((r, i) => `<tr class="${r.closed ? 'is-closed' : ''}"><td>${i && rows[i - 1].po === r.po ? '' : `<b>${esc(r.po)}</b>`}${r.fcJob ? ` <span class="so-st fcj" title="ใบสั่งผลิตงาน FORECAST ยังไม่มีเลข PO — พอได้ PO แล้วใส่เลข PO ในใบสั่งผลิต แถวนี้จะย้ายไปอยู่ใต้เลข PO เอง">FORECAST รอ PO</span><div class="hint">JOB ${esc(r.jobs.join(', '))}</div>` : ''}${r.noPo ? ' <span class="so-st x" title="มีการส่งของอ้าง PO นี้ แต่ยังไม่ได้บันทึก PO">ไม่มี PO</span>' : ''}</td><td>${esc(r.code)}</td><td class="pn">${esc(r.name || '')}</td><td>${esc((r.unit || '').trim())}</td>
         <td class="num">${fmtN(r.forecast)}</td><td class="num">${fmtN(r.billed)}</td><td class="num ${r.unbilled ? 'qs-warn' : ''}">${fmtN(r.unbilled)}</td><td class="num"><b>${fmtN(r.delivered)}</b></td><td class="num">${fmtN(r.perQty)}</td>
 <td class="num">${r.fc_left === null ? '–' : fmtN(r.fc_left)}</td><td class="num">${fmtN(r.po_qty)}</td><td class="num ${r.remain ? 'qs-rem' : ''}"><b>${fmtN(r.remain)}</b></td>
         <td>${r.closed ? '<span class="so-st">ปิด PO</span>' : r.remain === 0 && r.po_qty ? '<span class="so-st ok">ส่งครบ</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="13" class="wt-info">ไม่มีข้อมูล</td></tr>'}
@@ -2831,7 +2842,7 @@ const QSPage = {
     const per = this.per ?? this.curPeriod(), o = {orient: 'landscape', fs: 9, onlyOpen: true, ...store.get('vp_qs_rpt', {})};
     const rows = this.rptRows(per, o.onlyOpen);
     const head = ['PO', 'รหัสสินค้า', 'ชื่อสินค้า', 'งวดเดือน', 'ผลรวม ของ รวม Forecast', 'ผลรวม ของ รวมผลิต', 'ผลรวม ของ รวมส่งจริงทั้งหมด', 'ผลรวม ของ ยอดค้างส่ง FC', 'ผลรวม ของ รวมยอดตาม PO', 'ผลรวม ของ ยอดค้างส่งตาม PO'];
-    const body = rows.map((r, i) => [i && rows[i - 1].po === r.po ? '' : r.po, r.code, r.name || '', per || 'ทั้งหมด', r.forecast, r.produced, r.delivered, r.fc_left, r.po_qty, r.remain]);
+    const body = rows.map((r, i) => [i && rows[i - 1].po === r.po ? '' : r.fcJob ? r.po + ' (FORECAST รอ PO)' : r.po, r.code, r.name || '', per || 'ทั้งหมด', r.forecast, r.produced, r.delivered, r.fc_left, r.po_qty, r.remain]);
     this._rpt = {head, body, per};
     $('#qsBody').innerHTML = `<div class="toolbar" style="margin:0 0 8px">งวดเดือน ${this.perSel('qsPer', per)}
         <label class="wc ${o.onlyOpen ? 'on' : ''}"><input type="checkbox" id="rpOpen" ${o.onlyOpen ? 'checked' : ''}> เฉพาะ PO ที่ยังค้างส่ง (+ มีส่งในงวดนี้)</label>
