@@ -796,6 +796,9 @@ const store = {
 };
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 2600); }
 function deviceId(){ let d = store.get('vp_device'); if (!d) { d = 'D' + Math.random().toString(36).slice(2, 10); store.set('vp_device', d); } return d; }
+// ช่องเลข PO / SO ที่ใส่ไว้แทน "ยังไม่มีเลข" เช่น . - ไม่มี รอ PO N/A → ถือว่าว่าง
+const NO_REF = v => { const t = String(v ?? '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, '');
+  return !t || /^[-–—._\/\\*x×]+$/.test(t) || /^(ไม่มี|ไม่มีpo|ไม่มีเลข|ไม่มีเลขที่|ไม่มีso|รอ|รอpo|รอเลข|รอเลขpo|n\/?a|none|nil|null|no|nopo|tbd)$/.test(t); };
 const PAUSE_ST = 'พักงาน (ถูกแทรก)', isPause = v => /พักงาน/.test(v || '');
 const DEPT = {
   prod: { title:'แผนกผลิต', statuses:['กำลังทำ','ทยอยส่ง','เสร็จแล้ว','พักงาน (ถูกแทรก)'], final:'เสร็จแล้ว', steps:['พิมพ์','ไดคัท'] },
@@ -2123,6 +2126,7 @@ const WOForm = {
   },
   async save(kind, andPrint){
     const p = this.payload();
+    ['po_no', 'so_no'].forEach(k => { if (typeof p[k] === 'string' && NO_REF(p[k])) p[k] = null; });   // ใส่ "-" = ยังไม่มีเลข → เก็บเป็นค่าว่าง
     const miss = [['customer_name','ชื่อลูกค้า'],['product_name','ชื่อสินค้าที่ผลิต'],['order_qty','จำนวนที่สั่งผลิต']].filter(([c]) => p[c] === null).map(x => x[1]);
     if (miss.length) return toast('กรุณากรอก: ' + miss.join(', '));
     const msgs = { new: 'บันทึกใบสั่งผลิตใหม่?', update: `บันทึกการแก้ไข JOB ${this.wo.job_ticket}?`, revise: `บันทึกเป็นงาน Revised ของ ${this.wo.job_ticket}?`, copy: 'สร้าง JOB ใหม่ โดยใช้ข้อมูลจากใบนี้?' };
@@ -2732,7 +2736,7 @@ const QSPage = {
     (fcm || []).forEach(x => { names[x.product_code] ||= {name: x.product_name, unit: null}; });
     // ใบสั่งผลิตงาน FORECAST ที่ยังไม่มีเลข PO → แสดงในรายงานโดยใช้เลขใบ Forecast (ช่อง S/O) แทนเลข PO
     const qcOf = new Map(pr.map(r => [r.job_ticket, +r.eff_qc || 0]));
-    const fcJobs = (raw.wo || []).filter(w => !w.cancelled && !String(w.po_no || '').trim() && w.product_code && jobMonth(w.job_ticket) >= startM && !/-R\d+$/.test(w.job_ticket)
+    const fcJobs = (raw.wo || []).filter(w => !w.cancelled && NO_REF(w.po_no) && w.product_code && jobMonth(w.job_ticket) >= startM && !/-R\d+$/.test(w.job_ticket)
         && (/forecast/i.test(w.job_label || '') || /^FC/i.test(String(w.so_no || '').trim())))
       .map(w => ({...w, product_code: canon(w.product_code), fc_no: String(w.so_no || '').trim() || 'FORECAST', qc: qcOf.get(w.job_ticket) || 0}));
     this.D = {fc, dl, prod, names, fcJobs, fcm: fcm || [], fcmMissing: fcm === null};
@@ -4414,7 +4418,7 @@ const ShipPage = {
   view: store.get('vp_sh_view', 'open'), q: '',
   n: s => String(s || '').toLowerCase().replace(/[\s ​]+/g, ''),
   key(po, code){ return this.n(po) + '|' + this.n(code); },
-  wkey(w){ return this.key((w.po_no || '').trim() || 'JOB ' + w.job_ticket, w.product_code); },
+  wkey(w){ return this.key(NO_REF(w.po_no) ? 'JOB ' + w.job_ticket : w.po_no.trim(), w.product_code); },
   // จำนวนที่ใช้ตัดยอด PO: ship_qty (เทียบเป็นหน่วยในใบสั่ง เช่น ม้วน → ดวง) ถ้าไม่ได้ระบุ ใช้จำนวนในใบกำกับ
   eq(d){ return d._sq ?? (d.ship_qty !== null && d.ship_qty !== undefined && d.ship_qty !== '' ? +d.ship_qty : +d.qty || 0); },
   isPcs(u){ u = String(u || '').trim(); return !u || /ดวง|pcs|ชิ้น|แผ่น/i.test(u); },
@@ -4438,7 +4442,7 @@ const ShipPage = {
       if (base.date && (!L.date || base.date > L.date)) L.date = base.date; return L; };
     // 1) SO จาก Autoflight
     const H = new Map(D.so_h.filter(h => !h.cancelled).map(h => [h.so_no, h]));
-    D.so_i.filter(i => !i.cancelled && i.item_type !== 'P7' && H.has(i.so_no) && i.product_code).forEach(i => { const h = H.get(i.so_no), po = (h.po_no || '').trim() || 'SO ' + i.so_no;
+    D.so_i.filter(i => !i.cancelled && i.item_type !== 'P7' && H.has(i.so_no) && i.product_code).forEach(i => { const h = H.get(i.so_no), po = NO_REF(h.po_no) ? 'SO ' + i.so_no : h.po_no.trim();
       const L = add(po, i.product_code.trim(), {product_name: i.product_name, customer_name: h.customer_name, customer_code: h.customer_code, unit: i.unit, due: i.due_date, src: 'SO', date: h.so_date});
       L.qty += N(i.qty); L.so_nos.add(i.so_no); L.af_shipped += N(i.delivered_qty); if (i.job_ticket) L.linkJobs = [...(L.linkJobs || []), i.job_ticket]; });
     // 2) PO ระยะยาว / Forecast (ควาร์ค)
@@ -4447,13 +4451,13 @@ const ShipPage = {
     // 3) ใบสั่งผลิตที่ยังไม่มี SO
     const W = D.wo.filter(w => !w.cancelled && !/-R\d+$/.test(w.job_ticket));
     const cust = new Map(D.cust.map(c => [this.n(c.short_name), c.code]));
-    W.filter(w => w.po_no && w.product_code && !lines.has(this.key(w.po_no, w.product_code)) && (w.doc_date || '9999') >= C.start)
+    W.filter(w => !NO_REF(w.po_no) && w.product_code && !lines.has(this.key(w.po_no, w.product_code)) && (w.doc_date || '9999') >= C.start)
       .forEach(w => add(w.po_no.trim(), w.product_code.trim(), {product_name: w.product_name, customer_name: w.customer_name, customer_code: cust.get(this.n(w.customer_name)), src: 'JOB', due: w.due_date, date: w.doc_date, _wo: 1}).qty += 0);
     // การส่งที่ผูกกับ JOB เอง (ใบสั่งผลิตเก่า / ไม่มี SO) → สร้างรายการจาก JOB นั้น
     const wk = w => this.wkey(w);
     const wByKey = new Map(); W.forEach(w => { if (w.product_code) wByKey.set(wk(w), w); });
     D.dl.filter(d => !d.ship_ignore && (d.job_ticket || (d.po_no && !d.ship_key))).forEach(d => { const w = d.job_ticket ? W.find(x => x.job_ticket === d.job_ticket.trim()) : wByKey.get(this.key(d.po_no, d.product_code)); if (!w || lines.has(wk(w))) return;
-      add((w.po_no || '').trim() || 'JOB ' + w.job_ticket, (w.product_code || d.product_code || '').trim(), {product_name: w.product_name, customer_name: w.customer_name, customer_code: cust.get(this.n(w.customer_name)), src: 'JOB', due: w.due_date, date: w.doc_date, _wo: 1}); });
+      add(NO_REF(w.po_no) ? 'JOB ' + w.job_ticket : w.po_no.trim(), (w.product_code || d.product_code || '').trim(), {product_name: w.product_name, customer_name: w.customer_name, customer_code: cust.get(this.n(w.customer_name)), src: 'JOB', due: w.due_date, date: w.doc_date, _wo: 1}); });
     lines.forEach(L => { if (L.src === 'JOB') L.qty = W.filter(w => wk(w) === L.key).reduce((a, w) => a + N(w.order_qty), 0); });
     // ผูก JOB กับรายการ
     const bySo = new Map(); lines.forEach(L => L.so_nos.forEach(s => (bySo.get(s) || bySo.set(s, []).get(s)).push(L)));
