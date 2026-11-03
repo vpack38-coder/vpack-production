@@ -622,6 +622,8 @@ table.trk.xl tr.is-closed td{color:#4b5563}
 .md-bar{height:7px;background:#e5e7eb;border-radius:9px;margin:7px 0 3px;overflow:hidden}.md-bar i{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}
 table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top:2px solid #94a3b8} table.kp-t tr.kp-pod td:nth-child(-n+5){background:#fff !important}
 #kpQ.kp-q{border:2px solid #60a5fa;background:#f0f7ff}#kpQ.kp-q:focus{border-color:#2563eb;background:#fff}#kpQ.kp-q:not(:placeholder-shown){border-color:#f59e0b;background:#fffbeb}
+.sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
+#dlg:has(#sl_q){width:min(680px,94vw)}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
@@ -1278,7 +1280,7 @@ const Live = {
   async getWorkOrder(job){ return this.chk(await this.sb.from('work_orders').select('*').eq('job_ticket', job.trim()).maybeSingle()); },
   async searchJobs(s){
     s = (s||'').replace(/[,()%]/g, ' ').trim();
-    let q = this.sb.from('work_orders').select('job_ticket, customer_name, product_name, order_qty').order('job_ticket', {ascending:false}).limit(30);
+    let q = this.sb.from('work_orders').select('job_ticket, customer_name, product_name, order_qty, closed, cancelled').order('job_ticket', {ascending:false}).limit(30);
     if (s) q = q.or(`job_ticket.ilike.%${s}%,customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
     return this.chk(await q);
   },
@@ -4699,6 +4701,34 @@ const Reports = {
   }
 };
 
+/* ================== ส่งลิงก์สแกนให้ช่าง (กรณีใบสั่งผลิตไปอยู่แผนกอื่น ไม่มี QR ให้สแกน) ================== */
+const ScanLink = {
+  base(){ return store.get('vp_base', location.origin + location.pathname); },
+  url(dpt, j){ return `${this.base()}?scan=${dpt}&job=${encodeURIComponent(j)}`; },
+  text(dpt, w){ return `${dpt === 'prod' ? '📝 ลิงก์สแกนฝ่ายผลิต' : '✅ ลิงก์สแกน QC'} JOB ${w.job_ticket}\n${w.customer_name || ''}\n${w.product_name || ''}\n${this.url(dpt, w.job_ticket)}`; },
+  async copy(txt){
+    if (navigator.share && matchMedia('(pointer:coarse)').matches) { try { await navigator.share({text: txt}); return; } catch {} }
+    try { await navigator.clipboard.writeText(txt); toast('คัดลอกแล้ว — ไปวางในแชท LINE ได้เลย'); } catch { prompt('คัดลอกข้อความนี้', txt); } },
+  open(job){
+    $('#dlgBody').innerHTML = `<h3>🔗 ส่งลิงก์สแกนให้ช่าง</h3>
+      <div class="hint" style="margin:-4px 0 8px">พิมพ์เลข JOB / ชื่อลูกค้า / ชื่อสินค้า แล้วกดคัดลอกลิงก์ที่ต้องการ → ไปวางตอบในแชท LINE OA</div>
+      <input id="sl_q" class="field" placeholder="เช่น 6910/55 หรือ ชื่อลูกค้า" value="${esc(job || '')}" autocomplete="off">
+      <div id="sl_l" class="tbl-wrap" style="max-height:55vh;margin-top:8px"></div>
+      <div class="acts"><button class="btn ghost" id="sl_x">ปิด</button></div>`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); $('#sl_x').onclick = () => d.close();
+    let L = [];
+    const draw = async () => { const q = $('#sl_q').value.trim();
+      try { L = (await API.searchJobs(q)).filter(w => !w.cancelled); } catch (e) { $('#sl_l').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+      if (q) { const ex = L.findIndex(w => w.job_ticket === q); if (ex > 0) L.unshift(...L.splice(ex, 1)); }
+      $('#sl_l').innerHTML = L.length ? L.slice(0, 30).map((w, i) => `<div class="sl-row">
+        <div class="sl-i"><b>${esc(w.job_ticket)}</b>${w.closed ? ' <small class="hint">(ปิดจ๊อบแล้ว — สแกนไม่ได้)</small>' : ''}<div>${esc(w.customer_name || '')}</div><div class="so-rm">${esc(w.product_name || '')}</div></div>
+        <div class="sl-b"><button class="btn sm" data-sl="prod" data-i="${i}">📝 ลิงก์ผลิต</button><button class="btn sm" data-sl="qc" data-i="${i}" style="background:#0f7b6c">✅ ลิงก์ QC</button></div></div>`).join('')
+        : '<div class="hint" style="padding:10px">ไม่พบ JOB</div>';
+      $('#sl_l').querySelectorAll('[data-sl]').forEach(b => b.onclick = () => this.copy(this.text(b.dataset.sl, L[+b.dataset.i]))); };
+    let t; $('#sl_q').oninput = () => { clearTimeout(t); t = setTimeout(draw, 250); }; draw(); setTimeout(() => $('#sl_q').focus(), 50);
+  }
+};
+
 /* ================== หน้าเมนูหลัก (Main Menu) ================== */
 const HomePage = {
   menu: [
@@ -4713,6 +4743,7 @@ const HomePage = {
     { g:'การผลิต / QC', items:[
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
       { k:'oscan',   ic:'📝', c:'#9a3412', t:'บันทึกยอดแทนช่าง (สแกนย้อนหลัง)', go:() => Office.go('oscan') },
+      { k:'slink',   ic:'🔗', c:'#5b4fc4', t:'ส่งลิงก์สแกนให้ช่าง (ไม่มี QR)', go:() => ScanLink.open() },
       { k:'track',   ic:'📊', c:'#0f7b6c', t:'ติดตามงาน (รายJOB)', go:() => { Office.pview = 'job'; store.set('vp_pview','job'); Office.go('progress'); } },
       { k:'stock',   ic:'📦', c:'#2e7d32', t:'สต็อกตามสินค้า', go:() => { Office.pview = 'stock'; store.set('vp_pview','stock'); Office.go('progress'); } } ]},
     { g:'Dashboard / รายงาน', items:[
@@ -5262,7 +5293,7 @@ const Office = {
     const ed = (r, c) => `<input class="ed" data-j="${esc(r.job_ticket)}" data-f="${c}" value="${r[c] === null || r[c] === undefined ? '' : (c === 'track_note' ? esc(r[c]) : fmtN(r[c]))}" ${c === 'track_note' ? '' : 'inputmode="decimal"'}>`;
     const cell = (r, [k, , t, band]) => {
       const num = ['num','pct'].includes(t) || (t === 'ed' && k !== 'track_note') ? ' num' : '';
-      if (t === 'job') return `<td class="stk ${band}"><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a>${r.cancelled ? '<div class="cx-b" title="' + esc(r.cancel_reason || '') + '">ยกเลิก</div>' : ''}</td>`;
+      if (t === 'job') return `<td class="stk ${band}"><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a>${r.closed || r.cancelled || Office.ro ? '' : ` <a href="#" class="sl-a" data-sl="${esc(r.job_ticket)}" title="คัดลอกลิงก์สแกนส่งให้ช่าง">🔗</a>`}${r.cancelled ? '<div class="cx-b" title="' + esc(r.cancel_reason || '') + '">ยกเลิก</div>' : ''}</td>`;
       if (t === 'cu' || t === 'pn') return `<td class="${t} ${band}">${esc(r[k])}</td>`;
       if (t === 'st') return `<td class="${band} ${stc(r[k] || '')}">${esc(r[k] || '')}</td>`;
       if (t === 'ed') return `<td class="${band}${num}">${ed(r, k)}</td>`;
@@ -5296,6 +5327,7 @@ const Office = {
       try { await API.updateWorkOrder(el.dataset.j, {closed: el.checked}); toast(el.checked ? 'ปิดจ๊อบแล้ว' : 'เปิดจ๊อบแล้ว'); this.loadProgress(); } catch (e) { el.checked = !el.checked; toast(e.message); }
     });
     $('#pg').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); this.go('wo'); });
+    $('#pg').querySelectorAll('[data-sl]').forEach(a => a.onclick = e => { e.preventDefault(); ScanLink.open(a.dataset.sl); });
   },
 
   /* ----- พิมพ์ใบสั่งผลิต (A4 พร้อม QR 2 จุด) ----- */
