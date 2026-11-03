@@ -1311,7 +1311,8 @@ const BACKUP_TABLES = [   // [ชื่อชีต, ตาราง/วิว, 
   ['WORKORDER', 'work_orders', 'job_ticket'], ['ติดตามงาน', 'v_job_progress', 'job_ticket'], ['สต็อกตามสินค้า', 'v_stock', 'customer_name'],
   ['DATA_ผลิต', 'production_logs', 'id'], ['DATA_QC', 'qc_logs', 'id'], ['ข้อมูลสแกนทั้งหมด', 'scan_inbox', 'id'],
   ['ลูกค้า', 'customers', 'code'], ['สินค้า', 'products', 'code'], ['วัตถุดิบ', 'raw_materials', 'code'], ['ซัพพลายเออร์', 'suppliers', 'code'],
-  ['DATA_SPEC', 'lookups', 'category'], ['พนักงาน', 'employees', 'id'], ['ใบสั่งผลิตที่ลบ', 'deleted_work_orders', 'id'], ['ยอดยกมา', 'carry_links', 'id'], ['SO_หัวเอกสาร', 'so_headers', 'so_no'], ['SO_รายการ', 'so_items', 'id'], ['PO_Forecast', 'fc_po', 'id'], ['การส่งของ', 'deliveries', 'id'], ['Forecast_รายเดือน', 'fc_monthly', 'id'], ['ประวัติการแก้ไข', 'change_log', 'id']];
+  ['DATA_SPEC', 'lookups', 'category'], ['พนักงาน', 'employees', 'id'], ['ใบสั่งผลิตที่ลบ', 'deleted_work_orders', 'id'], ['ยอดยกมา', 'carry_links', 'id'], ['SO_หัวเอกสาร', 'so_headers', 'so_no'], ['SO_รายการ', 'so_items', 'id'], ['PO_Forecast', 'fc_po', 'id'], ['การส่งของ', 'deliveries', 'id'], ['Forecast_รายเดือน', 'fc_monthly', 'id'], ['ประวัติการแก้ไข', 'change_log', 'id'],
+  ['แจ้งสั่งกระดาษ', 'paper_orders', 'id'], ['ปิดงานจัดส่ง', 'ship_close', 'key'], ['ตั้งค่าระบบ', 'app_meta', 'key'], ['บัญชีเจ้านาย_จัดส่ง', 'app_viewers', 'email']];
 const API = USE_DEMO ? Demo : (Live.init(), Live);
 if (USE_DEMO) $('#demoBar').classList.remove('hidden');
 
