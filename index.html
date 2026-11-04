@@ -1039,7 +1039,7 @@ const Demo = {
   async lookups(){ const m = this.m(), spec = {};
     [...m.lookups].sort((a,b) => a.sort - b.sort).forEach(x => (spec[x.category] ||= []).push(x.value));
     return { customers: [...new Set(m.customers.map(x => x.short_name))].sort(), products: m.products.map(x => [x.code, x.name]),
-      raw: m.raw_materials, suppliers: [...new Set(m.suppliers.map(x => x.short_name))].sort(), spec }; },
+      raw: m.raw_materials, suppliers: [...new Set(m.suppliers.map(x => x.short_name))].sort(), supMap: Object.fromEntries(m.suppliers.filter(x => x.code && x.short_name).map(x => [String(x.code).trim().toLowerCase(), x.short_name])), spec }; },
   async masterList(t, M, q, all){ q = (q||'').toLowerCase();
     const rows = this.m()[t].filter(r => !q || M.search.some(c => String(r[c]||'').toLowerCase().includes(q))).sort((a,b) => String(a[M.key]).localeCompare(String(b[M.key])));
     return all ? { rows, more: false } : { rows: rows.slice(0,100), more: rows.length > 100 }; },
@@ -1118,10 +1118,10 @@ const Live = {
   async lookups(){
     const [c, p, r, s, l] = await Promise.all([
       this.fetchAll('customers','short_name','short_name'), this.fetchAll('products','code,name','code'),
-      this.fetchAll('raw_materials','code,name,paper_type,supplier,width_mm','code'), this.fetchAll('suppliers','short_name','short_name'),
+      this.fetchAll('raw_materials','code,name,paper_type,supplier,width_mm','code'), this.fetchAll('suppliers','code,short_name','short_name'),
       this.fetchAll('lookups','category,value,sort','sort')]);
     const spec = {}; l.forEach(x => (spec[x.category] ||= []).push(x.value));
-    return { customers: [...new Set(c.map(x => x.short_name))], products: p.map(x => [x.code, x.name]), raw: r, suppliers: [...new Set(s.map(x => x.short_name).filter(Boolean))], spec };
+    return { customers: [...new Set(c.map(x => x.short_name))], products: p.map(x => [x.code, x.name]), raw: r, suppliers: [...new Set(s.map(x => x.short_name).filter(Boolean))], supMap: Object.fromEntries(s.filter(x => x.code && x.short_name).map(x => [String(x.code).trim().toLowerCase(), x.short_name])), spec };
   },
   async masterList(t, M, q, all){
     q = (q||'').replace(/[,()%]/g, ' ').trim();
@@ -2072,13 +2072,13 @@ const WOForm = {
       const r = this.L.raw.find(x => x.code === (w.paper_code||'').trim());
       if (r) { this.setVal('paper_name', r.name);
         if (!w.paper_type && r.paper_type) this.setVal('paper_type', r.paper_type);
-        if (!w.supplier && r.supplier) this.setVal('supplier', r.supplier);
+        if (!w.supplier && r.supplier) this.setVal('supplier', PaperPage.supName(r.supplier));
         if (!w.web_width_mm && r.width_mm) this.setVal('web_width_mm', r.width_mm); }
     }
   },
   // รหัสเคลือบ ↔ ฐานข้อมูลวัตถุดิบ: รายการเลือก = รหัสใน Spec + วัตถุดิบที่เป็นฟิล์ม (แสดงชื่อ / ซัพพลายเออร์)
   coatList(L){ const raw = L.raw || [], ck = PaperPage.ck, out = new Map();
-    const lab = r => [r.name, r.supplier].filter(Boolean).join(' · ');
+    const lab = r => [r.name, PaperPage.supName(r.supplier)].filter(Boolean).join(' · ');
     (L.spec?.coating_code || []).forEach(c => { const r = raw.find(x => ck(x.code) === ck(c)); out.set(ck(c), [r ? String(r.code).trim() : c, r ? lab(r) : '(ไม่มีในฐานข้อมูลวัตถุดิบ)']); });
     raw.filter(r => /ฟิล์มเคลือบ|เคลือบ|ลามิเนต|laminat|overlam/i.test([r.name, r.paper_type].join(' '))).forEach(r => { if (!out.has(ck(r.code))) out.set(ck(r.code), [String(r.code).trim(), lab(r)]); });
     return [...out.values()]; },
@@ -2087,7 +2087,7 @@ const WOForm = {
     const box = el.closest('label') || el.parentElement; let h = box.querySelector('.coat-h'); if (!h) { h = document.createElement('div'); h.className = 'coat-h hint'; box.appendChild(h); }
     const v = String(this.wo?.coating_code || el.value || '').trim(); if (!v) { h.innerHTML = ''; return; }
     const r = PaperPage.rawOf(v);
-    h.innerHTML = r ? `📦 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(r.supplier) + '</b>' : ''}` : '<span style="color:#b45309">⚠ ไม่พบรหัสนี้ในฐานข้อมูลวัตถุดิบ (ซัพพลายเออร์จะไม่ขึ้นตอนสั่งฟิล์ม)</span>'; },
+    h.innerHTML = r ? `📦 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(PaperPage.supName(r.supplier)) + '</b>' : ''}` : '<span style="color:#b45309">⚠ ไม่พบรหัสนี้ในฐานข้อมูลวัตถุดิบ (ซัพพลายเออร์จะไม่ขึ้นตอนสั่งฟิล์ม)</span>'; },
   payload(){
     const o = {};
     WO_FIELDS.forEach(([c,t]) => {
@@ -2290,7 +2290,7 @@ const MasterPage = {
         <input id="specNew" class="field" style="padding:5px 10px;font-size:14px" placeholder="เพิ่มรายการใหม่ใน ${esc(label)}"><button class="btn sm" id="specAdd">+ เพิ่ม</button></div>
       ${vals.length ? `<table><thead><tr><th style="width:60px">ลำดับ</th><th>${esc(label)}</th><th style="width:${CC ? 280 : 150}px"></th></tr></thead><tbody>
         ${vals.map((v,i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(v.value)}${CC ? (() => { const r = PaperPage.rawOf(v.value);
-          return r ? `<div class="hint">🔗 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(r.supplier) + '</b>' : ''}</div>` : '<div class="hint" style="color:#b45309">⚠ ยังไม่ผูกกับฐานข้อมูลวัตถุดิบ</div>'; })() : ''}</td><td><span class="rowact">${CC ? `<button class="btn ghost sm" data-lnk="${i}" title="เลือกวัตถุดิบในฐานข้อมูล แล้วใช้รหัสเดียวกัน">🔗 ผูกวัตถุดิบ</button>` : ''}
+          return r ? `<div class="hint">🔗 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(PaperPage.supName(r.supplier)) + '</b>' : ''}</div>` : '<div class="hint" style="color:#b45309">⚠ ยังไม่ผูกกับฐานข้อมูลวัตถุดิบ</div>'; })() : ''}</td><td><span class="rowact">${CC ? `<button class="btn ghost sm" data-lnk="${i}" title="เลือกวัตถุดิบในฐานข้อมูล แล้วใช้รหัสเดียวกัน">🔗 ผูกวัตถุดิบ</button>` : ''}
         <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''} title="เลื่อนขึ้น">↑</button><button class="btn ghost sm" data-rn="${i}">แก้ไข</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">ยังไม่มีรายการ</div>'}
       <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบหรือเปลี่ยนชื่อที่นี่ ใบสั่งผลิตเดิมไม่เปลี่ยน (ใช้ส่วนด้านล่างเพื่อเปลี่ยนในใบเก่า)</div>
@@ -2307,7 +2307,7 @@ const MasterPage = {
       const q = (String(v.value).match(/[A-Za-z0-9]{4,}/g) || []).sort((a, c) => c.length - a.length)[0] || '';
       Lookup.open('raw_materials', q, async row => { const nv = String(row.code || '').trim(); if (!nv) return;
         if (nv === v.value) { toast('ผูกอยู่แล้ว'); return; }
-        if (!(await Office.confirm(`ผูก "${v.value}" กับวัตถุดิบ\n${nv} — ${row.name || ''}${row.supplier ? '\nซัพพลายเออร์: ' + row.supplier : ''}\n\nรหัสเคลือบใน Spec จะเปลี่ยนเป็น "${nv}"`))) return;
+        if (!(await Office.confirm(`ผูก "${v.value}" กับวัตถุดิบ\n${nv} — ${row.name || ''}${row.supplier ? '\nซัพพลายเออร์: ' + PaperPage.supName(row.supplier) : ''}\n\nรหัสเคลือบใน Spec จะเปลี่ยนเป็น "${nv}"`))) return;
         try { if (vals.some(x => x.value === nv)) await API.specDelete(this.cat, v.value); else await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; }
         catch (e) { return toast(e.message); }
         try { const cnt = (await API.woValueCounts(this.cat))[v.value] || 0;
@@ -4288,7 +4288,7 @@ const PaperPage = {
   // หน้ากว้างฟิล์ม = ช่อง "หน้ากระดาษ" ในข้อมูลการพิมพ์ (ถ้าไม่มี ใช้หน้ากว้าง Web Width)
   filmRow(jobs, base){ const w = jobs[0], f = this.filmOf(w), len = +base?.length_m || 1000, need = jobs.reduce((a, x) => a + (+x.total_m || 0), 0) || null;
     const raw = this.rawOf(f.code);
-    return {job_tickets: jobs.map(x => x.job_ticket), customer_name: w.customer_name, customer_short: base?.customer_short || this.shortName(w.customer_name), supplier: raw?.supplier || this.supOf(f.code),
+    return {job_tickets: jobs.map(x => x.job_ticket), customer_name: w.customer_name, customer_short: base?.customer_short || this.shortName(w.customer_name), supplier: this.supName(raw?.supplier) || this.supOf(f.code),
       paper_code: String(raw?.code || f.code).trim(), paper_name: raw?.name || f.name, width_mm: +w.paper_face_mm || +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need,
       note: 'ฟิล์มเคลือบ ' + f.name, status: 'pending', created_by: Office.user?.email || ''}; },
   // หลังบันทึกรายการกระดาษ: JOB ที่เคลือบ OPP → ถามว่าจะเพิ่มรายการสั่ง OPP ด้วยไหม
@@ -4305,9 +4305,10 @@ const PaperPage = {
   spec(r){ const n = v => v === null || v === undefined || v === '' ? '?' : (+v === Math.round(+v) ? String(+v) : String(+v)); return `${n(r.width_mm)}x${n(r.length_m)}x${n(r.qty)}${r.unit === 'set' ? 'set' : ''}`; },
   // ซัพพลายเออร์ของรหัสกระดาษ/ฟิล์ม: ฐานข้อมูลวัตถุดิบ → รายการสั่งครั้งก่อนที่ใช้รหัสเดียวกัน
   ck: c => String(c || '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, ''),
+  supName(v){ const k = String(v || '').trim(); return k ? (WOForm.L?.supMap || {})[k.toLowerCase()] || k : null; },   // รหัสผู้ขาย (เช่น avery-00000) → ชื่อซัพพลายเออร์
   rawOf(code){ const k = this.ck(code); return k ? (WOForm.L?.raw || []).find(m => this.ck(m.code) === k) || null : null; },
   supOf(code){ code = String(code || '').trim(); if (!code) return null;
-    const raw = this.rawOf(code); if (raw?.supplier) return raw.supplier;
+    const raw = this.rawOf(code); if (raw?.supplier) return this.supName(raw.supplier);
     const last = [...(this.rows || [])].filter(r => this.ck(r.paper_code) === this.ck(code) && r.supplier).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
     return last?.supplier || null; },
   lineText(list, withSup){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
