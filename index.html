@@ -625,6 +625,7 @@ table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
 #dlg:has(#sl_q){width:min(680px,94vw)}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
+.coat-h{grid-column:1/-1;width:100%;font-size:12px;margin-top:2px;text-align:right}
 .pp-film{display:inline-block;background:#e0f2fe;color:#075985;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:600}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
@@ -1708,7 +1709,8 @@ const WOForm = {
       <datalist id="dl_products">${L.products.map(([c,n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('')}</datalist>
       <datalist id="dl_raw">${L.raw.map(r => `<option value="${esc(r.code)}">${esc(r.name||'')}</option>`).join('')}</datalist>
       <datalist id="dl_suppliers">${L.suppliers.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-      ${Object.entries(L.spec).map(([k, arr]) => `<datalist id="dl_${k}">${arr.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
+      ${Object.entries(L.spec).filter(([k]) => k !== 'coating_code').map(([k, arr]) => `<datalist id="dl_${k}">${arr.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
+      <datalist id="dl_coating_code">${WOForm.coatList(L).map(([c, l]) => `<option value="${esc(c)}">${esc(l)}</option>`).join('')}</datalist>
       <datalist id="dl_jobs"></datalist>
       <div class="wo-bar">
         <div class="wo-id"><span id="woMode" class="pill"></span><div><b id="woJob"></b><div id="stockBadge" class="stock-badge"></div></div><span id="woDirty" class="hint"></span></div>
@@ -1774,7 +1776,7 @@ const WOForm = {
     if (mode === 'new') { try { const nx = await API.nextJobTicket(); $('#woJob').textContent = `JOB ถัดไป: ${nx}`; } catch {} }
     this.pull = undefined; this.carry = null; this.carryManual = false;
     this.render(); this.setDirty(this.dirty);
-    this.checkStock(); PaperPage.woBox(this);
+    this.checkStock(); PaperPage.woBox(this); this.coatHint();
   },
   setDirty(v){ this.dirty = v; const d = $('#woDirty'); if (d) d.textContent = v ? '● ยังไม่ได้บันทึก' : ''; },
 
@@ -2064,6 +2066,8 @@ const WOForm = {
       const p = this.L.products.find(([code]) => code === (w.product_code||'').trim());
       if (p) this.setVal('product_name', p[1]);
     }
+    if (c === 'coating_code') { const r = PaperPage.rawOf(w.coating_code), rc = r ? String(r.code).trim() : null;   // พิมพ์ตัวเล็ก/เว้นวรรคต่าง → ใช้รหัสตามฐานข้อมูล
+      if (rc && rc !== String(w.coating_code || '').trim()) this.setVal('coating_code', rc); this.coatHint(); }
     if (c === 'paper_code') {
       const r = this.L.raw.find(x => x.code === (w.paper_code||'').trim());
       if (r) { this.setVal('paper_name', r.name);
@@ -2072,6 +2076,18 @@ const WOForm = {
         if (!w.web_width_mm && r.width_mm) this.setVal('web_width_mm', r.width_mm); }
     }
   },
+  // รหัสเคลือบ ↔ ฐานข้อมูลวัตถุดิบ: รายการเลือก = รหัสใน Spec + วัตถุดิบที่เป็นฟิล์ม (แสดงชื่อ / ซัพพลายเออร์)
+  coatList(L){ const raw = L.raw || [], ck = PaperPage.ck, out = new Map();
+    const lab = r => [r.name, r.supplier].filter(Boolean).join(' · ');
+    (L.spec?.coating_code || []).forEach(c => { const r = raw.find(x => ck(x.code) === ck(c)); out.set(ck(c), [r ? String(r.code).trim() : c, r ? lab(r) : '(ไม่มีในฐานข้อมูลวัตถุดิบ)']); });
+    raw.filter(r => /ฟิล์มเคลือบ|เคลือบ|ลามิเนต|laminat|overlam/i.test([r.name, r.paper_type].join(' '))).forEach(r => { if (!out.has(ck(r.code))) out.set(ck(r.code), [String(r.code).trim(), lab(r)]); });
+    return [...out.values()]; },
+  coatHint(){
+    const el = document.querySelector('#woForm [data-c="coating_code"]'); if (!el) return;
+    const box = el.closest('label') || el.parentElement; let h = box.querySelector('.coat-h'); if (!h) { h = document.createElement('div'); h.className = 'coat-h hint'; box.appendChild(h); }
+    const v = String(this.wo?.coating_code || el.value || '').trim(); if (!v) { h.innerHTML = ''; return; }
+    const r = PaperPage.rawOf(v);
+    h.innerHTML = r ? `📦 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(r.supplier) + '</b>' : ''}` : '<span style="color:#b45309">⚠ ไม่พบรหัสนี้ในฐานข้อมูลวัตถุดิบ (ซัพพลายเออร์จะไม่ขึ้นตอนสั่งฟิล์ม)</span>'; },
   payload(){
     const o = {};
     WO_FIELDS.forEach(([c,t]) => {
@@ -2268,11 +2284,13 @@ const MasterPage = {
       <div class="card" id="specList"><div class="empty">กำลังโหลด…</div></div></div>`;
     document.querySelectorAll('.spec-cat').forEach(b => b.onclick = () => { this.cat = b.dataset.k; this.drawSpec(); });
     let vals; try { vals = await API.specList(this.cat); } catch (e) { $('#specList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-    const label = SPEC_CATS.find(c => c[0] === this.cat)[1];
+    const label = SPEC_CATS.find(c => c[0] === this.cat)[1], CC = this.cat === 'coating_code';
+    if (CC && !WOForm.L) { try { WOForm.L = await API.lookups(); } catch {} }
     $('#specList').innerHTML = `<div style="padding:8px 10px;display:flex;gap:8px;border-bottom:1px solid var(--line)">
         <input id="specNew" class="field" style="padding:5px 10px;font-size:14px" placeholder="เพิ่มรายการใหม่ใน ${esc(label)}"><button class="btn sm" id="specAdd">+ เพิ่ม</button></div>
-      ${vals.length ? `<table><thead><tr><th style="width:60px">ลำดับ</th><th>${esc(label)}</th><th style="width:150px"></th></tr></thead><tbody>
-        ${vals.map((v,i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(v.value)}</td><td><span class="rowact">
+      ${vals.length ? `<table><thead><tr><th style="width:60px">ลำดับ</th><th>${esc(label)}</th><th style="width:${CC ? 280 : 150}px"></th></tr></thead><tbody>
+        ${vals.map((v,i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(v.value)}${CC ? (() => { const r = PaperPage.rawOf(v.value);
+          return r ? `<div class="hint">🔗 ${esc(r.name || '')}${r.supplier ? ' · <b>' + esc(r.supplier) + '</b>' : ''}</div>` : '<div class="hint" style="color:#b45309">⚠ ยังไม่ผูกกับฐานข้อมูลวัตถุดิบ</div>'; })() : ''}</td><td><span class="rowact">${CC ? `<button class="btn ghost sm" data-lnk="${i}" title="เลือกวัตถุดิบในฐานข้อมูล แล้วใช้รหัสเดียวกัน">🔗 ผูกวัตถุดิบ</button>` : ''}
         <button class="btn ghost sm" data-up="${i}" ${i===0?'disabled':''} title="เลื่อนขึ้น">↑</button><button class="btn ghost sm" data-rn="${i}">แก้ไข</button><button class="btn ghost sm" data-del="${i}" style="color:var(--bad)">ลบ</button></span></td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">ยังไม่มีรายการ</div>'}
       <div class="hint" style="padding:10px 14px">รายการเหล่านี้คือตัวเลือกใน dropdown ของหน้าใบสั่งผลิต · ลบหรือเปลี่ยนชื่อที่นี่ ใบสั่งผลิตเดิมไม่เปลี่ยน (ใช้ส่วนด้านล่างเพื่อเปลี่ยนในใบเก่า)</div>
@@ -2284,6 +2302,18 @@ const MasterPage = {
     document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.del];
       if (!(await Office.confirm(`ลบ "${v.value}" ออกจาก ${label}?`))) return;
       await API.specDelete(this.cat, v.value); WOForm.L = null; this.drawSpec(); });
+    // รหัสเคลือบ → ผูกกับวัตถุดิบ: เปลี่ยนรหัสใน Spec ให้ตรงกับรหัสในฐานข้อมูลวัตถุดิบ (และเปลี่ยนในใบสั่งผลิตเก่าถ้าต้องการ)
+    document.querySelectorAll('[data-lnk]').forEach(b => b.onclick = () => { const v0 = vals[+b.dataset.lnk], v = {value: v0.value, sort: v0.sort};
+      const q = (String(v.value).match(/[A-Za-z0-9]{4,}/g) || []).sort((a, c) => c.length - a.length)[0] || '';
+      Lookup.open('raw_materials', q, async row => { const nv = String(row.code || '').trim(); if (!nv) return;
+        if (nv === v.value) { toast('ผูกอยู่แล้ว'); return; }
+        if (!(await Office.confirm(`ผูก "${v.value}" กับวัตถุดิบ\n${nv} — ${row.name || ''}${row.supplier ? '\nซัพพลายเออร์: ' + row.supplier : ''}\n\nรหัสเคลือบใน Spec จะเปลี่ยนเป็น "${nv}"`))) return;
+        try { if (vals.some(x => x.value === nv)) await API.specDelete(this.cat, v.value); else await API.specSave(this.cat, nv, v.value, v.sort); WOForm.L = null; }
+        catch (e) { return toast(e.message); }
+        try { const cnt = (await API.woValueCounts(this.cat))[v.value] || 0;
+          if (cnt && await Office.confirm(`มีใบสั่งผลิตเก่า ${fmtN(cnt)} ใบที่ใช้รหัสเคลือบ "${v.value}"\nเปลี่ยนเป็น "${nv}" ด้วยไหม?`)) { const n = await API.woRename(this.cat, [v.value], nv); toast(`ผูกแล้ว · เปลี่ยนในใบสั่งผลิต ${fmtN(n)} ใบ`); Kpi._jobs = null; }
+          else toast('ผูกกับวัตถุดิบแล้ว'); } catch (e) { toast('เปลี่ยนในใบเก่าไม่ได้: ' + e.message); }
+        this.drawSpec(); }); });
     document.querySelectorAll('#specList tr[data-i]').forEach(tr => tr.ondblclick = () => tr.querySelector('[data-rn]').click());
     document.querySelectorAll('[data-rn]').forEach(b => b.onclick = async () => { const v = vals[+b.dataset.rn];
       const nv = await this.ask(`แก้ไขรายการใน ${label}`, v.value); if (!nv || nv === v.value) return;
@@ -4257,9 +4287,9 @@ const PaperPage = {
   isFilm(r){ return /^ฟิล์มเคลือบ/.test(r?.note || ''); },
   // หน้ากว้างฟิล์ม = ช่อง "หน้ากระดาษ" ในข้อมูลการพิมพ์ (ถ้าไม่มี ใช้หน้ากว้าง Web Width)
   filmRow(jobs, base){ const w = jobs[0], f = this.filmOf(w), len = +base?.length_m || 1000, need = jobs.reduce((a, x) => a + (+x.total_m || 0), 0) || null;
-    const raw = (WOForm.L?.raw || []).find(m => m.code === f.code);
+    const raw = this.rawOf(f.code);
     return {job_tickets: jobs.map(x => x.job_ticket), customer_name: w.customer_name, customer_short: base?.customer_short || this.shortName(w.customer_name), supplier: raw?.supplier || this.supOf(f.code),
-      paper_code: f.code, paper_name: raw?.name || f.name, width_mm: +w.paper_face_mm || +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need,
+      paper_code: String(raw?.code || f.code).trim(), paper_name: raw?.name || f.name, width_mm: +w.paper_face_mm || +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need,
       note: 'ฟิล์มเคลือบ ' + f.name, status: 'pending', created_by: Office.user?.email || ''}; },
   // หลังบันทึกรายการกระดาษ: JOB ที่เคลือบ OPP → ถามว่าจะเพิ่มรายการสั่ง OPP ด้วยไหม
   async offerFilm(jobs, base){
@@ -4274,9 +4304,11 @@ const PaperPage = {
     toast(`เพิ่มรายการฟิล์มเคลือบแล้ว ${todo.length} รายการ`); },
   spec(r){ const n = v => v === null || v === undefined || v === '' ? '?' : (+v === Math.round(+v) ? String(+v) : String(+v)); return `${n(r.width_mm)}x${n(r.length_m)}x${n(r.qty)}${r.unit === 'set' ? 'set' : ''}`; },
   // ซัพพลายเออร์ของรหัสกระดาษ/ฟิล์ม: ฐานข้อมูลวัตถุดิบ → รายการสั่งครั้งก่อนที่ใช้รหัสเดียวกัน
+  ck: c => String(c || '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, ''),
+  rawOf(code){ const k = this.ck(code); return k ? (WOForm.L?.raw || []).find(m => this.ck(m.code) === k) || null : null; },
   supOf(code){ code = String(code || '').trim(); if (!code) return null;
-    const raw = (WOForm.L?.raw || []).find(m => m.code === code); if (raw?.supplier) return raw.supplier;
-    const last = [...(this.rows || [])].filter(r => r.paper_code === code && r.supplier).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    const raw = this.rawOf(code); if (raw?.supplier) return raw.supplier;
+    const last = [...(this.rows || [])].filter(r => this.ck(r.paper_code) === this.ck(code) && r.supplier).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
     return last?.supplier || null; },
   lineText(list, withSup){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
     return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code}${this.isFilm(r) ? ` (${r.note.replace(/^ฟิล์มเคลือบ\s*/, '') || 'ฟิล์มเคลือบ'})` : ''} ${this.spec(r)}${withSup && r.supplier ? ` · ${r.supplier}` : ''}`).join('\n')}`).join('\n\n'); },
