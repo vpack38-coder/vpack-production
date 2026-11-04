@@ -4305,6 +4305,10 @@ const PaperPage = {
   spec(r){ const n = v => v === null || v === undefined || v === '' ? '?' : (+v === Math.round(+v) ? String(+v) : String(+v)); return `${n(r.width_mm)}x${n(r.length_m)}x${n(r.qty)}${r.unit === 'set' ? 'set' : ''}`; },
   // ซัพพลายเออร์ของรหัสกระดาษ/ฟิล์ม: ฐานข้อมูลวัตถุดิบ → รายการสั่งครั้งก่อนที่ใช้รหัสเดียวกัน
   ck: c => String(c || '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, ''),
+  // ชื่อซัพพลายเออร์แบบสั้นในข้อความ LINE: ตัด บริษัท / จำกัด / (สำนักงานใหญ่) / Co., Ltd. / (Thailand) / (Head Office) ฯลฯ
+  supShort(v){ return String(v || '').replace(/\((?:สำนักงานใหญ่|head\s*office|thailand|ประเทศไทย|มหาชน)\)/gi, ' ').replace(/สำนักงานใหญ่|สาขา\s*(?:ที่\s*)?\d+.*$/g, ' ')
+      .replace(/บริษัท|ห้างหุ้นส่วน(?:จำกัด|สามัญ)?|หจก\.?|บจก\.?|จำกัด|\bco\.?,?|\bcompany\b|\bltd\.?|\blimited\b|\binc\.?|\bplc\.?|\bpublic\b/gi, ' ')
+      .replace(/[\s,.\-]+$/g, '').replace(/^[\s,.\-]+/g, '').replace(/\s+/g, ' ').trim() || String(v || '').trim(); },
   supName(v){ const k = String(v || '').trim(); return k ? (WOForm.L?.supMap || {})[k.toLowerCase()] || k : null; },   // รหัสผู้ขาย (เช่น avery-00000) → ชื่อซัพพลายเออร์
   rawOf(code){ const k = this.ck(code); return k ? (WOForm.L?.raw || []).find(m => this.ck(m.code) === k) || null : null; },
   supOf(code){ code = String(code || '').trim(); if (!code) return null;
@@ -4312,7 +4316,7 @@ const PaperPage = {
     const last = [...(this.rows || [])].filter(r => this.ck(r.paper_code) === this.ck(code) && r.supplier).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
     return last?.supplier || null; },
   lineText(list, withSup){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
-    return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code}${this.isFilm(r) ? ` (${r.note.replace(/^ฟิล์มเคลือบ\s*/, '') || 'ฟิล์มเคลือบ'})` : ''} ${this.spec(r)}${withSup && r.supplier ? ` · ${r.supplier}` : ''}`).join('\n')}`).join('\n\n'); },
+    return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code}${this.isFilm(r) ? ` (${r.note.replace(/^ฟิล์มเคลือบ\s*/, '') || 'ฟิล์มเคลือบ'})` : ''} ${this.spec(r)}${withSup && r.supplier ? ` · ${this.supShort(r.supplier)}` : ''}`).join('\n')}`).join('\n\n'); },
   async refreshBadge(){ try { const R = await API.paperList(); const n = (R || []).filter(r => r.status === 'pending').length, b = $('#ppBadge'); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); } } catch {} },
   async page(){
     const V = [['open', 'ยังไม่จบ'], ['pending', '⏳ รอแจ้ง'], ['notified', '📨 ขอซื้อแล้ว'], ['ordered', '🛒 สั่งแล้ว รอของ'], ['received', '✅ รับแล้ว'], ['cancelled', 'ยกเลิก'], ['all', 'ทั้งหมด']];
