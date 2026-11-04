@@ -625,6 +625,7 @@ table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
 #dlg:has(#sl_q){width:min(680px,94vw)}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
+.pp-film{display:inline-block;background:#e0f2fe;color:#075985;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:600}
 .md-bar i.b0{background:#f87171}.md-bar i.b25{background:#fb923c}.md-bar i.b50{background:#facc15}.md-bar i.b75{background:#a3d94a}.md-bar i.b100{background:linear-gradient(90deg,#22c55e,#16a34a)}
 .st-ok2{background:#e6f6e9;color:#2e7d32;border:1px dashed #86c99a}
 .md-n{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#475569;flex-wrap:wrap}
@@ -4250,9 +4251,35 @@ const PaperPage = {
   badge(s){ const [l, c, ic] = this.ST[s] || [s, '#64748b', '']; return `<span class="pp-st" style="--c:${c}">${ic} ${l}</span>`; },
   shortName(full){ const m = this.alias || {}; if (full && m[full]) return m[full];
     return String(full || '').replace(/บริษัท|จำกัด|\(มหาชน\)|\(สำนักงานใหญ่\)|สำนักงานใหญ่|สาขา.*$/g, '').replace(/\s+/g, ' ').trim().slice(0, 24); },
+  // ฟิล์มเคลือบที่ต้องสั่งเป็นม้วน (OPP / PET / ลามิเนต) — UV / วานิช เป็นน้ำยา ไม่นับ
+  filmOf(w){ const c = String(w?.coating || '').trim(); if (!c || /uv|วานิช|varnish/i.test(c) || !/opp|pet|ฟิล์ม|film|ลามิเนต|laminat/i.test(c)) return null;
+    return {code: String(w.coating_code || '').trim() || c, name: c}; },
+  isFilm(r){ return /^ฟิล์มเคลือบ/.test(r?.note || ''); },
+  // หน้ากว้างฟิล์ม = ช่อง "หน้ากระดาษ" ในข้อมูลการพิมพ์ (ถ้าไม่มี ใช้หน้ากว้าง Web Width)
+  filmRow(jobs, base){ const w = jobs[0], f = this.filmOf(w), len = +base?.length_m || 1000, need = jobs.reduce((a, x) => a + (+x.total_m || 0), 0) || null;
+    const raw = (WOForm.L?.raw || []).find(m => m.code === f.code);
+    return {job_tickets: jobs.map(x => x.job_ticket), customer_name: w.customer_name, customer_short: base?.customer_short || this.shortName(w.customer_name), supplier: raw?.supplier || this.supOf(f.code),
+      paper_code: f.code, paper_name: raw?.name || f.name, width_mm: +w.paper_face_mm || +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need,
+      note: 'ฟิล์มเคลือบ ' + f.name, status: 'pending', created_by: Office.user?.email || ''}; },
+  // หลังบันทึกรายการกระดาษ: JOB ที่เคลือบ OPP → ถามว่าจะเพิ่มรายการสั่ง OPP ด้วยไหม
+  async offerFilm(jobs, base){
+    const W = (await Promise.all(jobs.map(j => API.getWorkOrder(j).catch(() => null)))).filter(w => w && this.filmOf(w)); if (!W.length) return;
+    const g = new Map(); W.forEach(w => { const k = this.filmOf(w).code; (g.get(k) || g.set(k, []).get(k)).push(w); });
+    const ex = (await Promise.all(W.map(w => API.paperForJob(w.job_ticket).catch(() => [])))).flat().filter(r => r && r.status !== 'cancelled');
+    const todo = [...g].filter(([code, A]) => !ex.some(r => r.paper_code === code && A.some(w => r.job_tickets.includes(w.job_ticket))));
+    if (!todo.length) return;
+    const msg = todo.map(([code, A]) => `🎞 ${this.filmOf(A[0]).name} (${code}) — JOB ${A.map(w => w.job_ticket).join(', ')}`).join('\n');
+    if (!(await Office.confirm(`งานนี้มีเคลือบฟิล์ม ต้องสั่งด้วย\n\n${msg}\n\nเพิ่มรายการสั่งฟิล์มเคลือบด้วยไหม?`))) return;
+    for (const [, A] of todo) await API.paperSave(this.filmRow(A, base));
+    toast(`เพิ่มรายการฟิล์มเคลือบแล้ว ${todo.length} รายการ`); },
   spec(r){ const n = v => v === null || v === undefined || v === '' ? '?' : (+v === Math.round(+v) ? String(+v) : String(+v)); return `${n(r.width_mm)}x${n(r.length_m)}x${n(r.qty)}${r.unit === 'set' ? 'set' : ''}`; },
-  lineText(list){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
-    return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code} ${this.spec(r)}`).join('\n')}`).join('\n\n'); },
+  // ซัพพลายเออร์ของรหัสกระดาษ/ฟิล์ม: ฐานข้อมูลวัตถุดิบ → รายการสั่งครั้งก่อนที่ใช้รหัสเดียวกัน
+  supOf(code){ code = String(code || '').trim(); if (!code) return null;
+    const raw = (WOForm.L?.raw || []).find(m => m.code === code); if (raw?.supplier) return raw.supplier;
+    const last = [...(this.rows || [])].filter(r => r.paper_code === code && r.supplier).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    return last?.supplier || null; },
+  lineText(list, withSup){ const g = new Map(); list.forEach(r => { const k = r.customer_short || this.shortName(r.customer_name) || '-'; (g.get(k) || g.set(k, []).get(k)).push(r); });
+    return 'สั่งกระดาษ\n' + [...g].map(([k, A]) => `${k}\n${A.map(r => `${r.paper_code}${this.isFilm(r) ? ` (${r.note.replace(/^ฟิล์มเคลือบ\s*/, '') || 'ฟิล์มเคลือบ'})` : ''} ${this.spec(r)}${withSup && r.supplier ? ` · ${r.supplier}` : ''}`).join('\n')}`).join('\n\n'); },
   async refreshBadge(){ try { const R = await API.paperList(); const n = (R || []).filter(r => r.status === 'pending').length, b = $('#ppBadge'); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); } } catch {} },
   async page(){
     const V = [['open', 'ยังไม่จบ'], ['pending', '⏳ รอแจ้ง'], ['notified', '📨 ขอซื้อแล้ว'], ['ordered', '🛒 สั่งแล้ว รอของ'], ['received', '✅ รับแล้ว'], ['cancelled', 'ยกเลิก'], ['all', 'ทั้งหมด']];
@@ -4286,7 +4313,7 @@ const PaperPage = {
         <td>${this.badge(r.status)}</td>
         <td>${r.job_tickets.map(j => `<a href="#" class="jl" data-open="${esc(j)}">${esc(j)}</a>`).join('<br>') || '–'}</td>
         <td><b>${esc(r.customer_short || this.shortName(r.customer_name))}</b><div class="so-rm">${esc(r.customer_name || '')}</div></td>
-        <td><b>${esc(r.paper_code)}</b></td><td>${esc(r.paper_name || '')}<div class="so-rm">${esc(r.supplier || '')}</div></td>
+        <td><b>${esc(r.paper_code)}</b>${this.isFilm(r) ? '<div><span class="pp-film">🎞 ฟิล์มเคลือบ</span></div>' : ''}</td><td>${esc(r.paper_name || '')}<div class="so-rm">${esc(r.supplier || '')}</div></td>
         <td style="white-space:nowrap"><b>${esc(this.spec(r))}</b>${r.need_m ? `<div class="so-rm">ต้องใช้ ${fmtN(Math.round(r.need_m))} ม.</div>` : ''}</td>
         <td style="white-space:nowrap" class="${late ? 'stock-neg' : ''}">${r.eta ? fmtD(r.eta) + (late ? ' ⚠ เลยกำหนด' : '') : '–'}</td>
         <td class="pp-tl">${[['notified_at', 'ขอซื้อ'], ['ordered_at', 'สั่ง'], ['received_at', 'รับ']].filter(([k]) => r[k]).map(([k, l]) => `${l} ${fmtT(r[k]).slice(0, 10)}`).join('<br>') || `สร้าง ${fmtT(r.created_at).slice(0, 10)}`}</td>
@@ -4330,12 +4357,15 @@ const PaperPage = {
     let L = this.rows.filter(r => this.sel.has(r.id));
     if (!L.length) L = this.rows.filter(r => r.status === 'pending');
     if (!L.length) return toast('ไม่มีรายการรอแจ้ง — ติ๊กเลือกรายการที่จะส่งก่อน');
-    const txt = this.lineText(L);
-    $('#dlgBody').innerHTML = `<h3>📋 ข้อความแจ้งสั่งกระดาษ (${L.length} รายการ)</h3><textarea id="pl_t" class="field" rows="${Math.min(18, txt.split('\n').length + 1)}" style="font-family:inherit">${esc(txt)}</textarea>
+    let sup = store.get('vp_pp_sup', false); const txt = this.lineText(L, sup);
+    $('#dlgBody').innerHTML = `<h3>📋 ข้อความแจ้งสั่งกระดาษ (${L.length} รายการ)</h3>
+      <label class="wc ${sup ? 'on' : ''}" id="pl_supL" style="margin-bottom:6px"><input type="checkbox" id="pl_sup" ${sup ? 'checked' : ''}> แสดงชื่อซัพพลายเออร์ท้ายแต่ละรายการ</label>${L.some(r => !r.supplier) ? `<span class="hint"> · ยังไม่ระบุซัพพลายเออร์ ${L.filter(r => !r.supplier).length} รายการ</span>` : ''}
+      <textarea id="pl_t" class="field" rows="${Math.min(20, txt.split('\n').length + 3)}" style="font-family:inherit">${esc(txt)}</textarea>
       <div class="hint">แก้ข้อความได้ก่อนคัดลอก</div>
       <label class="wc on" style="margin-top:8px"><input type="checkbox" id="pl_mark" checked> เปลี่ยนสถานะเป็น "📨 ขอซื้อแล้ว" หลังคัดลอก</label>
       <div class="acts"><button class="btn ghost" id="pl_x">ปิด</button>${navigator.share && matchMedia('(pointer:coarse)').matches ? '<button class="btn ghost" id="pl_sh">📤 แชร์</button>' : ''}<button class="btn" id="pl_cp" style="background:#06c755">📋 คัดลอก แล้วไปวางใน LINE</button></div>`;
     const d = $('#dlg'); d.showModal(); $('#pl_x').onclick = () => d.close();
+    $('#pl_sup').onchange = e => { sup = e.target.checked; store.set('vp_pp_sup', sup); $('#pl_supL').classList.toggle('on', sup); const t = $('#pl_t'); t.value = this.lineText(L, sup); t.rows = Math.min(20, t.value.split('\n').length + 3); };
     const done = async () => { d.close(); if ($('#pl_mark')?.checked !== false && document.getElementById('pl_mark')?.checked) { const ids = L.filter(r => r.status === 'pending').map(r => r.id); if (ids.length) await this.setStatus(ids, 'notified'); } };
     $('#pl_cp').onclick = async () => { const v = $('#pl_t').value, mk = $('#pl_mark').checked; try { await navigator.clipboard.writeText(v); toast('คัดลอกแล้ว — ไปวางในแชท LINE ได้เลย'); } catch { prompt('คัดลอกข้อความนี้', v); }
       d.close(); if (mk) { const ids = L.filter(r => r.status === 'pending').map(r => r.id); if (ids.length) await this.setStatus(ids, 'notified'); } };
@@ -4344,7 +4374,7 @@ const PaperPage = {
   },
   async fromJob(job){ let w; try { w = await API.getWorkOrder(job); } catch {} if (!w) return null;
     const len = 1000, need = +w.total_m || null;
-    return {job_tickets: [w.job_ticket], customer_name: w.customer_name, customer_short: this.shortName(w.customer_name), supplier: w.supplier, paper_code: w.paper_code, paper_name: w.paper_name,
+    return {job_tickets: [w.job_ticket], customer_name: w.customer_name, customer_short: this.shortName(w.customer_name), supplier: w.supplier || this.supOf(w.paper_code), paper_code: w.paper_code, paper_name: w.paper_name,
       width_mm: +w.web_width_mm || null, length_m: len, qty: need ? Math.max(1, Math.ceil(need / len)) : null, unit: 'ม้วน', need_m: need}; },
   async edit(x, preset){
     if (Office.viewer) return toast('บัญชีนี้ดูได้อย่างเดียว');
@@ -4374,13 +4404,16 @@ const PaperPage = {
     const prev = () => { const c = cur(); $('#pp_prev').textContent = `${c.customer_short || '?'} · ${c.paper_code || '?'} ${this.spec(c)}`;
       $('#pp_need').textContent = need ? `${fmtN(Math.round(need))} เมตร (รวมจากใบสั่งผลิต)${c.length_m ? ` → ประมาณ ${Math.ceil(need / c.length_m)} ม้วน` : ''}` : '–'; };
     ['pp_w', 'pp_l', 'pp_q', 'pp_u', 'pp_pc', 'pp_cs'].forEach(id => $('#' + id).oninput = $('#' + id).onchange = prev); prev();
+    $('#pp_pc').addEventListener('change', () => { const sp = this.supOf($('#pp_pc').value); if (sp && !$('#pp_sp').value.trim()) $('#pp_sp').value = sp; });
     $('#pp_j').onchange = async () => { const jobs = $('#pp_j').value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean); if (!jobs.length) return;
       const info = await Promise.all(jobs.map(j => API.getWorkOrder(j).catch(() => null))), miss = jobs.filter((j, i) => !info[i]);
-      $('#pp_jh').innerHTML = miss.length ? `<span style="color:var(--bad)">ไม่พบ JOB ${esc(miss.join(', '))}</span>` : `พบ ${jobs.length} JOB`;
+      const fl = info.filter(Boolean).map(w => this.filmOf(w)).filter(Boolean);
+      $('#pp_jh').innerHTML = (miss.length ? `<span style="color:var(--bad)">ไม่พบ JOB ${esc(miss.join(', '))}</span>` : `พบ ${jobs.length} JOB`)
+        + (fl.length && !this.isFilm(r) ? ` · <span class="pp-film">🎞 มีเคลือบ ${esc([...new Set(fl.map(f => f.name + ' ' + f.code))].join(', '))}</span> — บันทึกแล้วจะถามให้เพิ่มรายการฟิล์มด้วย` : '');
       const w = info.find(Boolean); if (!w) return;
       const fill = (id, v) => { if (v !== null && v !== undefined && v !== '' && !$('#' + id).value) $('#' + id).value = v; };
       fill('pp_cs', this.shortName(w.customer_name)); $('#pp_cn').textContent = w.customer_name || ''; r.customer_name = w.customer_name;
-      fill('pp_sp', w.supplier); fill('pp_pc', w.paper_code); fill('pp_pn', w.paper_name); fill('pp_w', +w.web_width_mm || '');
+      fill('pp_sp', w.supplier || this.supOf(w.paper_code)); fill('pp_pc', w.paper_code); fill('pp_pn', w.paper_name); fill('pp_w', +w.web_width_mm || '');
       need = info.filter(Boolean).filter(x => x.paper_code === w.paper_code).reduce((a, x) => a + (+x.total_m || 0), 0) || null;
       if (need && !$('#pp_q').value) $('#pp_q').value = Math.max(1, Math.ceil(need / (num('pp_l') || 1000))); prev(); };
     if (!x && preset) prev();
@@ -4395,7 +4428,9 @@ const PaperPage = {
       $('#pp_ok').disabled = true;
       try { await API.paperSave(row, x?.id);
         if (r.customer_name && c.customer_short && c.customer_short !== this.shortName(r.customer_name)) { this.alias = {...(this.alias || {}), [r.customer_name]: c.customer_short}; API.setMeta('cust_short', this.alias).catch(() => {}); }
-        d.close(); toast('บันทึกแล้ว'); if (Office.tab === 'paper') this.page(); else if (Office.tab === 'wo') this.woBox(WOForm); this.refreshBadge(); }
+        d.close(); toast('บันทึกแล้ว');
+        if (!x && !this.isFilm(row) && row.job_tickets.length) { try { await this.offerFilm(row.job_tickets, row); } catch (e) { toast('เพิ่มรายการฟิล์มไม่ได้: ' + e.message); } }
+        if (Office.tab === 'paper') this.page(); else if (Office.tab === 'wo') this.woBox(WOForm); this.refreshBadge(); }
       catch (e) { $('#pp_ok').disabled = false; toast('บันทึกไม่ได้: ' + e.message); }
     };
   },
@@ -4406,7 +4441,9 @@ const PaperPage = {
     let L; try { L = await API.paperForJob(job); } catch { L = null; }
     if (L === null) { box.innerHTML = ''; return; }
     box.innerHTML = L.filter(r => r.status !== 'cancelled').map(r => `<span class="pp-mini" title="${esc(r.paper_code)} ${esc(this.spec(r))}">${this.badge(r.status)} <small>${esc(r.paper_code)} ${esc(this.spec(r))}${r.status === 'ordered' && r.eta ? ' · เข้า ' + fmtD(r.eta) : ''}</small></span>`).join('')
-      + (Office.viewer ? '' : ` <button type="button" class="btn ghost sm" id="poNew">📦 แจ้งสั่งกระดาษ</button>`);
+      + (Office.viewer ? '' : ` <button type="button" class="btn ghost sm" id="poNew">📦 แจ้งสั่งกระดาษ</button>`)
+      + (!Office.viewer && this.filmOf(F.wo) && !L.some(r => r.status !== 'cancelled' && this.isFilm(r)) ? ` <button type="button" class="btn ghost sm" id="poFilm">🎞 แจ้งสั่ง${esc(this.filmOf(F.wo).name)}</button>` : '');
+    $('#poFilm')?.addEventListener('click', () => { const r = this.filmRow([F.wo]); delete r.status; delete r.created_by; this.edit(null, r); });
     $('#poNew')?.addEventListener('click', async () => { const p = await this.fromJob(job); this.edit(null, p || {job_tickets: [job], length_m: 1000, unit: 'ม้วน'}); });
   }
 };
