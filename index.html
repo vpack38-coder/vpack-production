@@ -382,6 +382,7 @@ table.trk tr:hover td{background:#eef4ff}
 .emp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .emp-row{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
 .emp-row.off{color:var(--muted);text-decoration:line-through}
+.pk-ch{display:flex;flex-direction:column;gap:8px}.pk-ch .btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:12px 16px}.pk-ch small{font-weight:400;opacity:.85;font-size:12.5px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;z-index:50;box-shadow:0 8px 24px #0003}
 @page{size:A4;margin:5mm}
 @media print{
@@ -4917,6 +4918,7 @@ const HomePage = {
 /* ---------- สั่งพิมพ์ให้ใช้ได้ทั้ง PC และ iPad ---------- */
 const PrintKit = {
   ios: /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  chrome: /CriOS\//.test(navigator.userAgent),   // Chrome บน iPad ไม่พิมพ์หัว/ท้ายกระดาษ → พิมพ์ปกติได้เลย
   // iPad/iPhone ที่เปิดจากไอคอนหน้าจอโฮม หรือเปิดลิงก์ในแอป LINE/Facebook → สั่งพิมพ์ไม่ได้
   blocked(){ return this.ios && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || /\bLine\/|FBAN|FBAV|Instagram|GSA\//i.test(navigator.userAgent)); },
   inLine(){ return /\bLine\//i.test(navigator.userAgent); },
@@ -4936,6 +4938,7 @@ const PrintKit = {
   // พิมพ์เอกสารแยก (รายงาน / QR ชุด): PC ใช้ iframe ซ่อน, iPad ใช้ #printArea ในหน้าเดียวกัน
   doc(title, css, body, delay, onImg){
     if (this.blocked()) return this.help(onImg);
+    if (this.ios && onImg && !this._chosen && !this.chrome) return this.choose(title || 'รายงาน', onImg, () => { this._chosen = true; try { this.doc(title, css, body, delay, onImg); } finally { this._chosen = false; } });
     if (this.ios) {
       const a = $('#printArea'); a.innerHTML = `<style>${css}</style>${body}`;
       document.body.classList.add('print-rpt');
@@ -4953,7 +4956,19 @@ const PrintKit = {
     setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); }, delay || 300);
   },
   // พิมพ์หน้าปัจจุบัน (ใบสั่งผลิต)
-  page(onImg){ if (this.blocked()) return this.help(onImg); this.clear(); window.print(); }
+  // iPad/iPhone: Safari ไม่มีให้ปิดหัว-ท้ายกระดาษ (ชื่อเว็บ/วันที่) → ให้เลือกพิมพ์แบบรูปภาพ (ไม่มีหัว-ท้าย สีพื้นครบ)
+  page(onImg){ if (this.blocked()) return this.help(onImg); this.clear();
+    if (!this.ios || !onImg || this.chrome) return window.print();
+    this.choose('ใบสั่งผลิต', onImg, () => window.print()); },
+  choose(what, onImg, onPrint){
+    $('#dlgBody').innerHTML = `<h3>🖨 พิมพ์${esc(what)} (iPad)</h3>
+      <div class="pk-ch"><button class="btn" id="pk_im" style="background:#06c755">🖼 พิมพ์แบบรูปภาพ <small>แนะนำ · ไม่มีหัว/ท้ายกระดาษ สีครบ</small></button>
+      <button class="btn ghost" id="pk_pr">🖨 พิมพ์แบบปกติ <small>Safari อาจพิมพ์ชื่อเว็บ/วันที่ที่ขอบกระดาษ</small></button></div>
+      <div class="hint" style="line-height:1.7;margin-top:8px">แบบรูปภาพ: กด 📤 แชร์ → <b>พิมพ์</b> → เลือกเครื่องพิมพ์ · ขนาดกระดาษ <b>A4</b></div>
+      <div class="acts"><button class="btn ghost" id="pk_x">ยกเลิก</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#pk_x').onclick = () => d.close();
+    $('#pk_im').onclick = () => { d.close(); onImg(); };
+    $('#pk_pr').onclick = () => { d.close(); setTimeout(onPrint, 300); }; }
 };
 
 /* ---------- พิมพ์รายงานผ่าน iframe (ใช้ร่วมกัน) ---------- */
