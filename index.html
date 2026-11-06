@@ -1264,7 +1264,7 @@ const Live = {
       this.pageAll(() => this.sb.from('work_orders').select('job_ticket,doc_date,due_note').order('job_ticket'))]);
     const m = new Map(w.map(x => [x.job_ticket, x])); p.forEach(r => { const x = m.get(r.job_ticket); r.doc_date = x?.doc_date || null; r.due_note = x?.due_note || null; }); return p; },
   async kpiLogs(from, to){ const a = from + 'T00:00:00+07:00', b = to + 'T23:59:59.999+07:00', sel = 'id,source,job_ticket,employee_name,status,qty,note,logged_at';
-    const [prod, qc] = await Promise.all([this.pageAll(() => this.sb.from('production_logs').select(sel + ',step').gte('logged_at', a).lte('logged_at', b).order('id')),
+    const [prod, qc] = await Promise.all([this.pageAll(() => this.sb.from('production_logs').select('*').gte('logged_at', a).lte('logged_at', b).order('id')),
       this.pageAll(() => this.sb.from('qc_logs').select(sel).gte('logged_at', a).lte('logged_at', b).order('id'))]);
     return {prod, qc}; },
   async kpiDeliveries(from, to){ return this.pageAll(() => this.sb.from('deliveries').select('*').gte('delivery_date', from).lte('delivery_date', to).order('delivery_date').order('id')); },
@@ -3706,6 +3706,7 @@ const LogEdit = {
         ${QC ? '' : `<label>ขั้นตอน</label><select id="le_s" class="field">${[...new Set([...D.steps, x.step].filter(Boolean))].map(v => `<option ${v === x.step ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`}
         <label>สถานะ</label><select id="le_st" class="field">${sts.map(v => `<option ${v === x.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>จำนวน (ดวง)</label><input id="le_q" class="field" inputmode="decimal" value="${x.qty === null || x.qty === undefined ? '' : +x.qty}" placeholder="เว้นว่าง = ไม่มียอด">
+        ${QC ? '' : `<label>⚡ ความเร็วเครื่อง</label><input id="le_sp" class="field" inputmode="decimal" value="${+x.speed > 0 ? +x.speed : ''}" placeholder="ม./นาที (ถ้ามี)">`}
         <label>หมายเหตุ</label><input id="le_n" class="field" value="${esc(x.note || '')}">
       </div>
       <div class="acts"><button class="btn ghost" id="le_del" style="color:var(--bad);margin-right:auto">🗑 ลบรายการนี้</button><button class="btn ghost" id="le_x">ยกเลิก</button><button class="btn" id="le_ok">💾 บันทึก</button></div>`;
@@ -3716,7 +3717,8 @@ const LogEdit = {
       const qv = $('#le_q').value.trim().replace(/,/g, ''), q = qv === '' ? null : +qv; if (qv !== '' && isNaN(q)) return toast('จำนวนต้องเป็นตัวเลข');
       const job = $('#le_j').value.trim(); if (!job) return toast('ใส่เลข JOB');
       const p = {logged_at: new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`).toISOString(), job_ticket: job, employee_name: $('#le_e').value.trim() || null, status: $('#le_st').value, qty: q, note: $('#le_n').value.trim() || null};
-      if (!QC) p.step = $('#le_s').value;
+      if (!QC) { p.step = $('#le_s').value; const sv = $('#le_sp').value.replace(/[^\d.]/g, ''), sp = sv === '' ? null : +sv;
+        if (sp !== (+x.speed > 0 ? +x.speed : null)) p.speed = sp; }   // ส่งช่องความเร็วเฉพาะตอนแก้ (ยังไม่รัน SQL 26 ก็ยังแก้อย่างอื่นได้)
       if (job !== x.job_ticket && !(await API.getWorkOrder(job).catch(() => null))) return toast('ไม่พบ JOB ' + job);
       $('#le_ok').disabled = true;
       try { await API.logUpdate(x.table, x.id, p); d.close(); toast('บันทึกแล้ว'); onDone && onDone(); } catch (e) { $('#le_ok').disabled = false; toast(e.message); }
@@ -4335,11 +4337,15 @@ const OfficeScan = {
     const w = this.job; if (!w) { $('#osHn').textContent = ''; return; }
     let L; try { L = await API.jobLogs(w.job_ticket); } catch (e) { $('#osHist').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     const sec = (A, qc) => { const t = A.reduce((a, x) => a + (+x.qty || 0), 0);
-      return `<h4 style="margin:8px 0 4px;color:#1f3a68">${qc ? '✅ QC' : '🖨️ ฝ่ายผลิต'} — ${A.length} รายการ · รวม ${fmtN(t)} ดวง</h4>` + (A.length ? `<table class="trk"><thead><tr><th>วันเวลา</th><th>ชื่อ</th>${qc ? '' : '<th>ขั้นตอน</th>'}<th>สถานะ</th><th class="num">จำนวน</th><th>หมายเหตุ</th><th>ที่มา</th></tr></thead><tbody>
-        ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${qc ? '' : `<td>${esc(x.step || '')}</td>`}<td>${esc(x.status || '')}${x.speed ? ` <small class="hint">⚡${fmtN(x.speed)}</small>` : ''}</td><td class="num">${x.qty === null || x.qty === undefined ? '' : fmtN(x.qty)}</td><td>${esc(x.note || '')}</td><td>${/^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : 'สแกน'}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">ยังไม่มี</div>'); };
+      return `<h4 style="margin:8px 0 4px;color:#1f3a68">${qc ? '✅ QC' : '🖨️ ฝ่ายผลิต'} — ${A.length} รายการ · รวม ${fmtN(t)} ดวง</h4>` + (A.length ? `<table class="trk"><thead><tr><th>วันเวลา</th><th>ชื่อ</th>${qc ? '' : '<th>ขั้นตอน</th>'}<th>สถานะ</th><th class="num">จำนวน</th><th>หมายเหตุ</th><th>ที่มา</th><th></th></tr></thead><tbody>
+        ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${qc ? '' : `<td>${esc(x.step || '')}</td>`}<td>${esc(x.status || '')}${x.speed ? ` <small class="hint">⚡${fmtN(x.speed)}</small>` : ''}</td><td class="num">${x.qty === null || x.qty === undefined ? '' : fmtN(x.qty)}</td><td>${esc(x.note || '')}</td><td>${/^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : 'สแกน'}</td><td><button class="btn ghost sm" data-le="${qc ? 'qc_logs' : 'production_logs'}:${x.id}" title="แก้ไข / ใส่ความเร็ว">✏️</button></td></tr>`).join('')}</tbody></table>` : '<div class="hint">ยังไม่มี</div>'); };
     $('#osHn').textContent = `JOB ${w.job_ticket}`;
+    this._L = L;
     $('#osHist').innerHTML = (this.dept === 'prod' ? [sec(L.prod, false), sec(L.qc, true)] : [sec(L.qc, true), sec(L.prod, false)]).join('') + (L.pending ? `<div class="hint" style="margin-top:6px;color:#b45309">⚠ มีสแกนรอตรวจอีก ${L.pending} รายการ (ยังไม่นับในยอด) — ดูที่หน้า ตรวจสแกน ก่อน กันบันทึกซ้ำ</div>` : '');
+    this.bindEdit();
   },
+  bindEdit(){ $('#osHist').querySelectorAll('[data-le]').forEach(b => b.onclick = () => { const [t, id] = b.dataset.le.split(':'), x = (t === 'qc_logs' ? this._L.qc : this._L.prod).find(l => String(l.id) === id);
+      if (x) LogEdit.open({...x, table: t}, () => this.hist()); }); },
   async save(){
     const w = this.job; if (!w) return toast('เลือก JOB ก่อน');
     if (w.cancelled) return toast(`JOB ${w.job_ticket} ถูกยกเลิกแล้ว บันทึกยอดไม่ได้`);
