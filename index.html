@@ -4283,6 +4283,7 @@ const OfficeScan = {
           <label class="os-step">ขั้นตอน</label><div class="os-step"><div class="seg" id="osStep"><button data-v="พิมพ์">พิมพ์</button><button data-v="ไดคัท">ไดคัท</button></div></div>
           <label>สถานะ</label><div><div class="seg os-st" id="osSt"></div></div>
           <label>จำนวน (ดวง)</label><div><input id="osQty" class="field" inputmode="decimal" placeholder="เว้นว่างได้ถ้าแค่แจ้งเริ่มงาน" style="max-width:220px"></div>
+          <label class="os-step">⚡ ความเร็วเครื่อง</label><div class="os-step"><input id="osSpd" class="field" inputmode="decimal" placeholder="ม./นาที (ถ้ามี)" style="max-width:160px"> <small class="hint">เมตร/นาที — ไม่บังคับ</small></div>
           <label>วันที่ทำจริง</label><div class="os-dt"><input id="osDate" class="field" value="${pad2(now.getUTCDate())}/${pad2(now.getUTCMonth() + 1)}/${now.getUTCFullYear() + 543}" placeholder="วว/ดด/ปปปป"> เวลา <input id="osTime" class="field" value="${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}" placeholder="ชช:นน">
             <button class="btn ghost sm" id="osNow">ตอนนี้</button><button class="btn ghost sm" id="osYest">เมื่อวาน</button></div>
           <label>หมายเหตุ</label><div><input id="osNote" class="field" value="บันทึกแทน (ออฟฟิศ)"></div>
@@ -4332,7 +4333,7 @@ const OfficeScan = {
     let L; try { L = await API.jobLogs(w.job_ticket); } catch (e) { $('#osHist').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     const sec = (A, qc) => { const t = A.reduce((a, x) => a + (+x.qty || 0), 0);
       return `<h4 style="margin:8px 0 4px;color:#1f3a68">${qc ? '✅ QC' : '🖨️ ฝ่ายผลิต'} — ${A.length} รายการ · รวม ${fmtN(t)} ดวง</h4>` + (A.length ? `<table class="trk"><thead><tr><th>วันเวลา</th><th>ชื่อ</th>${qc ? '' : '<th>ขั้นตอน</th>'}<th>สถานะ</th><th class="num">จำนวน</th><th>หมายเหตุ</th><th>ที่มา</th></tr></thead><tbody>
-        ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${qc ? '' : `<td>${esc(x.step || '')}</td>`}<td>${esc(x.status || '')}</td><td class="num">${x.qty === null || x.qty === undefined ? '' : fmtN(x.qty)}</td><td>${esc(x.note || '')}</td><td>${/^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : 'สแกน'}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">ยังไม่มี</div>'); };
+        ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${qc ? '' : `<td>${esc(x.step || '')}</td>`}<td>${esc(x.status || '')}${x.speed ? ` <small class="hint">⚡${fmtN(x.speed)}</small>` : ''}</td><td class="num">${x.qty === null || x.qty === undefined ? '' : fmtN(x.qty)}</td><td>${esc(x.note || '')}</td><td>${/^import:/.test(x.source || '') ? 'Excel' : /^office/.test(x.source || '') ? 'ออฟฟิศ' : 'สแกน'}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">ยังไม่มี</div>'); };
     $('#osHn').textContent = `JOB ${w.job_ticket}`;
     $('#osHist').innerHTML = (this.dept === 'prod' ? [sec(L.prod, false), sec(L.qc, true)] : [sec(L.qc, true), sec(L.prod, false)]).join('') + (L.pending ? `<div class="hint" style="margin-top:6px;color:#b45309">⚠ มีสแกนรอตรวจอีก ${L.pending} รายการ (ยังไม่นับในยอด) — ดูที่หน้า ตรวจสแกน ก่อน กันบันทึกซ้ำ</div>` : '');
   },
@@ -4345,11 +4346,11 @@ const OfficeScan = {
     const qv = $('#osQty').value.replace(/,/g, '').trim(), qty = qv === '' ? null : +qv; if (qv !== '' && (isNaN(qty) || qty < 0)) return toast('จำนวนไม่ถูกต้อง');
     const needQty = this.st !== 'กำลังทำ' && !isPause(this.st); if (needQty && qty === null && !(await Office.confirm(`สถานะ "${this.st}" แต่ไม่ได้ใส่จำนวน — บันทึกต่อไหม?`))) return;
     const QC = this.dept === 'qc', row = {job_ticket: w.job_ticket, employee_name: $('#osEmp').value, status: this.st, qty, note: $('#osNote').value.trim() || null, logged_at: at.toISOString(), source: 'office:' + (Office.user?.email || '')};
-    if (!QC) row.step = this.step;
-    const msg = `บันทึกยอด${QC ? ' QC' : 'ฝ่ายผลิต'} JOB ${w.job_ticket}\n${row.employee_name}${QC ? '' : ' · ' + row.step} · ${row.status} · ${qty === null ? 'ไม่มียอด' : fmtN(qty) + ' ดวง'}\nวันที่ ${$('#osDate').value} ${$('#osTime').value}`;
+    if (!QC) { row.step = this.step; const sp = +$('#osSpd').value.replace(/[^\d.]/g, ''); if (sp > 0 && !isPause(this.st)) row.speed = sp; }
+    const msg = `บันทึกยอด${QC ? ' QC' : 'ฝ่ายผลิต'} JOB ${w.job_ticket}\n${row.employee_name}${QC ? '' : ' · ' + row.step} · ${row.status} · ${qty === null ? 'ไม่มียอด' : fmtN(qty) + ' ดวง'}${row.speed ? ' · ⚡' + row.speed + ' ม./นาที' : ''}\nวันที่ ${$('#osDate').value} ${$('#osTime').value}`;
     if (w.closed && !(await Office.confirm(`JOB นี้ปิดจ๊อบแล้ว ยังจะบันทึกยอดไหม?\n\n${msg}`))) return;
     $('#osSave').disabled = true;
-    try { await API.logInsert(QC ? 'qc_logs' : 'production_logs', row); toast('บันทึกแล้ว ✅'); $('#osMsg').textContent = `บันทึกล่าสุด: ${msg.split('\n').slice(0, 2).join(' · ')}`; $('#osQty').value = ''; Kpi._jobs = null; this.hist(); }
+    try { await API.logInsert(QC ? 'qc_logs' : 'production_logs', row); toast('บันทึกแล้ว ✅'); $('#osMsg').textContent = `บันทึกล่าสุด: ${msg.split('\n').slice(0, 2).join(' · ')}`; $('#osQty').value = ''; $('#osSpd').value = ''; Kpi._jobs = null; this.hist(); }
     catch (e) { toast('บันทึกไม่ได้: ' + e.message); }
     $('#osSave').disabled = false;
   }
