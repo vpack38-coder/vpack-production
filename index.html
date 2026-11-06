@@ -1162,7 +1162,7 @@ const Live = {
   async paperSave(row, id){ const p = {...row, updated_at: new Date().toISOString()}; if (id) this.chk(await this.sb.from('paper_orders').update(p).eq('id', id)); else this.chk(await this.sb.from('paper_orders').insert(p)); },
   async paperDelete(id){ this.chk(await this.sb.from('paper_orders').delete().eq('id', id)); },
   async jobLogs(job){ const sel = 'id,source,job_ticket,employee_name,status,qty,note,logged_at';
-    const [prod, qc, pend] = await Promise.all([this.chk(await this.sb.from('production_logs').select(sel + ',step').eq('job_ticket', job).order('logged_at')),
+    const [prod, qc, pend] = await Promise.all([this.chk(await this.sb.from('production_logs').select('*').eq('job_ticket', job).order('logged_at')),
       this.chk(await this.sb.from('qc_logs').select(sel).eq('job_ticket', job).order('logged_at')),
       this.sb.from('scan_inbox').select('id', {count: 'exact', head: true}).eq('job_ticket', job).eq('review_status', 'pending')]);
     return {prod, qc, pending: pend.count || 0}; },
@@ -1173,7 +1173,7 @@ const Live = {
   async shipData(){ const safe = async f => { try { return await f(); } catch (e) { if (/so_headers|so_items|fc_po|deliveries|customers|does not exist|schema cache/.test(e.message) && !/ship_close/.test(e.message)) return []; throw e; } };
     const [so_h, so_i, fc, dl, wo, prog, close, cust] = await Promise.all([
       safe(() => this.pageAll(() => this.sb.from('so_headers').select('so_no,so_date,po_no,customer_code,customer_name,cancelled').order('so_no'))),
-      safe(() => this.pageAll(() => this.sb.from('so_items').select('id,so_no,line,product_code,product_name,qty,unit,due_date,item_type,cancelled,delivered_qty,job_ticket').order('id'))),
+      safe(() => this.pageAll(() => this.sb.from('so_items').select('id,so_no,line,product_code,product_name,qty,unit,price,due_date,item_type,cancelled,delivered_qty,job_ticket').order('id'))),
       safe(() => this.pageAll(() => this.sb.from('fc_po').select('*').order('id'))),
       safe(() => this.pageAll(() => this.sb.from('deliveries').select('*').order('id'))),
       this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_name,product_code,po_no,so_no,order_qty,due_date,doc_date,cancelled,closed').order('job_ticket')),
@@ -1243,6 +1243,7 @@ const Live = {
   async dlvSave(row, id){ if (id) this.chk(await this.sb.from('deliveries').update({...row, updated_at: new Date().toISOString()}).eq('id', id)); else this.chk(await this.sb.from('deliveries').insert({...row, created_by: Office.user?.email || ''})); },
   async dlvDelete(id){ this.chk(await this.sb.from('deliveries').delete().eq('id', id)); },
   async dlvImport(items){
+    if ((await this.sb.from('deliveries').select('price').limit(1)).error) items.forEach(x => { delete x.price; delete x.amount; });   // ยังไม่ได้รัน SQL 27
     const sis = [...new Set(items.map(x => x.si_no))]; let ex = [];
     for (let k = 0; k < sis.length; k += 150) ex = ex.concat(this.chk(await this.sb.from('deliveries').select('*').in('si_no', sis.slice(k, k + 150))));
     ex = ex.concat(await this.pageAll(() => this.sb.from('deliveries').select('*').is('si_no', null)));
@@ -2749,7 +2750,8 @@ const DlvImport = {
       const dt = SOImport.date(cur.date);
       out.push({delivery_date: dt, period: null, customer_code: cur.coor, customer_name: cur.name,
         product_code: d.prodcode.trim(), product_name: d.prodname || null, unit: d.saleum || null, qty: +d.qty || 0, po_no: cur.refto || null,
-        si_no: String(cur.refno || cur.no).split('/').pop().trim(), si_date: dt, si_line: Math.round(+d.runno), source: 'csv', note: d.itemremark || null});
+        si_no: String(cur.refno || cur.no).split('/').pop().trim(), si_date: dt, si_line: Math.round(+d.runno), source: 'csv', note: d.itemremark || null,
+        price: d.stdprice !== '' && !isNaN(+d.stdprice) ? +d.stdprice : null, amount: d.stdamt2 !== '' && !isNaN(+d.stdamt2) ? +d.stdamt2 : null});
     }
     return out;
   },
@@ -2768,7 +2770,8 @@ const DlvImport = {
         const longer = (a, b) => String(b || '').trim().length > String(a || '').trim().length;   // ไฟล์ใหม่ชื่อยาวกว่า (ตั้งความยาวชื่อในรายงานเพิ่ม) → อัปเดตชื่อ
         const nm = longer(o.product_name, x.product_name), cn = o.source === 'csv' && longer(o.customer_name, x.customer_name);
         if (nm) patch.product_name = x.product_name; if (cn) patch.customer_name = x.customer_name;
-        if (+o.qty !== +x.qty || o.si_line !== x.si_line || nm || cn) { upd.push({id: o.id, patch}); stats.upd++; } return; }
+        const pr = 'price' in x && x.price != null && (+o.price !== +x.price || +o.amount !== +x.amount); if (pr) Object.assign(patch, {price: x.price, amount: x.amount});   // ราคาขายจากใบกำกับ
+        if (+o.qty !== +x.qty || o.si_line !== x.si_line || nm || cn || pr) { upd.push({id: o.id, patch}); stats.upd++; } return; }
       o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && +e.qty === +x.qty && e.customer_code === x.customer_code);
       if (o) { used.add(o.id); stats.codeDiff.push(`SI01/${x.si_no}: ในระบบ ${o.product_code} ↔ Autoflight ${x.product_code}`); if (o.si_line == null) upd.push({id: o.id, patch: {si_line: x.si_line}}); return; }
       o = ex.filter(e => !used.has(e.id) && !e.si_no && e.customer_code === x.customer_code && e.product_code === x.product_code && (!e.po_no || !x.po_no || e.po_no === x.po_no))
@@ -5010,15 +5013,149 @@ const SpeedRpt = {
     RptPrint.go({title: 'ความเร็วเครื่อง', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>ประวัติความเร็วเครื่อง</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}${f ? '<br>' + esc(f) : ''}</div></div>${this.table(G, false)}</div>`); }
 };
 
+/* ================== ใบสรุปงาน: ราย JOB / ราย PO ตั้งแต่ใบสั่งผลิต → ผลิต → QC → ส่งของ ================== */
+const JobSum = {
+  mode: store.get('vp_js_mode', 'job'), q: '', cur: null,
+  CSS: `<style>.js-sh{font-size:1em;color:#111}.js-sh h2{margin:0;color:#1f3a68;font-size:1.45em}.js-sh h4{margin:4mm 0 1.5mm;color:#1f3a68;font-size:1.08em;border-bottom:1px solid #cbd5e1;padding-bottom:1mm}
+    .js-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;border-bottom:2px solid #1f3a68;padding-bottom:2mm;margin-bottom:2mm}.js-top .r{text-align:right;font-size:.92em;color:#475569}
+    .js-badge{display:inline-block;padding:1px 8px;border-radius:9px;font-size:.85em;font-weight:700;margin-left:6px}.js-ok{background:#dcfce7;color:#166534}.js-bad{background:#fee2e2;color:#991b1b}.js-warn{background:#fef3c7;color:#92400e}.js-gray{background:#e2e8f0;color:#334155}
+    .js-kv{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5mm 4mm}.js-kv div{font-size:.93em}.js-kv small{display:block;color:#64748b;font-size:.82em}
+    .js-kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:2mm;margin:2mm 0}.js-kpi div{border:1px solid #cbd5e1;border-radius:6px;padding:1.5mm 2mm;text-align:center}.js-kpi b{display:block;font-size:1.25em;color:#1f3a68}.js-kpi small{color:#64748b;font-size:.82em}
+    .js-sh table{width:100%;border-collapse:collapse;font-size:.92em}.js-sh th{background:#eef2f7;color:#1f3a68;text-align:left;padding:1mm 1.5mm;border:1px solid #cbd5e1}.js-sh td{padding:1mm 1.5mm;border:1px solid #e2e8f0;vertical-align:top}.js-sh .num{text-align:right}
+    .js-tl{display:flex;flex-wrap:wrap;gap:0;margin:1mm 0}.js-tl div{flex:1;min-width:24mm;border-top:3px solid #93c5fd;padding:1mm 1.5mm 0;font-size:.88em}.js-tl div.on{border-color:#1d4ed8}.js-tl b{display:block;font-size:.95em}.js-tl small{color:#64748b}
+    .js-note{color:#64748b;font-size:.85em;margin-top:1mm}.js-pg{page-break-after:always;margin-bottom:8mm}.js-pg:last-child{page-break-after:auto}</style>`,
+  n: x => +x || 0, d: s => s ? fmtD(String(s).slice(0, 10)) : '-', day: s => s ? String(s).slice(0, 10) : null,
+  async data(){ if (!this.S || Date.now() - this.S._at > 60000) { this.S = await ShipPage.load(true); this.S._at = Date.now(); } return this.S; },
+  priceOf(D, L){ if (!L) return null; const it = D.so_i.filter(i => !i.cancelled && L.so_nos?.has(i.so_no) && ShipPage.n(i.product_code) === ShipPage.n(L.product_code) && +i.price > 0); return it.length ? {price: +it[0].price, unit: it[0].unit} : null; },
+  lineOf(D, w){ return D.lines.find(L => L.jobs.some(j => j.job_ticket === w.job_ticket)) || null; },
+  dlOf(D, w, L){ if (L) return L.dl; return D.dl.filter(d => !d.ship_ignore && ((d.job_ticket && d.job_ticket.trim() === w.job_ticket) || (!NO_REF(w.po_no) && d.po_no && ShipPage.key(d.po_no, d.product_code) === ShipPage.wkey(w)))); },
+  amt(d, P){ return d.amount != null && d.amount !== '' ? +d.amount : P ? Math.round(P.price * ShipPage.eq(d) * 100) / 100 : null; },
+  // ----- เตรียมข้อมูล 1 JOB -----
+  async job(jt, D){
+    const [w, lg, pr] = await Promise.all([API.getWorkOrder(jt), API.jobLogs(jt), API.progress(jt, false, false).catch(() => [])]);
+    if (!w) throw new Error('ไม่พบ JOB ' + jt);
+    const p = (pr || []).find(r => r.job_ticket === jt) || {}, L = this.lineOf(D, w), dl = this.dlOf(D, w, L).slice().sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+    const P = this.priceOf(D, L), pl = lg.prod || [], ql = (lg.qc || []).filter(x => x.status !== 'ส่งจากสต็อก');
+    const first = (A, f) => A.filter(f).map(x => x.logged_at).sort()[0] || null, last = (A, f) => A.filter(f).map(x => x.logged_at).sort().at(-1) || null;
+    const ps = x => x.step === 'พิมพ์', dc = x => x.step === 'ไดคัท';
+    const T = {open: w.doc_date || this.day(w.created_at), p0: first(pl, ps), p1: last(pl, x => ps(x) && /เสร็จ/.test(x.status)) || last(pl, x => ps(x) && +x.qty > 0), d0: first(pl, dc), d1: last(pl, x => dc(x) && /เสร็จ/.test(x.status)) || last(pl, x => dc(x) && +x.qty > 0),
+      q0: first(ql, () => true), q1: last(ql, x => /สุดท้าย/.test(x.status)) || last(ql, x => +x.qty > 0), s0: dl[0]?.delivery_date || null, s1: dl.at(-1)?.delivery_date || null};
+    const sum = (A, f) => A.filter(f).reduce((a, x) => a + this.n(x.qty), 0);
+    const Q = {order: this.n(w.order_qty), print: sum(pl, ps), die: sum(pl, dc), qc: sum(ql, () => true), ship: dl.reduce((a, d) => a + ShipPage.eq(d), 0), waste: this.n(p.waste_qty), wastePct: p.waste_pct != null && this.n(p.eff_prod) > 0 && this.n(p.eff_qc) > 0 ? Math.max(0, Math.round(+p.waste_pct * 1000) / 10) : null}   // ยังไม่มี QC → ยังคิด % เสียไม่ได้;
+    const due = w.due_date, end = T.s1 || T.q1, late = due && end ? Kpi.diff(due, this.day(end)) : null;
+    const spd = pl.filter(x => +x.speed > 0).map(x => +x.speed), pauses = pl.filter(x => isPause(x.status)).length;
+    const amtL = dl.map(d => this.amt(d, P)), invAmt = amtL.every(a => a == null) ? null : amtL.reduce((a, b) => a + (b || 0), 0);
+    return {w, p, L, dl, P, pl, ql, T, Q, due, late, lead: T.open && end ? Kpi.diff(T.open, this.day(end)) : null, spd, pauses, invAmt, amtL, shared: L && L.jobs.length > 1 ? L.jobs.length : 0};
+  },
+  st(x){ const w = x.w; return w.cancelled ? '<span class="js-badge js-gray">ยกเลิก</span>' : w.closed ? '<span class="js-badge js-gray">ปิดจ๊อบแล้ว</span>' : '<span class="js-badge js-warn">ยังไม่ปิดจ๊อบ</span>'; },
+  lateTxt(x){ return x.late == null ? '<span class="js-badge js-gray">ยังไม่ส่ง / ไม่มีกำหนด</span>' : x.late > 0 ? `<span class="js-badge js-bad">ช้า ${x.late} วัน</span>` : '<span class="js-badge js-ok">ทันกำหนด</span>'; },
+  money: v => v == null ? '-' : Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+  unitP: v => Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 4}),
+  jobHTML(x){
+    const w = x.w, T = x.T, Q = x.Q, N = v => fmtN(v), pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '-';
+    const step = (t, a, b) => `<div class="${a ? 'on' : ''}"><b>${t}</b>${a ? this.d(a) + (b && this.day(b) !== this.day(a) ? ' – ' + this.d(b) : '') : '<small>ไม่มีข้อมูล</small>'}</div>`;
+    const size = +w.width_mm ? `${N(w.width_mm)}×${N(w.height_mm)} มม.` : '-';
+    const kv = [['ลูกค้า', w.customer_name], ['สินค้า', w.product_name], ['รหัสสินค้า', w.product_code], ['เลขที่ PO', w.po_no || '-'], ['S/O', w.so_no || '-'], ['วันที่เปิดใบสั่ง', this.d(T.open)], ['กำหนดส่ง', this.d(x.due)], ['งาน', w.job_label || w.job_type || '-'],
+      ['ขนาด', size], ['กระดาษ', w.paper_type || w.paper_name || '-'], ['สี / หมึก', [w.color_count ? N(w.color_count) + ' สี' : '', w.ink_type].filter(Boolean).join(' · ') || '-'], ['เคลือบ', w.coating_code || w.coating || '-'],
+      ['เครื่องพิมพ์', w.machine || '-'], ['เครื่องไดคัท', w.diecut_machine || '-'], ['เมตรที่ต้องใช้', w.total_m ? N(w.total_m) + ' ม.' : '-'], ['ม้วนละ / แกน', [w.per_roll ? w.per_roll + ' ดวง' : '', w.core_size ? 'แกน ' + w.core_size : ''].filter(Boolean).join(' · ') || '-']];
+    return `<div class="js-sh">
+      <div class="js-top"><div><h2>ใบสรุปงาน JOB ${esc(w.job_ticket)} ${this.st(x)}</h2><div>${esc(w.customer_name || '')}</div></div><div class="r">V-Packaging<br>ข้อมูล ณ ${fmtT(new Date().toISOString())}</div></div>
+      <h4>1. รายละเอียดใบสั่งผลิต</h4><div class="js-kv">${kv.map(([k, v]) => `<div><small>${k}</small>${esc(String(v ?? '-'))}</div>`).join('')}</div>
+      <h4>2. ผลสรุป</h4><div class="js-kpi">
+        <div><small>ส่งของเทียบกำหนดส่ง</small><b style="margin:1mm 0">${this.lateTxt(x)}</b><small>ส่งครั้งสุดท้าย ${this.d(x.T.s1)}</small></div>
+        <div><small>ระยะเวลาทั้งงาน</small><b>${x.lead == null ? '-' : x.lead + ' วัน'}</b><small>เปิดใบสั่ง → ส่งของ/QC จบ</small></div>
+        <div><small>QC ได้ / ยอดสั่ง</small><b>${pct(Q.qc, Q.order)}</b><small>${N(Q.qc)} / ${N(Q.order)}</small></div>
+        <div><small>ของเสีย</small><b>${Q.wastePct != null ? Q.wastePct + '%' : '-'}</b><small>${Q.wastePct != null && Q.waste > 0 ? N(Q.waste) + ' ดวง' : Q.wastePct == null ? 'รอ QC' : ''}</small></div>
+        <div><small>มูลค่าขาย</small><b>${this.money(x.invAmt ?? (x.P ? x.P.price * Q.order : null))}</b><small>${x.invAmt != null ? 'ตามใบกำกับ (ไม่รวม VAT)' : x.P ? 'ประมาณจากราคา SO × ยอดสั่ง' : 'ไม่มีราคา'}</small></div></div>
+      <h4>3. ไทม์ไลน์</h4><div class="js-tl">${step('เปิดใบสั่งผลิต', T.open)}${step('พิมพ์', T.p0, T.p1)}${step('ไดคัท', T.d0, T.d1)}${step('QC', T.q0, T.q1)}${step('ส่งของ', T.s0, T.s1)}</div>
+      ${x.pauses ? `<div class="js-note">⏸ ถูกพักงาน (งานแทรก) ${x.pauses} ครั้ง</div>` : ''}
+      <h4>4. ยอดแต่ละขั้นตอน</h4><table><thead><tr><th>ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">ไดคัท</th><th class="num">QC ผ่าน</th><th class="num">ส่งแล้ว</th><th class="num">ความเร็วเครื่อง (ม./นาที)</th></tr></thead>
+        <tbody><tr><td class="num">${N(Q.order)}</td><td class="num">${N(Q.print)}</td><td class="num">${N(Q.die)}</td><td class="num">${N(Q.qc)}</td><td class="num">${N(Q.ship)}</td><td class="num">${x.spd.length ? Math.min(...x.spd) === Math.max(...x.spd) ? N(x.spd[0]) : N(Math.min(...x.spd)) + '–' + N(Math.max(...x.spd)) : '-'}</td></tr></tbody></table>
+      <h4>5. บันทึกการผลิต / QC</h4>${[...x.pl.map(l => ({...l, _d: 'ผลิต · ' + (l.step || '')})), ...x.ql.map(l => ({...l, _d: 'QC'}))].sort((a, b) => String(a.logged_at).localeCompare(String(b.logged_at))).map(l => `<tr><td>${fmtT(l.logged_at)}</td><td>${esc(l._d)}</td><td>${esc(l.employee_name || '')}</td><td>${esc(l.status || '')}</td><td class="num">${l.qty ? N(l.qty) : ''}</td><td class="num">${+l.speed ? N(l.speed) : ''}</td></tr>`).join('').replace(/^/, '<table><thead><tr><th>วันเวลา</th><th>ขั้นตอน</th><th>ชื่อ</th><th>สถานะ</th><th class="num">จำนวน</th><th class="num">ม./นาที</th></tr></thead><tbody>') + '</tbody></table>'}
+      <h4>6. การจัดส่ง</h4>${x.dl.length ? `<table><thead><tr><th>วันที่ส่ง</th><th>เลขที่เอกสาร</th><th>PO</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">ราคา/หน่วย</th><th class="num">มูลค่า</th></tr></thead><tbody>
+        ${x.dl.map((d, i) => `<tr><td>${this.d(d.delivery_date)}</td><td>${esc(d.si_no ? 'SI01/' + d.si_no : d.do_no || '-')}</td><td>${esc(d.po_no || '')}</td><td class="num">${N(d.qty)}</td><td>${esc(d.unit || '')}</td><td class="num">${d.price != null && d.price !== '' ? this.unitP(d.price) : x.P ? this.unitP(x.P.price) + ' <small>(SO)</small>' : '-'}</td><td class="num">${this.money(x.amtL[i])}</td></tr>`).join('')}
+        <tr><td colspan="3"><b>รวม</b></td><td class="num"><b>${N(x.dl.reduce((a, d) => a + this.n(d.qty), 0))}</b></td><td></td><td></td><td class="num"><b>${this.money(x.invAmt)}</b></td></tr></tbody></table>
+        ${x.shared ? `<div class="js-note">* PO + สินค้านี้มี ${x.shared} JOB — รายการส่งของเป็นยอดรวมของทุก JOB</div>` : ''}` : '<div class="js-note">ยังไม่มีการส่งของ</div>'}
+      ${w.remark ? `<h4>หมายเหตุใบสั่งผลิต</h4><div>${esc(w.remark)}</div>` : ''}
+      <div class="js-note" style="margin-top:3mm">ต้นทุน: ยังไม่ได้คำนวณ · มูลค่าไม่รวม VAT</div></div>`;
+  },
+  // ----- ราย PO: รวมทุก JOB -----
+  async po(po, D){
+    const k = ShipPage.n(po), Ls = D.lines.filter(L => ShipPage.n(L.po_no) === k), W = new Map();
+    Ls.forEach(L => L.jobs.forEach(j => W.set(j.job_ticket, j)));
+    D.wo.filter(w => !w.cancelled && ShipPage.n(w.po_no) === k).forEach(w => W.set(w.job_ticket, w));
+    if (!W.size && !Ls.length) throw new Error('ไม่พบ PO ' + po);
+    const X = []; for (const j of [...W.keys()].sort()) X.push(await this.job(j, D));
+    return {po, Ls, X};
+  },
+  poHTML(R){
+    const X = R.X, N = v => fmtN(v), cust = X[0]?.w.customer_name || R.Ls[0]?.customer_name || '';
+    const dl = [...new Map(X.flatMap(x => x.dl.map((d, i) => [d.id ?? (d.si_no + '|' + d.si_line), {d, a: x.amtL[i]}]))).values()].sort((a, b) => (a.d.delivery_date || '').localeCompare(b.d.delivery_date || ''));
+    const tot = dl.some(e => e.a != null) ? dl.reduce((a, e) => a + (e.a || 0), 0) : null, late = X.filter(x => x.late > 0).length, ord = R.Ls.reduce((a, L) => a + this.n(L.qty), 0) || X.reduce((a, x) => a + x.Q.order, 0);
+    const shipped = R.Ls.reduce((a, L) => a + this.n(L.shipped), 0) || X.reduce((a, x) => a + x.Q.ship, 0), open = X.filter(x => !x.w.closed).length;
+    const dates = X.flatMap(x => [x.T.open]).filter(Boolean).sort(), endD = dl.at(-1)?.d.delivery_date;
+    return `<div class="js-sh"><div class="js-top"><div><h2>ใบสรุปงาน PO ${esc(R.po)} ${open ? `<span class="js-badge js-warn">ยังไม่ปิด ${open} JOB</span>` : '<span class="js-badge js-gray">ปิดครบทุก JOB</span>'}</h2><div>${esc(cust)}</div></div><div class="r">V-Packaging<br>ข้อมูล ณ ${fmtT(new Date().toISOString())}</div></div>
+      <div class="js-kpi"><div><small>จำนวน JOB</small><b>${X.length}</b></div><div><small>ส่งแล้ว / ยอด PO</small><b>${ord ? Math.round(shipped / ord * 100) + '%' : '-'}</b><small>${N(shipped)} / ${N(ord)}</small></div>
+        <div><small>JOB ที่ส่งช้า</small><b>${late}</b>${late ? '<span class="js-badge js-bad">มีช้า</span>' : X.some(x => x.late != null) ? '<span class="js-badge js-ok">ทันทั้งหมด</span>' : ''}</div>
+        <div><small>ระยะเวลา</small><b>${dates[0] && endD ? Kpi.diff(dates[0], endD) + ' วัน' : '-'}</b><small>${this.d(dates[0])} → ${this.d(endD)}</small></div>
+        <div><small>มูลค่าส่งแล้ว</small><b>${this.money(tot)}</b><small>ไม่รวม VAT</small></div></div>
+      <h4>รายการ JOB</h4><table><thead><tr><th>JOB</th><th>สินค้า</th><th class="num">ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">QC ผ่าน</th><th class="num">เสีย</th><th>เปิดใบสั่ง</th><th>กำหนดส่ง</th><th>QC จบ</th><th>ส่งของ</th><th>ผล</th></tr></thead><tbody>
+      ${X.map(x => `<tr><td><b>${esc(x.w.job_ticket)}</b>${x.w.closed ? '' : ' <small>(ยังไม่ปิด)</small>'}</td><td>${esc(x.w.product_name || '')}</td><td class="num">${N(x.Q.order)}</td><td class="num">${N(x.Q.print)}</td><td class="num">${N(x.Q.qc)}</td><td class="num">${x.Q.wastePct != null ? x.Q.wastePct + '%' : '-'}</td>
+        <td>${this.d(x.T.open)}</td><td>${this.d(x.due)}</td><td>${this.d(x.T.q1)}</td><td>${this.d(x.T.s1)}</td><td>${this.lateTxt(x)}</td></tr>`).join('')}</tbody></table>
+      <h4>การจัดส่ง</h4>${dl.length ? `<table><thead><tr><th>วันที่ส่ง</th><th>เลขที่เอกสาร</th><th>สินค้า</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">มูลค่า</th></tr></thead><tbody>
+        ${dl.map(({d, a}) => `<tr><td>${this.d(d.delivery_date)}</td><td>${esc(d.si_no ? 'SI01/' + d.si_no : d.do_no || '-')}</td><td>${esc(d.product_name || d.product_code || '')}</td><td class="num">${N(d.qty)}</td><td>${esc(d.unit || '')}</td><td class="num">${this.money(a)}</td></tr>`).join('')}
+        <tr><td colspan="5"><b>รวม</b></td><td class="num"><b>${this.money(tot)}</b></td></tr></tbody></table>` : '<div class="js-note">ยังไม่มีการส่งของ</div>'}
+      <div class="js-note" style="margin-top:3mm">ต้นทุน: ยังไม่ได้คำนวณ · มูลค่าไม่รวม VAT · ดูรายละเอียดแต่ละ JOB ได้ที่โหมด "ราย JOB"</div></div>`;
+  },
+  // ----- หน้าจอ -----
+  async page(){
+    $('#rpBody').innerHTML = `<div class="toolbar"><div class="seg" id="jsSeg"><button data-v="job">📋 ราย JOB</button><button data-v="po">🧾 ราย PO</button></div>
+      <input id="jsQ" class="field" style="max-width:320px" placeholder="พิมพ์เลข JOB / PO / ลูกค้า / สินค้า" value="${esc(this.q)}" autocomplete="off">
+      <span class="sp"></span><button class="btn ghost sm hidden" id="jsBack">← รายการ</button><button class="btn ghost sm hidden" id="jsImg">🖼 รูปภาพ</button><button class="btn ghost sm hidden" id="jsPrint">🖨 พิมพ์</button></div><div id="jsBody"><div class="empty">กำลังโหลด…</div></div>`;
+    document.querySelectorAll('#jsSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.mode); b.onclick = () => { this.mode = b.dataset.v; store.set('vp_js_mode', this.mode); this.cur = null; this.page(); }; });
+    let t; $('#jsQ').oninput = e => { this.q = e.target.value; clearTimeout(t); t = setTimeout(() => { this.cur = null; this.list(); }, 250); };
+    $('#jsBack').onclick = () => { this.cur = null; this.list(); };
+    $('#jsPrint').onclick = () => this.print(); $('#jsImg').onclick = () => { RptPrint._img = true; this.print(); };
+    try { await this.data(); } catch (e) { $('#jsBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    const pend = store.get('vp_jobsum', null); if (pend) { store.set('vp_jobsum', null); this.mode = pend.mode; document.querySelectorAll('#jsSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === this.mode)); return this.open(pend.key); }
+    this.cur ? this.open(this.cur) : this.list();
+  },
+  tools(on){ ['#jsBack', '#jsImg', '#jsPrint'].forEach(s => $(s).classList.toggle('hidden', !on)); },
+  list(){
+    this.tools(false); const D = this.S, q = ShipPage.n(this.q), m = s => !q || ShipPage.n(s).includes(q);
+    if (this.mode === 'job') {
+      const W = D.wo.filter(w => !w.cancelled && m([w.job_ticket, w.customer_name, w.product_name, w.po_no, w.product_code].join(' '))).sort((a, b) => (+!!b.closed - +!!a.closed) || b.job_ticket.localeCompare(a.job_ticket)).slice(0, 120);
+      $('#jsBody').innerHTML = `<div class="hint" style="margin:0 0 6px">เลือก JOB เพื่อดูใบสรุป (ปิดจ๊อบแล้วขึ้นก่อน) — แสดง ${W.length} รายการ${W.length >= 120 ? ' · พิมพ์ค้นหาเพื่อให้แคบลง' : ''}</div>
+        <div class="card tbl-wrap"><table class="trk"><thead><tr><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>PO</th><th>กำหนดส่ง</th><th>สถานะ</th></tr></thead><tbody>
+        ${W.map(w => `<tr class="js-pick" data-k="${esc(w.job_ticket)}" style="cursor:pointer"><td><a href="#">${esc(w.job_ticket)}</a></td><td class="cu">${esc(w.customer_name || '')}</td><td class="pn">${esc(w.product_name || '')}</td><td>${esc(w.po_no || '')}</td><td>${this.d(w.due_date)}</td><td>${w.closed ? '<span class="hint">ปิดแล้ว</span>' : 'ยังไม่ปิด'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">ไม่พบ</td></tr>'}</tbody></table></div>`;
+    } else {
+      const P = new Map(); D.wo.filter(w => !w.cancelled && !NO_REF(w.po_no)).forEach(w => { const k = ShipPage.n(w.po_no); const x = P.get(k) || {po: w.po_no.trim(), cust: w.customer_name, jobs: 0, open: 0, last: ''}; x.jobs++; if (!w.closed) x.open++; if (w.job_ticket > x.last) x.last = w.job_ticket; P.set(k, x); });
+      const L = [...P.values()].filter(x => m(x.po + ' ' + x.cust)).sort((a, b) => (+!a.open - +!b.open) * -1 || b.last.localeCompare(a.last)).slice(0, 120);
+      $('#jsBody').innerHTML = `<div class="hint" style="margin:0 0 6px">เลือก PO เพื่อดูใบสรุปรวมทุก JOB (ปิดครบแล้วขึ้นก่อน) — แสดง ${L.length} รายการ</div>
+        <div class="card tbl-wrap"><table class="trk"><thead><tr><th>PO</th><th>ลูกค้า</th><th class="num">JOB</th><th>สถานะ</th></tr></thead><tbody>
+        ${L.map(x => `<tr class="js-pick" data-k="${esc(x.po)}" style="cursor:pointer"><td><a href="#">${esc(x.po)}</a></td><td class="cu">${esc(x.cust || '')}</td><td class="num">${x.jobs}</td><td>${x.open ? `ยังไม่ปิด ${x.open} JOB` : '<span class="hint">ปิดครบ</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">ไม่พบ</td></tr>'}</tbody></table></div>`;
+    }
+    $('#jsBody').querySelectorAll('.js-pick').forEach(r => r.onclick = e => { e.preventDefault(); this.open(r.dataset.k); });
+  },
+  async open(k){
+    this.cur = k; this.tools(true); $('#jsBody').innerHTML = '<div class="empty">กำลังรวบรวมข้อมูล…</div>';
+    try { this.html = this.mode === 'po' ? this.poHTML(await this.po(k, this.S)) : this.jobHTML(await this.job(k, this.S)); this.title = (this.mode === 'po' ? 'สรุปงาน PO ' : 'สรุปงาน JOB ') + k; }
+    catch (e) { $('#jsBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    $('#jsBody').innerHTML = `<div class="card" style="padding:16px 18px;max-width:1100px">${this.CSS}${this.html}</div>`;
+  },
+  print(){ if (!this.html) return; RptPrint.go({title: this.title, orient: this.mode === 'po' ? 'landscape' : 'portrait', fs: 9, font: 'Tahoma'}, this.CSS + this.html); }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="jobsum">📄 สรุปงาน</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
     if (this.view === 'queue') return QueuePlan.page();
     if (this.view === 'speed') return SpeedRpt.page();
+    if (this.view === 'jobsum') return JobSum.page();
     if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
