@@ -44,7 +44,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
 .sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .sec h2 .req{color:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
 .chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
@@ -809,6 +809,20 @@ const NO_REF = v => { const t = String(v ?? '').toLowerCase().replace(/[\s\u00a0
   return !t || /^[-–—._\/\\*x×]+$/.test(t) || /^(ไม่มี|ไม่มีpo|ไม่มีเลข|ไม่มีเลขที่|ไม่มีso|รอ|รอpo|รอเลข|รอเลขpo|n\/?a|none|nil|null|no|nopo|tbd)$/.test(t); };
 const SPEED_WO = 'job_ticket,machine,diecut_machine,customer_name,product_name,product_code,width_mm,height_mm,paper_type,paper_name,color_count,ink_type,order_qty,total_m,doc_date';
 const SPEEDS = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120];
+// ช่องจำนวนใส่สูตรได้ เช่น 12000*2, 12000x2, 5000*3+200 → คำนวณให้ แล้วเก็บสูตรไว้ในหมายเหตุ
+const qtyExpr = s => { const t = String(s ?? '').trim(); if (!t) return {v: null, expr: null};
+  const c = t.replace(/,/g, '').replace(/[x×X]/g, '*').replace(/÷/g, '/').replace(/\s+/g, '');
+  if (/^\d+(\.\d+)?$/.test(c)) return {v: +c, expr: null};
+  if (!/^[\d.+\-*/()]+$/.test(c) || !/\d/.test(c)) return {v: NaN, expr: null, err: true};
+  let v; try { v = Function('"use strict";return (' + c + ')')(); } catch { return {v: NaN, expr: null, err: true}; }
+  return isFinite(v) && v >= 0 ? {v: Math.round(v * 100) / 100, expr: t.replace(/\s+/g, '').replace(/[xX×]/g, '*')} : {v: NaN, expr: null, err: true}; };
+const noteWithExpr = (note, expr) => { note = (note || '').trim(); return !expr || note.includes(expr) ? note : note ? `${expr} · ${note}` : expr; };
+function exprInput(el, out){ if (!el) return; const show = () => { const r = qtyExpr(el.value); if (out) out.innerHTML = r.err ? '<span style="color:var(--bad)">สูตรไม่ถูกต้อง</span>' : r.expr ? `= <b>${fmtN(r.v)}</b>` : ''; };
+  el.addEventListener('input', () => { const v = el.value.replace(/[^\d.,+\-*/()xX× ]/g, ''); if (v !== el.value) el.value = v; show(); }); show(); }
+// งาน Rotary ไม่มีตัวนับ: ช่างใส่จำนวนม้วนใหญ่ → ประมาณยอดดวง = ม้วน × ความยาว × ตัวหาร × ดวงแนวขวาง × แถว ÷ repeat
+const rollLen = w => { const m = String(w?.remark || '').match(/ม้วน(?:ละ)?\s*([\d,]+(?:\.\d+)?)\s*(?:เมตร|ม\.)/); return m ? +m[1].replace(/,/g, '') : 1000; };
+const rollEst = (w, rolls, len) => { const rp = +w?.repeat_mm, a = +w?.across || 1, r = +w?.die_rows || 1, dv = +w?.run_div || 1000;
+  return rp > 0 && rolls > 0 && len > 0 ? Math.round(rolls * len * dv * a * r / rp) : null; };
 const PAUSE_ST = 'พักงาน (ถูกแทรก)', isPause = v => /พักงาน/.test(v || '');
 const DEPT = {
   prod: { title:'แผนกผลิต', statuses:['กำลังทำ','ทยอยส่ง','เสร็จแล้ว','พักงาน (ถูกแทรก)'], final:'เสร็จแล้ว', steps:['พิมพ์','ไดคัท'] },
@@ -1378,7 +1392,7 @@ async function renderScan(dept, job){
   }
 
   const lastName = store.get('vp_name_' + dept, '');
-  const st = { employee: info.employees.includes(lastName) ? lastName : '', other: '', step: '', status: '', qty: '', note: '', speed: '', spdO: '' };
+  const st = { employee: info.employees.includes(lastName) ? lastName : '', other: '', step: '', status: '', qty: '', note: '', speed: '', spdO: '', qmode: dept === 'prod' && /rotary/i.test((info.machine || '') + (info.diecut_machine || '')) ? 'roll' : 'dot', rolls: '', rlen: String(rollLen(info)) };
   let n = 0;
   const num = () => `<span class="n">${++n}</span>`;
 
@@ -1400,7 +1414,13 @@ async function renderScan(dept, job){
       <div class="chips three" id="stChips">${D.statuses.map(s => `<button class="chip ${s===D.final?'st-done':''} ${s==='ส่งจากสต็อก'?'st-stock':''} ${isPause(s)?'st-stock st-pause':''}" data-v="${esc(s)}">${s==='ส่งจากสต็อก'?'📦 ':''}${isPause(s)?'⏸ ':''}${esc(s)}</button>`).join('')}</div>
       ${dept === 'qc' ? '<div class="hint" style="margin-top:6px">📦 ส่งจากสต็อก = ส่งของจากสต็อกให้ลูกค้าก่อนงานใหม่เสร็จ (ไม่นับเป็นยอด QC)</div>' : '<div class="hint" style="margin-top:6px">⏸ พักงาน = ถอดงานนี้ออกจากเครื่องเพื่อขึ้นงานแทรก (ใส่จำนวนที่ทำได้ถ้ามี) · กลับมาทำต่อให้สแกน "กำลังทำ"</div>'}</div>
     <div class="sec hidden" id="qtySec"><h2>${num()} จำนวน${dept==='prod'?'ที่ผลิตได้':' QC'} (ดวง) <span class="req">*</span></h2>
-      <input id="qty" class="field qty" inputmode="numeric" placeholder="0" autocomplete="off">
+      ${dept === 'prod' && /rotary/i.test((info.machine || '') + (info.diecut_machine || '')) ? `<div class="chips" id="qmode" style="margin-bottom:8px"><button class="chip" data-v="dot">นับเป็นดวง</button><button class="chip" data-v="roll">🌀 นับเป็นม้วนใหญ่</button></div>` : ''}
+      <div id="qDot"><input id="qty" class="field qty" inputmode="tel" placeholder="0" autocomplete="off">
+        <div class="qkeys"><button class="chip" data-k="*">× คูณ</button><button class="chip" data-k="+">+ บวก</button><button class="chip" data-k="del">⌫ ลบ</button></div>
+        <div class="hint" style="margin-top:4px">ใส่สูตรได้ เช่น 12000×2 หรือ 5000×3+200 ระบบคำนวณให้ และบันทึกสูตรไว้ในหมายเหตุ</div></div>
+      <div id="qRoll" class="hidden"><div class="qroll"><label>จำนวนม้วนใหญ่<input id="rollN" class="field qty" inputmode="decimal" placeholder="เช่น 3 หรือ 2.5"></label>
+        <label>ม้วนละ (เมตร)<input id="rollL" class="field" inputmode="decimal" value="${rollLen(info)}"></label></div>
+        <div class="hint" style="margin-top:4px">ระบบประมาณยอดดวงจากความยาวม้วน · ออฟฟิศตรวจ/แก้ได้ภายหลัง</div></div>
       <div class="hint" id="qtyHint"></div></div>
     ${dept === 'prod' ? `<div class="sec hidden" id="spdSec"><h2>⚡ ความเร็วเครื่อง (เมตร/นาที) <span class="req">(ถ้ามี)</span></h2>
       <div class="chips spd" id="spdChips">${SPEEDS.map(v => `<button class="chip" data-v="${v}">${v}</button>`).join('')}<button class="chip" data-v="__o">อื่นๆ</button></div>
@@ -1425,18 +1445,27 @@ async function renderScan(dept, job){
       document.querySelectorAll('#spdChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.speed)); $('#spdOther').classList.toggle('hidden', st.speed !== '__o'); }
     $('#qtySec').classList.toggle('hidden', !needQty()); { const rq = $('#qtySec .req'); if (rq) rq.textContent = optQty() ? '(ถ้ามี)' : '*'; }
     const name = st.employee === '__other' ? st.other.trim() : st.employee;
-    const qtyOk = !needQty() || optQty() || (+st.qty > 0);
+    const Q = qv(); const qtyOk = !needQty() || optQty() || (st.qmode === 'roll' ? +st.rolls > 0 : Q.v > 0);
+    if ($('#qmode')) { document.querySelectorAll('#qmode .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.qmode)); $('#qDot').classList.toggle('hidden', st.qmode === 'roll'); $('#qRoll').classList.toggle('hidden', st.qmode !== 'roll'); }
     $('#submit').disabled = !(name && st.status && qtyOk && (dept !== 'prod' || st.step));
     const hint = $('#qtyHint');
-    if (needQty() && +st.qty > 0 && info.order_qty) hint.textContent = `= ${(st.qty / info.order_qty * 100).toFixed(0)}% ของยอดสั่ง ${fmtN(info.order_qty)}`;
-    else hint.textContent = '';
+    const pc = v => info.order_qty ? ` (${(v / info.order_qty * 100).toFixed(0)}% ของยอดสั่ง ${fmtN(info.order_qty)})` : '';
+    if (!needQty()) hint.innerHTML = '';
+    else if (st.qmode === 'roll') { const e = rollEst(info, +st.rolls, +st.rlen); hint.innerHTML = +st.rolls > 0 ? (e ? `≈ <b>${fmtN(e)}</b> ดวง (ประมาณ)${pc(e)}` : 'ใบสั่งผลิตไม่มีระยะ repeat — ออฟฟิศจะคำนวณยอดให้') : ''; }
+    else hint.innerHTML = Q.err ? '<span style="color:var(--bad)">สูตรไม่ถูกต้อง ใช้ตัวเลขกับ × + เท่านั้น</span>' : Q.v > 0 ? (Q.expr ? `= <b>${fmtN(Q.v)}</b> ดวง` : '') + pc(Q.v) : '';
   };
   const bind = (sel, key) => document.querySelectorAll(sel + ' .chip').forEach(c => c.onclick = () => { st[key] = c.dataset.v; refresh(); if (key==='status' && needQty()) setTimeout(() => $('#qty').focus(), 50); });
   bind('#empChips', 'employee'); bind('#stepChips', 'step'); bind('#stChips', 'status');
   document.querySelectorAll('#spdChips .chip').forEach(c => c.onclick = () => { st.speed = st.speed === c.dataset.v ? '' : c.dataset.v; refresh(); if (st.speed === '__o') setTimeout(() => $('#spdOther').focus(), 50); });
   $('#spdOther') && ($('#spdOther').oninput = e => { st.spdO = e.target.value.replace(/[^\d.]/g, ''); });
   $('#otherName').oninput = e => { st.other = e.target.value; refresh(); };
-  $('#qty').oninput = e => { const v = e.target.value.replace(/[^\d]/g, ''); st.qty = v; e.target.value = v ? Number(v).toLocaleString('en-US') : ''; refresh(); };
+  function qv(){ return qtyExpr(st.qty); }
+  const fmtQ = v => /^[\d,]*$/.test(v) ? (v.replace(/,/g, '') ? Number(v.replace(/,/g, '')).toLocaleString('en-US') : '') : v;   // ตัวเลขล้วนใส่คอมมา · สูตรคงไว้ตามที่พิมพ์
+  $('#qty').oninput = e => { let v = e.target.value.replace(/[^\d.,+\-*/()xX× ]/g, '').replace(/[xX]/g, '×'); v = fmtQ(v); e.target.value = v; st.qty = v; refresh(); };
+  document.querySelectorAll('.qkeys .chip').forEach(b => b.onclick = e => { e.preventDefault(); const el = $('#qty'); el.value = b.dataset.k === 'del' ? el.value.slice(0, -1) : el.value.replace(/[×+]$/, '') + (b.dataset.k === '*' ? '×' : '+'); st.qty = fmtQ(el.value); el.value = st.qty; refresh(); el.focus(); });
+  document.querySelectorAll('#qmode .chip').forEach(c => c.onclick = () => { st.qmode = c.dataset.v; refresh(); setTimeout(() => $(st.qmode === 'roll' ? '#rollN' : '#qty').focus(), 50); });
+  $('#rollN') && ($('#rollN').oninput = e => { st.rolls = e.target.value.replace(/[^\d.]/g, ''); e.target.value = st.rolls; refresh(); });
+  $('#rollL') && ($('#rollL').oninput = e => { st.rlen = e.target.value.replace(/[^\d.]/g, ''); e.target.value = st.rlen; refresh(); });
   $('#note').oninput = e => { st.note = e.target.value; };
   refresh();
 
@@ -1444,7 +1473,10 @@ async function renderScan(dept, job){
     const btn = $('#submit'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
     const employee = st.employee === '__other' ? st.other.trim() : st.employee;
     const spd = dept !== 'prod' || isPause(st.status) ? null : +(st.speed === '__o' ? st.spdO : st.speed) || null;
-    const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty: needQty() ? (+st.qty || null) : null, note: st.note, device: deviceId(), speed: spd };
+    let qty = null, note = st.note;
+    if (needQty()) { if (st.qmode === 'roll' && +st.rolls > 0) { qty = rollEst(info, +st.rolls, +st.rlen); note = noteWithExpr(note, `🌀 ${+st.rolls} ม้วนใหญ่ × ${fmtN(+st.rlen)} ม.${qty ? ` ≈ ${fmtN(qty)} ดวง (ประมาณ)` : ' (รอออฟฟิศคำนวณ)'}`); }
+      else { const Q = qv(); qty = Q.v > 0 ? Q.v : null; note = noteWithExpr(note, Q.expr && Q.expr.replace(/\*/g, '×')); } }
+    const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty, note, device: deviceId(), speed: spd };
     try {
       const res = await API.submitScan(payload);
       if (st.employee !== '__other') store.set('vp_name_' + dept, employee);
@@ -3705,18 +3737,18 @@ const LogEdit = {
         <label>${QC ? 'ชื่อ QC' : 'ชื่อช่าง'}</label><input id="le_e" class="field" value="${esc(x.employee_name || '')}">
         ${QC ? '' : `<label>ขั้นตอน</label><select id="le_s" class="field">${[...new Set([...D.steps, x.step].filter(Boolean))].map(v => `<option ${v === x.step ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`}
         <label>สถานะ</label><select id="le_st" class="field">${sts.map(v => `<option ${v === x.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-        <label>จำนวน (ดวง)</label><input id="le_q" class="field" inputmode="decimal" value="${x.qty === null || x.qty === undefined ? '' : +x.qty}" placeholder="เว้นว่าง = ไม่มียอด">
+        <label>จำนวน (ดวง)</label><div><input id="le_q" class="field" inputmode="decimal" value="${x.qty === null || x.qty === undefined ? '' : +x.qty}" placeholder="เว้นว่าง = ไม่มียอด · ใส่สูตรได้ เช่น 12000*2"> <small class="hint" id="le_qc"></small></div>
         ${QC ? '' : `<label>⚡ ความเร็วเครื่อง</label><input id="le_sp" class="field" inputmode="decimal" value="${+x.speed > 0 ? +x.speed : ''}" placeholder="ม./นาที (ถ้ามี)">`}
         <label>หมายเหตุ</label><input id="le_n" class="field" value="${esc(x.note || '')}">
       </div>
       <div class="acts"><button class="btn ghost" id="le_del" style="color:var(--bad);margin-right:auto">🗑 ลบรายการนี้</button><button class="btn ghost" id="le_x">ยกเลิก</button><button class="btn" id="le_ok">💾 บันทึก</button></div>`;
-    const d = $('#dlg'); d.showModal(); numInput($('#le_q')); $('#le_x').onclick = () => d.close();
+    const d = $('#dlg'); d.showModal(); exprInput($('#le_q'), $('#le_qc')); $('#le_x').onclick = () => d.close();
     $('#le_ok').onclick = async () => {
       const di = thToIso($('#le_d').value.trim()), tm = $('#le_t').value.trim().match(/^(\d{1,2})[:.](\d{2})$/);
       if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
-      const qv = $('#le_q').value.trim().replace(/,/g, ''), q = qv === '' ? null : +qv; if (qv !== '' && isNaN(q)) return toast('จำนวนต้องเป็นตัวเลข');
+      const QX = qtyExpr($('#le_q').value), q = QX.v; if (QX.err) return toast('จำนวนไม่ถูกต้อง ใส่ตัวเลข หรือสูตร เช่น 12000*2');
       const job = $('#le_j').value.trim(); if (!job) return toast('ใส่เลข JOB');
-      const p = {logged_at: new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`).toISOString(), job_ticket: job, employee_name: $('#le_e').value.trim() || null, status: $('#le_st').value, qty: q, note: $('#le_n').value.trim() || null};
+      const p = {logged_at: new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`).toISOString(), job_ticket: job, employee_name: $('#le_e').value.trim() || null, status: $('#le_st').value, qty: q, note: noteWithExpr($('#le_n').value, QX.expr) || null};
       if (!QC) { p.step = $('#le_s').value; const sv = $('#le_sp').value.replace(/[^\d.]/g, ''), sp = sv === '' ? null : +sv;
         if (sp !== (+x.speed > 0 ? +x.speed : null)) p.speed = sp; }   // ส่งช่องความเร็วเฉพาะตอนแก้ (ยังไม่รัน SQL 26 ก็ยังแก้อย่างอื่นได้)
       if (job !== x.job_ticket && !(await API.getWorkOrder(job).catch(() => null))) return toast('ไม่พบ JOB ' + job);
@@ -4287,7 +4319,7 @@ const OfficeScan = {
           <label id="osEmpL">ชื่อช่าง</label><div><select id="osEmp" class="field"></select></div>
           <label class="os-step">ขั้นตอน</label><div class="os-step"><div class="seg" id="osStep"><button data-v="พิมพ์">พิมพ์</button><button data-v="ไดคัท">ไดคัท</button></div></div>
           <label>สถานะ</label><div><div class="seg os-st" id="osSt"></div></div>
-          <label>จำนวน (ดวง)</label><div><input id="osQty" class="field" inputmode="decimal" placeholder="เว้นว่างได้ถ้าแค่แจ้งเริ่มงาน" style="max-width:220px"></div>
+          <label>จำนวน (ดวง)</label><div><input id="osQty" class="field" inputmode="decimal" placeholder="เว้นว่างได้ · ใส่สูตรได้ เช่น 12000*2" style="max-width:240px"></div>
           <label class="os-step">⚡ ความเร็วเครื่อง</label><div class="os-step"><input id="osSpd" class="field" inputmode="decimal" placeholder="ม./นาที (ถ้ามี)" style="max-width:160px"> <small class="hint">เมตร/นาที — ไม่บังคับ</small></div>
           <label>วันที่ทำจริง</label><div class="os-dt"><input id="osDate" class="field" value="${pad2(now.getUTCDate())}/${pad2(now.getUTCMonth() + 1)}/${now.getUTCFullYear() + 543}" placeholder="วว/ดด/ปปปป"> เวลา <input id="osTime" class="field" value="${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}" placeholder="ชช:นน">
             <button class="btn ghost sm" id="osNow">ตอนนี้</button><button class="btn ghost sm" id="osYest">เมื่อวาน</button></div>
@@ -4317,7 +4349,7 @@ const OfficeScan = {
     $('#osEmp').onchange = e => store.set('vp_os_emp_' + this.dept, e.target.value);
     const setDT = ms => { const t = new Date(ms + 7 * 3600e3); $('#osDate').value = `${pad2(t.getUTCDate())}/${pad2(t.getUTCMonth() + 1)}/${t.getUTCFullYear() + 543}`; $('#osTime').value = `${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}`; };
     $('#osNow').onclick = () => setDT(Date.now()); $('#osYest').onclick = () => setDT(Date.now() - 864e5);
-    $('#osQty').oninput = e => { const raw = e.target.value.replace(/[^\d.]/g, ''); e.target.value = raw ? Number(raw).toLocaleString('en-US', {maximumFractionDigits: 2}) + (raw.endsWith('.') ? '.' : '') : ''; };
+    $('#osQty').insertAdjacentHTML('afterend', ' <small class="hint" id="osQc"></small>'); exprInput($('#osQty'), $('#osQc'));
     let tm; $('#osJob').oninput = e => { clearTimeout(tm); tm = setTimeout(async () => { const v = e.target.value.trim();
       try { const L = await API.searchJobs(v); $('#osJobs').innerHTML = L.map(j => `<option value="${esc(j.job_ticket)}">${esc(j.customer_name || '')} · ${esc(j.product_name || '')}</option>`).join('');
         if (L.some(j => j.job_ticket === v)) this.pick(v); } catch {} }, 250); };
@@ -4352,14 +4384,14 @@ const OfficeScan = {
     const di = thToIso($('#osDate').value.trim()), tm = $('#osTime').value.trim().match(/^(\d{1,2})[:.](\d{2})$/);
     if (!di) return toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป'); if (!tm || +tm[1] > 23 || +tm[2] > 59) return toast('เวลาไม่ถูกต้อง เช่น 14:30');
     const at = new Date(`${di}T${pad2(tm[1])}:${tm[2]}:00+07:00`); if (at.getTime() > Date.now() + 5 * 60e3) return toast('วันเวลาเป็นอนาคต ตรวจอีกครั้ง');
-    const qv = $('#osQty').value.replace(/,/g, '').trim(), qty = qv === '' ? null : +qv; if (qv !== '' && (isNaN(qty) || qty < 0)) return toast('จำนวนไม่ถูกต้อง');
+    const QX = qtyExpr($('#osQty').value), qty = QX.v; if (QX.err) return toast('จำนวนไม่ถูกต้อง ใส่ตัวเลข หรือสูตร เช่น 12000*2');
     const needQty = this.st !== 'กำลังทำ' && !isPause(this.st); if (needQty && qty === null && !(await Office.confirm(`สถานะ "${this.st}" แต่ไม่ได้ใส่จำนวน — บันทึกต่อไหม?`))) return;
-    const QC = this.dept === 'qc', row = {job_ticket: w.job_ticket, employee_name: $('#osEmp').value, status: this.st, qty, note: $('#osNote').value.trim() || null, logged_at: at.toISOString(), source: 'office:' + (Office.user?.email || '')};
+    const QC = this.dept === 'qc', row = {job_ticket: w.job_ticket, employee_name: $('#osEmp').value, status: this.st, qty, note: noteWithExpr($('#osNote').value, QX.expr) || null, logged_at: at.toISOString(), source: 'office:' + (Office.user?.email || '')};
     if (!QC) { row.step = this.step; const sp = +$('#osSpd').value.replace(/[^\d.]/g, ''); if (sp > 0 && !isPause(this.st)) row.speed = sp; }
     const msg = `บันทึกยอด${QC ? ' QC' : 'ฝ่ายผลิต'} JOB ${w.job_ticket}\n${row.employee_name}${QC ? '' : ' · ' + row.step} · ${row.status} · ${qty === null ? 'ไม่มียอด' : fmtN(qty) + ' ดวง'}${row.speed ? ' · ⚡' + row.speed + ' ม./นาที' : ''}\nวันที่ ${$('#osDate').value} ${$('#osTime').value}`;
     if (w.closed && !(await Office.confirm(`JOB นี้ปิดจ๊อบแล้ว ยังจะบันทึกยอดไหม?\n\n${msg}`))) return;
     $('#osSave').disabled = true;
-    try { await API.logInsert(QC ? 'qc_logs' : 'production_logs', row); toast('บันทึกแล้ว ✅'); $('#osMsg').textContent = `บันทึกล่าสุด: ${msg.split('\n').slice(0, 2).join(' · ')}`; $('#osQty').value = ''; $('#osSpd').value = ''; Kpi._jobs = null; this.hist(); }
+    try { await API.logInsert(QC ? 'qc_logs' : 'production_logs', row); toast('บันทึกแล้ว ✅'); $('#osMsg').textContent = `บันทึกล่าสุด: ${msg.split('\n').slice(0, 2).join(' · ')}`; $('#osQty').value = ''; $('#osQc').innerHTML = ''; $('#osSpd').value = ''; Kpi._jobs = null; this.hist(); }
     catch (e) { toast('บันทึกไม่ได้: ' + e.message); }
     $('#osSave').disabled = false;
   }
@@ -5725,15 +5757,15 @@ const Office = {
       <label>พนักงาน</label><input id="e_emp" class="field" value="${esc(r.employee_name)}">
       ${r.dept==='prod' ? `<label>ขั้นตอน</label><select id="e_step" class="field">${opts(D.steps, r.step)}</select>` : ''}
       <label>สถานะงาน</label><select id="e_st" class="field">${opts(D.statuses, r.status)}</select>
-      <label>จำนวน</label><input id="e_qty" class="field" inputmode="numeric" value="${r.qty ?? ''}">
+      <label>จำนวน</label><div><input id="e_qty" class="field" inputmode="decimal" value="${r.qty ?? ''}" placeholder="ใส่สูตรได้ เช่น 12000*2"> <small class="hint" id="e_qc"></small></div>
       ${r.dept==='prod' ? `<label>ความเร็วเครื่อง (ม./นาที)</label><input id="e_spd" class="field" inputmode="decimal" value="${r.speed ?? ''}" placeholder="ไม่ระบุ">` : ''}
       <label>หมายเหตุ</label><input id="e_note" class="field" value="${esc(r.note||'')}">
       <div class="acts"><button class="btn ghost" id="e_c">ยกเลิก</button><button class="btn" id="e_s">บันทึก</button><button class="btn ok" id="e_sa">บันทึก + อนุมัติ</button></div>`;
-    const dlg = $('#dlg'); dlg.showModal();
+    const dlg = $('#dlg'); dlg.showModal(); exprInput($('#e_qty'), $('#e_qc'));
     $('#e_c').onclick = () => dlg.close();
     const save = async (andApprove) => {
-      const q = $('#e_qty').value.replace(/[^\d.]/g, '');
-      const f = { job_ticket: $('#e_job').value.trim(), employee_name: $('#e_emp').value.trim(), status: $('#e_st').value, qty: q === '' ? null : +q, note: $('#e_note').value.trim() || null };
+      const QX = qtyExpr($('#e_qty').value); if (QX.err) return toast('จำนวนไม่ถูกต้อง ใส่ตัวเลข หรือสูตร เช่น 12000*2');
+      const f = { job_ticket: $('#e_job').value.trim(), employee_name: $('#e_emp').value.trim(), status: $('#e_st').value, qty: QX.v, note: noteWithExpr($('#e_note').value, QX.expr) || null };
       if (r.dept === 'prod') { f.step = $('#e_step').value; const sp = $('#e_spd').value.replace(/[^\d.]/g, ''); if (sp !== '' || r.speed != null) f.speed = sp === '' ? null : +sp; }
       try { await API.updateInbox(r.id, f); if (andApprove) await API.approve([r.id]); dlg.close(); toast(andApprove ? 'บันทึกและอนุมัติแล้ว' : 'บันทึกแล้ว'); this.loadInbox(); }
       catch (e) { toast('ผิดพลาด: ' + e.message); }
