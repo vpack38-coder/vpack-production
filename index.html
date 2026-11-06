@@ -624,7 +624,8 @@ table.trk.xl tr.is-closed td{color:#4b5563}
 table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top:2px solid #94a3b8} table.kp-t tr.kp-pod td:nth-child(-n+5){background:#fff !important}
 #kpQ.kp-q{border:2px solid #60a5fa;background:#f0f7ff}#kpQ.kp-q:focus{border-color:#2563eb;background:#fff}#kpQ.kp-q:not(:placeholder-shown){border-color:#f59e0b;background:#fffbeb}
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
-#dlg:has(#sl_q){width:min(680px,94vw)}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
+#dlg:has(#sl_q){width:min(680px,94vw);max-width:680px}
+#dlg:has(.kd-list){max-width:1200px;width:95vw}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
 .coat-h{grid-column:1/-1;width:100%;font-size:12px;margin-top:2px;text-align:right}
 .pp-film{display:inline-block;background:#e0f2fe;color:#075985;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:600}
@@ -3745,10 +3746,11 @@ const Kpi = {
     this._jobs = await API.kpiJobs(); this._at = Date.now(); return this._jobs; },
   VIEWS: {
     ontime:  {t: 'รายงานส่งงานตรงเวลา', range: true,  dims: [['ym','เดือน (ที่เสร็จ)'], ['customer_name','ลูกค้า'], ['machine','เครื่องพิมพ์']]},
-    backlog: {t: 'รายงานงานค้างตามกำหนดส่ง', range: false, dims: [['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]},
+    backlog: {t: 'รายงานงานค้างตามกำหนดส่ง', range: false, dims: [['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า'], ['product','สินค้า']]},
     aging:   {t: 'รายงานสต็อกค้างนาน', range: false, dims: [['product','ลูกค้า + สินค้า'], ['customer_name','ลูกค้า']]},
     daily:   {t: 'รายงานการผลิต/QC ประจำวัน', range: true, dims: [['prod','🖨️ ฝ่ายผลิต'], ['qc','✅ QC'], ['machine','📊 สรุปรายวัน × เครื่อง'], ['employee','👷 สรุปรายวัน × พนักงาน']]},
     shipr:   {t: 'รายงานการจัดส่ง', range: true, dims: [['list','📋 รายการส่งของ'], ['po','🧾 ตาม PO'], ['day','📅 รายวัน'], ['week','🗓 รายสัปดาห์'], ['month','📆 รายเดือน'], ['customer','🏢 ตามลูกค้า'], ['product','🏷 ตามสินค้า']]},
+    shipbl:  {t: 'รายงานสินค้าค้างส่ง', range: false, dims: [['job','📋 ตาม JOB'], ['po','🧾 ตาม PO'], ['customer','👤 ตามลูกค้า'], ['product','📦 ตามสินค้า']]},
     lead:    {t: 'รายงานระยะเวลาผลิต (Lead time)', range: true, dims: [['ym','เดือน (ที่เสร็จ)'], ['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]}
   },
   preset(k){ const t = todayISO(), y = +t.slice(0, 4), m = +t.slice(5, 7), iso = (Y, M, D) => `${Y}-${pad2(M)}-${pad2(D)}`, last = (Y, M) => new Date(Date.UTC(Y, M, 0)).getUTCDate();
@@ -3761,7 +3763,7 @@ const Kpi = {
     if (k === 'y0') return [iso(y, 1, 1), t];
     if (k === 'all') return ['2020-01-01', t];
     return null; },
-  opts(v){ const V = this.VIEWS[v], def = {dim: V.dims[0][0], pre: v === 'daily' ? 'd7' : v === 'shipr' ? 'm0' : 'm3', from: '', to: '', step: 'พิมพ์', minAge: 0, fs: 9, orient: ['daily', 'backlog', 'shipr'].includes(v) ? 'landscape' : 'portrait'};
+  opts(v){ const V = this.VIEWS[v], def = {dim: V.dims[0][0], pre: v === 'daily' ? 'd7' : v === 'shipr' ? 'm0' : 'm3', from: '', to: '', step: 'พิมพ์', minAge: 0, fs: 9, orient: ['daily', 'backlog', 'shipr', 'shipbl'].includes(v) ? 'landscape' : 'portrait'};
     const o = {...def, ...store.get('vp_kpi_' + v, {})}; if (!V.dims.some(d => d[0] === o.dim)) o.dim = def.dim;
     const p = this.preset(o.pre); if (p) [o.from, o.to] = p; return o; },
 
@@ -3772,8 +3774,8 @@ const Kpi = {
     $('#rpBody').innerHTML = `<div class="toolbar kp-bar" style="margin:0 0 8px">
         ${V.range ? `<select id="kpPre" class="field kp-s">${PRE.map(([k, l]) => `<option value="${k}" ${k === o.pre ? 'selected' : ''}>📅 ${l}</option>`).join('')}</select>
           <input id="kpFrom" class="field kp-d" value="${isoToTh(o.from)}" placeholder="วว/ดด/ปปปป"> ถึง <input id="kpTo" class="field kp-d" value="${isoToTh(o.to)}" placeholder="วว/ดด/ปปปป">` : `<span class="hint">ข้อมูล ณ วันนี้ ${isoToTh(todayISO())}</span>`}
-        ${['daily', 'shipr'].includes(v) ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
-        ${['daily', 'shipr'].includes(v) ? `<input id="kpQ" class="field kp-d kp-q ${['prod', 'qc', 'list', 'po'].includes(o.dim) ? '' : 'hidden'}" style="width:${v === 'shipr' ? 230 : 150}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
+        ${['daily', 'shipr', 'shipbl'].includes(v) ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
+        ${['daily', 'shipr', 'shipbl'].includes(v) ? `<input id="kpQ" class="field kp-d kp-q ${['prod', 'qc', 'list', 'po'].includes(o.dim) || v === 'shipbl' ? '' : 'hidden'}" style="width:${v === 'daily' ? 150 : 230}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : v === 'shipbl' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB' : '🔍 ค้นหา JOB'}" value="${esc(this.q || '')}">` : ''}
         ${v === 'daily' ? `<select id="kpStep" class="field kp-s ${['prod', 'qc'].includes(o.dim) ? 'hidden' : ''}">${['พิมพ์', 'ไดคัท', 'QC'].map(s => `<option ${s === o.step ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
         ${v === 'aging' ? `<select id="kpAge" class="field kp-s">${[[0,'ทุกอายุ'], [30,'ค้างเกิน 30 วัน'], [90,'ค้างเกิน 90 วัน'], [180,'ค้างเกิน 180 วัน'], [365,'ค้างเกิน 1 ปี']].map(([n, l]) => `<option value="${n}" ${+o.minAge === n ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         <button class="btn ghost sm" id="kpRe" title="โหลดข้อมูลใหม่">↻</button>
@@ -3781,7 +3783,7 @@ const Kpi = {
         <select id="kpOr" class="field kp-s"><option value="portrait" ${o.orient !== 'landscape' ? 'selected' : ''}>📄 แนวตั้ง</option><option value="landscape" ${o.orient === 'landscape' ? 'selected' : ''}>📃 แนวนอน</option></select>
         ${fontSel('kpFont', o.font)}${fsSel('kpFs', o.fs)}<select id="kpBand" class="field kp-s" title="แถบสีแต่ละคอลัมน์ตอนพิมพ์ / บันทึกรูป"><option value="on" ${o.band !== 'off' ? 'selected' : ''}>🎨 พิมพ์มีแถบสี</option><option value="off" ${o.band === 'off' ? 'selected' : ''}>⬜ พิมพ์ไม่มีแถบสี</option></select>
         <button class="btn sm" id="kpImg" style="background:#06c755">🖼 รูปภาพ</button><button class="btn ghost sm" id="kpPrint">🖨 พิมพ์</button><button class="btn ghost sm" id="kpCsv">⬇ Excel (CSV)</button></div>
-      ${['daily', 'shipr'].includes(v) ? `<div class="seg kp-tabs" id="kpTabs">${V.dims.map(([k, l]) => `<button data-v="${k}" class="${k === o.dim ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
+      ${['daily', 'shipr', 'shipbl'].includes(v) ? `<div class="seg kp-tabs" id="kpTabs">${V.dims.map(([k, l]) => `<button data-v="${k}" class="${k === o.dim ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <div id="kpBody"><div class="empty">กำลังโหลด…</div></div>`;
     document.querySelectorAll('#kpTabs button').forEach(b => b.onclick = () => { $('#kpDim').value = b.dataset.v; this.flt = {}; this.fsort = null;
       document.querySelectorAll('#kpTabs button').forEach(x => x.classList.toggle('on', x === b)); redraw(); });
@@ -3792,7 +3794,7 @@ const Kpi = {
         n.from = a <= b ? a : b; n.to = a <= b ? b : a; }
       if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value;
       Object.assign(o, n); store.set('vp_kpi_' + v, n); return n; };
-    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim); $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L);
+    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim) || v === 'shipbl'; $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L);
       if ($('#kpQ') && v === 'shipr') $('#kpQ').placeholder = n.dim === 'po' ? '🔍 พิมพ์เลข PO (ค้นทุกช่วงวันที่)' : '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ'; await this.run(n, force); };
     if (this._fv !== v) { this.flt = {}; this.fsort = null; this._fv = v; }
     if (V.range) {
@@ -3859,7 +3861,7 @@ const Kpi = {
   editDue(jobs){ const m = new Map((this._jobs || []).map(r => [r.job_ticket, r])); DueEdit.open(jobs.map(j => m.get(j) || {job_ticket: j}), () => { this._jobs = null; this.page(this.v); }); },
   detail(key, list){
     const c = this.R.detailCols || this.DCOLS, B = this.v === 'backlog' && !Office.ro;
-    $('#dlgBody').innerHTML = `<h3>${esc(this.cv(key))} · ${list.length} ${this.v === 'shipr' ? 'รายการ' : 'JOB'}</h3><div class="tbl-wrap" style="max-height:62vh"><table class="trk"><thead><tr>${B ? '<th><input type="checkbox" id="kd_all" title="เลือกทั้งหมด"></th>' : ''}${c.map(([, l, n]) => `<th class="${n ? 'num' : ''}">${l}</th>`).join('')}</tr></thead><tbody>
+    $('#dlgBody').innerHTML = `<h3>${esc(this.cv(key))} · ${list.length} ${['shipr', 'shipbl'].includes(this.v) ? 'รายการ' : 'JOB'}</h3><div class="tbl-wrap kd-list" style="max-height:62vh"><table class="trk"><thead><tr>${B ? '<th><input type="checkbox" id="kd_all" title="เลือกทั้งหมด"></th>' : ''}${c.map(([, l, n]) => `<th class="${n ? 'num' : ''}">${l}</th>`).join('')}</tr></thead><tbody>
       ${list.map(r => `<tr>${B ? `<td><input type="checkbox" class="kd_c" value="${esc(r.job_ticket)}"></td>` : ''}${c.map(([k, , n, f]) => k === 'job_ticket' ? `<td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td>`
         : k === 'due_date' && B ? `<td><a href="#" class="kp-due" data-due="${esc(r.job_ticket)}">${esc(f ? f(r) : r[k] ?? '')} ✏️</a></td>`
         : `<td class="${n ? 'num' : ''} ${k === 'customer_name' ? 'cu' : k === 'product_name' ? 'pn' : ''}">${esc(f ? f(r) : r[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -3922,7 +3924,7 @@ const Kpi = {
     const t = todayISO(), J = (await this.jobs(force)).filter(r => !r.cancelled && !r.closed && !this.done(r));
     const bk = r => { if (!r.due_date) return 'none'; const d = this.diff(t, r.due_date); return d < 0 ? 'late' : d === 0 ? 'today' : d <= 3 ? 'd3' : d <= 7 ? 'd7' : d <= 14 ? 'd14' : 'dx'; };
     J.forEach(r => { r._bk = bk(r); r._days = r.due_date ? this.diff(t, r.due_date) : null; r._left = Math.max(0, (+r.order_qty || 0) - (+r.ready_qty || 0)); });
-    const key = r => String(r[o.dim] || '').trim() || '(ไม่ระบุ)', g = new Map(); J.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
+    const key = r => (o.dim === 'product' ? [String(r.product_code || '').trim(), String(r.product_name || '').trim()].filter(Boolean).join(' · ') : String(r[o.dim] || '').trim()) || '(ไม่ระบุ)', g = new Map(); J.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
     const keys = [...g.keys()].sort((a, b) => g.get(b).filter(r => r._bk === 'late').length - g.get(a).filter(r => r._bk === 'late').length || g.get(b).length - g.get(a).length);
     const cell = (L, b) => { const n = L.filter(r => r._bk === b).length; return n ? {t: `${n}`, n, c: b === 'late' ? 'stock-neg kp-b' : 'kp-b'} : ''; };
     const late = J.filter(r => r._bk === 'late').sort((a, b) => a._days - b._days), week = J.filter(r => ['today', 'd3', 'd7'].includes(r._bk));
@@ -4080,6 +4082,52 @@ const Kpi = {
     return {sub: `${fmtN(G.length)} PO/สินค้า · ${fmtN(FL.length)} รายการ`, cards, qRun: true, rangeTxt: allT ? `ค้นหา "${this.q.trim()}" · ทุกช่วงวันที่${ds.length ? ` (ส่ง ${isoToTh(ds[0])} – ${isoToTh(ds[ds.length - 1])})` : ''}` : null,
       note: (allT ? `🔍 กำลังค้นหา "${esc(this.q.trim())}" จากการส่งของทุกช่วงวันที่ (ไม่ใช้ช่วงวันที่ด้านบน) — ลบคำค้นหาเพื่อกลับไปดูตามช่วงวันที่ · ` : 'พิมพ์เลข PO ในช่องค้นหา เพื่อดูเฉพาะ PO นั้น (ค้นทุกช่วงวันที่) · ') + note + ' · ส่งสะสม/คงค้าง นับการส่งทั้งหมดของ PO นั้น',
       main: {title: `การจัดส่งแยกตาม PO (${fmtN(G.length)} รายการ PO/สินค้า)`, head, rows, rowCls, total: ['รวมทั้งหมด', '', '', '', '', '', '', tq, '', '', '']}};
+  },
+
+  /* ---------- สินค้าค้างส่ง (จากหน้าจัดส่ง: ยอดสั่งตาม PO/SO − ส่งแล้ว) ---------- */
+  async shipbl(o, force){
+    const S = await ShipPage.load(force), t = todayISO(), ST = ShipPage.ST, N = x => +x || 0;
+    const jobsOf = L => L.jobs.filter(j => !j.cancelled).map(j => j.job_ticket);
+    const q = (this.q || '').trim().toLowerCase();
+    let A = S.lines.filter(L => !['closed', 'toclose'].includes(L.status) && L.remain > 0)
+      .filter(L => !q || [L.po_no, L.customer_name, L.product_code, L.product_name, ...jobsOf(L), ...L.so_nos].join(' ').toLowerCase().includes(q));
+    const unitOf = L => String(L.unit || '').trim() || 'ดวง', pcs = L => ShipPage.isPcs(L.unit);
+    const lateOf = L => L.due && L.due < t ? this.diff(L.due, t) : 0;
+    const dueCell = L => L.due ? {t: fmtD(L.due) + (lateOf(L) ? ` (เลย ${lateOf(L)} วัน)` : ''), n: L.due, c: lateOf(L) ? 'stock-neg' : ''} : '';
+    const stCell = L => ({t: ST[L.status][2] + ' ' + ST[L.status][0], n: L.status});
+    const dots = A.filter(pcs).reduce((a, L) => a + L.remain, 0), late = A.filter(lateOf), ready = A.filter(L => L.status === 'ready' || (L.stock > 0 && L.status === 'partial'));
+    const cards = [['รายการค้างส่ง', `${fmtN(A.length)}<em> รายการ</em>`, `${fmtN(new Set(A.map(L => L.customer_name)).size)} ลูกค้า · ${fmtN(new Set(A.map(L => L.po_no)).size)} PO`, '#2563eb'],
+      ['ยอดค้างส่งรวม', `${fmtN(dots)}<em> ดวง</em>`, A.some(L => !pcs(L)) ? 'ไม่รวมรายการที่เป็นม้วน/หน่วยอื่น' : '', '#d97706'],
+      ['เลยกำหนดส่ง', `${fmtN(late.length)}<em> รายการ</em>`, late.length ? `เลยนานสุด ${fmtN(Math.max(...late.map(lateOf)))} วัน` : 'ไม่มีรายการเลยกำหนด 👍', '#dc2626'],
+      ['มีของพร้อมส่ง', `${fmtN(ready.length)}<em> รายการ</em>`, 'ผลิตเสร็จ/มีสต็อก แต่ยังส่งไม่ครบ', '#0f766e']];
+    const note = 'ค้างส่ง = ยอดตาม PO/SO − ส่งแล้ว (จากหน้าจัดส่ง ไม่รวมรายการที่ปิดงานจัดส่งแล้ว) · กำหนดส่งใช้ตามใบสั่งผลิต (ถ้ามี) · สต็อก = สต็อกสินค้ารหัสนั้นทั้งหมด';
+    const lineCols = [['po_no','PO'], ['customer_name','ลูกค้า'], ['product_code','รหัสสินค้า'], ['product_name','สินค้า'], ['jobs','JOB', 0, L => jobsOf(L).join(', ')],
+      ['due','กำหนดส่ง', 0, L => L.due ? fmtD(L.due) : ''], ['qty','ยอดสั่ง', 1, L => fmtN(L.qty)], ['shipped','ส่งแล้ว', 1, L => fmtN(L.shipped)], ['remain','ค้างส่ง', 1, L => fmtN(L.remain) + (pcs(L) ? '' : ' ' + unitOf(L))], ['status','สถานะ', 0, L => ST[L.status][0]]];
+    if (o.dim === 'job' || o.dim === 'po') {
+      const sk = o.dim === 'job' ? L => jobsOf(L)[0] || 'ฮฮฮ' : L => ShipPage.n(L.po_no);
+      A.sort((a, b) => String(sk(a)).localeCompare(String(sk(b)), 'th', {numeric: true}) || String(a.product_code).localeCompare(String(b.product_code)));
+      const jobH = {l: 'JOB'}, poH = {l: 'PO'};
+      const head = [...(o.dim === 'job' ? [jobH, poH] : [poH, jobH]), {l: 'ลูกค้า', cls: 'cu'}, {l: 'รหัสสินค้า'}, {l: 'สินค้า', cls: 'pn'}, {l: 'กำหนดส่ง'}, {l: 'ยอดสั่ง', num: 1}, {l: 'ส่งแล้ว', num: 1}, {l: 'ค้างส่ง', num: 1}, {l: 'หน่วย'}, {l: 'สต็อก', num: 1}, {l: 'สถานะ'}];
+      const rows = A.map((L, i) => { const J = jobsOf(L).join(', ') || '(ยังไม่เปิดใบสั่งผลิต)', P = {t: L.po_no, c: 'sh-pocell'};
+        const same = o.dim === 'po' && i && ShipPage.n(A[i - 1].po_no) === ShipPage.n(L.po_no);
+        return [...(o.dim === 'job' ? [J, P] : [same ? '' : P, J]), L.customer_name || '', L.product_code || '', L.product_name || '', dueCell(L), L.qty, L.shipped, {t: fmtN(L.remain), n: L.remain, c: 'kp-b'}, unitOf(L), L.stock || '', stCell(L)]; });
+      const tot = (f, P) => A.filter(P || (() => true)).reduce((a, L) => a + N(f(L)), 0);
+      return {sub: `${fmtN(A.length)} รายการค้างส่ง`, cards, note, qRun: true,
+        main: {title: `สินค้าค้างส่ง ${o.dim === 'job' ? 'เรียงตาม JOB' : 'แยกตาม PO'} (${fmtN(A.length)} รายการ)`, head, rows,
+          total: ['รวม (เฉพาะหน่วยดวง)', '', '', '', '', '', tot(L => L.qty, pcs), tot(L => L.shipped, pcs), tot(L => L.remain, pcs), 'ดวง', '', '']}};
+    }
+    // ตามลูกค้า / ตามสินค้า: สรุปเป็นกลุ่ม คลิกแถวดูรายการ
+    const key = o.dim === 'customer' ? L => (L.customer_name || '').trim() || '(ไม่ระบุ)' : L => [String(L.product_code || '').trim(), String(L.product_name || '').trim()].filter(Boolean).join(' · ') || '(ไม่ระบุ)';
+    const g = new Map(); A.forEach(L => (g.get(key(L)) || g.set(key(L), []).get(key(L))).push(L));
+    const keys = [...g.keys()].sort((a, b) => g.get(b).filter(lateOf).length - g.get(a).filter(lateOf).length || g.get(b).reduce((x, L) => x + L.remain, 0) - g.get(a).reduce((x, L) => x + L.remain, 0));
+    const sum = (L, f) => L.filter(pcs).reduce((a, x) => a + N(f(x)), 0);
+    const head = [{l: o.dim === 'customer' ? 'ลูกค้า' : 'สินค้า', cls: o.dim === 'customer' ? 'cu' : 'pn'}, {l: 'รายการ', num: 1}, {l: 'PO', num: 1}, {l: 'เลยกำหนด', num: 1}, {l: 'กำหนดส่งเร็วสุด'}, {l: 'ยอดสั่ง (ดวง)', num: 1}, {l: 'ส่งแล้ว (ดวง)', num: 1}, {l: 'ค้างส่ง (ดวง)', num: 1}, ...(o.dim === 'product' ? [{l: 'สต็อก', num: 1}] : []), {l: 'หน่วยอื่น'}];
+    const rows = keys.map(k => { const L = g.get(k), lt = L.filter(lateOf).length, d0 = L.map(x => x.due).filter(Boolean).sort()[0], oth = L.filter(x => !pcs(x));
+      return [k, L.length, new Set(L.map(x => x.po_no)).size, lt ? {t: fmtN(lt), n: lt, c: 'stock-neg kp-b'} : '', d0 ? {t: fmtD(d0), n: d0, c: d0 < t ? 'stock-neg' : ''} : '', sum(L, x => x.qty), sum(L, x => x.shipped), {t: fmtN(sum(L, x => x.remain)), n: sum(L, x => x.remain), c: 'kp-b'},
+        ...(o.dim === 'product' ? [Math.max(...L.map(x => x.stock || 0)) || ''] : []), oth.length ? oth.map(x => `${fmtN(x.remain)} ${unitOf(x)}`).join(', ') : '']; });
+    return {sub: `${fmtN(A.length)} รายการค้างส่ง · ${fmtN(keys.length)} ${o.dim === 'customer' ? 'ลูกค้า' : 'สินค้า'}`, cards, note, qRun: true, detailCols: lineCols,
+      main: {head, rows, lists: keys.map(k => g.get(k).sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')))),
+        total: ['รวมทั้งหมด', A.length, new Set(A.map(L => L.po_no)).size, late.length || '', '', sum(A, x => x.qty), sum(A, x => x.shipped), sum(A, x => x.remain), ...(o.dim === 'product' ? [''] : []), '']}};
   },
 
   /* ---------- 5) Lead time ---------- */
@@ -4542,6 +4590,9 @@ const ShipPage = {
       (bySo.get((w.so_no || '').trim()) || []).filter(L => this.n(L.product_code) === this.n(w.product_code)).forEach(L => hit.add(L));
       lines.forEach(L => { if (L.linkJobs?.includes(w.job_ticket)) hit.add(L); });
       hit.forEach(L => L.jobs.push({...w, ...(prog.get(w.job_ticket) || {})})); });
+    // กำหนดส่ง: ใช้กำหนดส่งในใบสั่งผลิต (แก้/เลื่อนได้ในระบบ) แทนวันที่ใน SO — ถ้ามีหลาย JOB ใช้ JOB ที่ยังไม่ปิดที่เร็วที่สุด
+    lines.forEach(L => { const J = L.jobs.filter(j => j.due_date); if (!J.length) return; const op = J.filter(j => !j.closed), nd = (op.length ? op : J).map(j => j.due_date).sort()[0];
+      if (nd && nd !== L.due) { L.so_due = L.due; L.due = nd; } });
     // การส่งของ
     const orphan = [], hidden = [], svc = new Set(D.so_i.filter(i => i.item_type === 'P7' && i.product_code).map(i => this.n(i.product_code)));
     const byPo = new Map(); lines.forEach(L => { const k = this.n(L.po_no); (byPo.get(k) || byPo.set(k, []).get(k)).push(L); });
@@ -4581,13 +4632,14 @@ const ShipPage = {
       <div class="toolbar"><input id="shQ" class="field" style="max-width:300px;padding:7px 11px" placeholder="🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB / เลขใบส่งของ" value="${esc(this.q)}">
         <button class="btn ghost sm" id="shRe">↻</button><span class="sp"></span>
         <button class="btn ghost sm" id="shImp">📥 นำเข้า PREFLI02.CSV</button><input type="file" id="shFile" accept=".csv,.CSV" class="hidden">
-        <button class="btn ghost sm" id="shRpt">📊 รายงานการจัดส่ง</button><button class="btn sm" id="shAdd">+ บันทึกส่งของ</button>${Office.shipping || Office.viewer ? '' : '<button class="btn ghost sm" id="shCfg" title="ตั้งค่า">⚙</button>'}</div>
+        <button class="btn ghost sm" id="shBl">📦 รายงานค้างส่ง</button><button class="btn ghost sm" id="shRpt">📊 รายงานการจัดส่ง</button><button class="btn sm" id="shAdd">+ บันทึกส่งของ</button>${Office.shipping || Office.viewer ? '' : '<button class="btn ghost sm" id="shCfg" title="ตั้งค่า">⚙</button>'}</div>
       <div id="shBody"><div class="empty">กำลังโหลด…</div></div>`;
     document.querySelectorAll('#shSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_sh_view', this.view); document.querySelectorAll('#shSeg button').forEach(x => x.classList.toggle('on', x === b)); this.draw(); }; });
     let t; $('#shQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value.trim(); this.draw(); const i = $('#shQ'); i.focus(); }, 300); };
     $('#shRe').onclick = () => this.page(true);
     $('#shAdd').onclick = () => this.editDl(null, null);
     $('#shRpt').onclick = () => { Reports.view = 'shipr'; store.set('vp_rview', 'shipr'); Office.go('reports'); };
+    $('#shBl').onclick = () => { Reports.view = 'shipbl'; store.set('vp_rview', 'shipbl'); Office.go('reports'); };
     $('#shImp').onclick = () => $('#shFile').click();
     $('#shFile').onchange = e => { const f = e.target.files[0]; if (f) this.importCsv(f); e.target.value = ''; };
     $('#shCfg')?.addEventListener('click', () => this.settings());
@@ -4610,7 +4662,7 @@ const ShipPage = {
       + (tc && !Office.viewer ? `<div class="pf-bar">มี ${tc} รายการที่ส่งครบและมีเลขเอกสารครบแล้ว <button class="btn sm" id="shCloseAll">🔒 ปิดงานทั้งหมด ${tc} รายการ</button></div>` : '')
       + (R.length ? `<div class="sh-list">${R.map((L, i) => { const late = L.due && L.due < t && !['toclose', 'closed'].includes(L.status);
         return `<div class="card sh-row ${late ? 'late' : ''}" data-i="${i}">
-          <div class="sh-top">${FC && L.status !== 'closed' ? `<input type="checkbox" class="sh-c" data-k="${esc(L.key)}" ${this.sel.has(L.key) ? 'checked' : ''}>` : ''}${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}</span>` : ''}</div>
+          <div class="sh-top">${FC && L.status !== 'closed' ? `<input type="checkbox" class="sh-c" data-k="${esc(L.key)}" ${this.sel.has(L.key) ? 'checked' : ''}>` : ''}${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}${L.so_due && L.so_due < L.due ? ` <small title="กำหนดส่งตาม SO ${fmtD(L.so_due)} — เลื่อนตามใบสั่งผลิต">(เลื่อนจาก ${fmtD(L.so_due)})</small>` : ''}</span>` : ''}</div>
           <div class="sh-pn"><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
           <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อก <b>${fmtN(L.stock)}</b></span><span class="u">${esc(L.unit || '')}</span></div>
           <div class="sh-prod">${L.jobs.length ? L.jobs.map(j => `<span class="sh-job ${Kpi.done(j) ? 'd' : ''}">${esc(j.job_ticket)} · ${Kpi.done(j) ? 'ผลิตเสร็จ' : esc(j.qc_status && j.qc_status !== '-' ? 'QC ' + j.qc_status : j.print_status || 'ยังไม่เริ่ม')} · พร้อมส่ง ${fmtN(j.ready_qty || 0)}</span>`).join('') : '<span class="hint">ยังไม่มีใบสั่งผลิต</span>'}
@@ -4675,7 +4727,7 @@ const ShipPage = {
   detail(L){
     const t = todayISO(), canClose = L.status === 'toclose' && !L.missingDoc, RO = Office.viewer;
     $('#dlgBody').innerHTML = `<h3>${this.badge(L.status)} ${esc(L.customer_name || '')}</h3>
-      <div class="sh-dh"><div>PO <b>${esc(L.po_no)}</b>${L.so_nos.size ? ` · SO ${esc([...L.so_nos].join(', '))}` : ''}${L.due ? ` · กำหนดส่ง <b class="${L.due < t && L.remain ? 'stock-neg' : ''}">${fmtD(L.due)}</b>` : ''}</div>
+      <div class="sh-dh"><div>PO <b>${esc(L.po_no)}</b>${L.so_nos.size ? ` · SO ${esc([...L.so_nos].join(', '))}` : ''}${L.due ? ` · กำหนดส่ง <b class="${L.due < t && L.remain ? 'stock-neg' : ''}">${fmtD(L.due)}</b>${L.so_due && L.so_due !== L.due ? ` <small class="hint">(ตาม SO ${fmtD(L.so_due)} · ใช้กำหนดส่งในใบสั่งผลิต)</small>` : ''}` : ''}</div>
         <div><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
         <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อกสินค้านี้ <b>${fmtN(L.stock)}</b></span></div></div>
       <h4 class="kp-h">🖨️ การผลิต</h4>${L.jobs.length ? `<div class="tbl-wrap"><table class="trk"><thead><tr><th>JOB</th><th class="num">ยอดสั่งผลิต</th><th>พิมพ์</th><th>QC</th><th class="num">พร้อมส่ง</th><th class="num">สต็อก JOB นี้</th></tr></thead><tbody>
@@ -4784,7 +4836,7 @@ const ShipPage = {
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
     if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
