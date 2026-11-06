@@ -625,7 +625,8 @@ table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top
 #kpQ.kp-q{border:2px solid #60a5fa;background:#f0f7ff}#kpQ.kp-q:focus{border-color:#2563eb;background:#fff}#kpQ.kp-q:not(:placeholder-shown){border-color:#f59e0b;background:#fffbeb}
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
 #dlg:has(#sl_q){width:min(680px,94vw);max-width:680px}
-#dlg:has(.kd-list){max-width:1200px;width:95vw}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
+#dlg:has(.kd-list){max-width:1200px;width:95vw}
+#dlg:has(#ds_t){max-width:760px;width:94vw}.ds-sec{display:flex;flex-wrap:wrap;gap:6px}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
 .coat-h{grid-column:1/-1;width:100%;font-size:12px;margin-top:2px;text-align:right}
 .pp-film{display:inline-block;background:#e0f2fe;color:#075985;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:600}
@@ -4872,6 +4873,47 @@ const ScanLink = {
   }
 };
 
+/* ================== สรุปงานประจำวัน → คัดลอกส่ง LINE (กดเอง ตรวจก่อนส่ง) ================== */
+const DaySum = {
+  SEC: [['late', '🔴 เลยกำหนดส่ง'], ['due', '🟠 ต้องส่งวันทำงานถัดไป'], ['prod', '🖨️ ยอดผลิต/QC วันทำงานล่าสุด'], ['ready', '📦 พร้อมส่ง (ยังไม่ส่ง)'], ['scan', '📲 สแกนรอตรวจ'], ['paper', '🧻 กระดาษ/ฟิล์ม']],
+  // วันทำงาน จันทร์–เสาร์ (ข้ามวันอาทิตย์)
+  wd(iso, step){ let d = Date.parse(iso); do { d += step * 864e5; } while (new Date(d).getUTCDay() === 0); return new Date(d).toISOString().slice(0, 10); },
+  short(v, n){ v = String(v || '').replace(/\s*\((?:สำนักงานใหญ่|head office)\)/gi, '').replace(/^บริษัท\s*|\s*จำกัด.*$/g, '').trim(); return v.length > n ? v.slice(0, n - 1) + '…' : v; },
+  async build(sel){
+    const t = todayISO(), nx = this.wd(t, 1), pv = this.wd(t, -1), out = [`📋 สรุปงานประจำวัน ${isoToTh(t)}`];
+    const J = (await Kpi.jobs(true)).filter(r => !r.cancelled && !r.closed && !Kpi.done(r));
+    const line = r => `• ${r.job_ticket} ${this.short(r.customer_name, 18)} · ${this.short(r.product_name, 28)}`;
+    if (sel.late) { const L = J.filter(r => r.due_date && r.due_date < t).sort((a, b) => a.due_date.localeCompare(b.due_date));
+      out.push('', `🔴 เลยกำหนดส่ง ${L.length} JOB`); L.slice(0, 15).forEach(r => out.push(`${line(r)} (เลย ${Kpi.diff(r.due_date, t)} วัน)`)); if (L.length > 15) out.push(`  …และอีก ${L.length - 15} JOB`); if (!L.length) out.push('• ไม่มี 👍'); }
+    if (sel.due) { const L = J.filter(r => r.due_date && r.due_date >= t && r.due_date <= nx).sort((a, b) => a.due_date.localeCompare(b.due_date));
+      out.push('', `🟠 ต้องส่งวันนี้ – ${isoToTh(nx)}: ${L.length} JOB`); L.forEach(r => out.push(`${line(r)} [${r.due_date === t ? 'วันนี้' : isoToTh(r.due_date).slice(0, 5)}] ${r.print_status || ''}`)); if (!L.length) out.push('• ไม่มี'); }
+    if (sel.prod) { const L = await API.kpiLogs(pv, pv), sum = (A, f) => A.filter(f).reduce((a, x) => a + (+x.qty || 0), 0), jm = new Map((await Kpi.jobs()).map(r => [r.job_ticket, r]));
+      const byM = new Map(); L.prod.filter(x => x.step === 'พิมพ์').forEach(x => { const m = jm.get(x.job_ticket)?.machine || '(ไม่ระบุ)'; byM.set(m, (byM.get(m) || 0) + (+x.qty || 0)); });
+      const fin = L.qc.filter(x => /จบ JOB/.test(x.status || '')).length;
+      out.push('', `🖨️ ยอดวันที่ ${isoToTh(pv)}`, `• พิมพ์ ${fmtN(sum(L.prod, x => x.step === 'พิมพ์'))} · ไดคัท ${fmtN(sum(L.prod, x => x.step === 'ไดคัท'))} · QC ${fmtN(sum(L.qc, x => x.status !== 'ส่งจากสต็อก'))} ดวง${fin ? ` · จบ ${fin} JOB` : ''}`);
+      [...byM].sort((a, b) => b[1] - a[1]).forEach(([m, q]) => out.push(`  - ${m}: ${fmtN(q)}`)); }
+    if (sel.ready) { try { const S = await ShipPage.load(true), L = S.lines.filter(x => x.status === 'ready');
+      out.push('', `📦 พร้อมส่ง ยังไม่ส่ง ${L.length} รายการ`); L.slice(0, 12).forEach(x => out.push(`• ${this.short(x.customer_name, 18)} · PO ${x.po_no} · ${x.product_code} ค้าง ${fmtN(x.remain)}`)); if (L.length > 12) out.push(`  …และอีก ${L.length - 12} รายการ`); } catch {} }
+    if (sel.scan) { try { const n = (await API.listInbox('pending')).length; out.push('', `📲 สแกนรอตรวจ ${fmtN(n)} รายการ`); } catch {} }
+    if (sel.paper) { try { const P = (await API.paperList()).filter(r => r.status !== 'cancelled'), c = k => P.filter(r => r.status === k).length;
+      out.push('', `🧻 กระดาษ/ฟิล์ม: รอแจ้ง ${c('pending')} · ขอซื้อแล้ว ${c('notified')} · สั่งแล้วรอรับ ${c('ordered')}`); } catch {} }
+    return out.join('\n');
+  },
+  async open(){
+    const sel = {late: 1, due: 1, prod: 1, ready: 1, scan: 1, paper: 1, ...store.get('vp_daysum', {})};
+    $('#dlgBody').innerHTML = `<h3>📋 สรุปงานประจำวัน (ส่ง LINE)</h3>
+      <div class="ds-sec">${this.SEC.map(([k, l]) => `<label class="wc ${sel[k] ? 'on' : ''}"><input type="checkbox" data-s="${k}" ${sel[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <textarea id="ds_t" class="field" rows="16" style="font-family:inherit;margin-top:8px">กำลังรวบรวม…</textarea>
+      <div class="hint">ตรวจ/แก้ข้อความได้ก่อนคัดลอก · วันทำงาน จันทร์–เสาร์</div>
+      <div class="acts"><button class="btn ghost" id="ds_x">ปิด</button><button class="btn" id="ds_c" style="background:#06c755">📋 คัดลอกไปวางใน LINE</button></div>`;
+    const d = $('#dlg'); if (!d.open) d.showModal(); $('#ds_x').onclick = () => d.close();
+    const run = async () => { $('#ds_t').value = 'กำลังรวบรวม…'; try { const tx = await this.build(sel); $('#ds_t').value = tx; $('#ds_t').rows = Math.min(24, tx.split('\n').length + 2); } catch (e) { $('#ds_t').value = 'รวบรวมไม่ได้: ' + e.message; } };
+    $('#dlgBody').querySelectorAll('[data-s]').forEach(c => c.onchange = () => { sel[c.dataset.s] = c.checked ? 1 : 0; c.parentElement.classList.toggle('on', c.checked); store.set('vp_daysum', sel); run(); });
+    $('#ds_c').onclick = async () => { const tx = $('#ds_t').value; try { await navigator.clipboard.writeText(tx); toast('คัดลอกแล้ว — ไปวางในแชท LINE ได้เลย'); } catch { $('#ds_t').select(); document.execCommand('copy'); toast('คัดลอกแล้ว'); } };
+    run();
+  }
+};
+
 /* ================== หน้าเมนูหลัก (Main Menu) ================== */
 const HomePage = {
   menu: [
@@ -4887,6 +4929,7 @@ const HomePage = {
       { k:'inbox',   ic:'📲', c:'#c25a00', t:'ตรวจข้อมูลสแกน', badge:'pending', go:() => Office.go('inbox') },
       { k:'oscan',   ic:'📝', c:'#9a3412', t:'บันทึกยอดแทนช่าง (สแกนย้อนหลัง)', go:() => Office.go('oscan') },
       { k:'slink',   ic:'🔗', c:'#5b4fc4', t:'ส่งลิงก์สแกนให้ช่าง (ไม่มี QR)', go:() => ScanLink.open() },
+      { k:'daysum',  ic:'📋', c:'#06a34b', t:'สรุปงานประจำวัน (ส่ง LINE)', go:() => DaySum.open() },
       { k:'track',   ic:'📊', c:'#0f7b6c', t:'ติดตามงาน (รายJOB)', go:() => { Office.pview = 'job'; store.set('vp_pview','job'); Office.go('progress'); } },
       { k:'stock',   ic:'📦', c:'#2e7d32', t:'สต็อกตามสินค้า', go:() => { Office.pview = 'stock'; store.set('vp_pview','stock'); Office.go('progress'); } } ]},
     { g:'Dashboard / รายงาน', items:[
