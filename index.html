@@ -626,7 +626,10 @@ table.kp-t tr.kp-poh td{background:#e8eef9 !important;font-weight:700;border-top
 .sl-a{text-decoration:none;font-size:12px;opacity:.55}.sl-a:hover{opacity:1}
 #dlg:has(#sl_q){width:min(680px,94vw);max-width:680px}
 #dlg:has(.kd-list){max-width:1200px;width:95vw}
-#dlg:has(#ds_t){max-width:760px;width:94vw}.ds-sec{display:flex;flex-wrap:wrap;gap:6px}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
+#dlg:has(#ds_t){max-width:760px;width:94vw}.ds-sec{display:flex;flex-wrap:wrap;gap:6px}
+.qp-bar{position:relative;height:18px;background:#f1f5f9;border-radius:9px;overflow:hidden}.qp-bar i{display:block;height:100%}.qp-bar span{position:absolute;left:8px;top:0;font-size:11.5px;line-height:18px;color:#1f2937}
+.qp-m{margin-top:14px}.qp-mh{display:flex;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}.qp-mh b{font-size:15px}
+tr.qp-run td{background:#fffbeb}.qp-mv{padding:2px 9px}.qp-mv:disabled{opacity:.25}#dlg:has(.qp-cfg){max-width:640px;width:94vw}.qp-cfg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.qp-cfg label{display:flex;flex-direction:column;gap:3px;font-size:13px}.sl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}.sl-i{flex:1;min-width:220px;font-size:13.5px}.sl-b{display:flex;gap:6px}
 .so-st.fcj{background:#fff4d6;color:#8a5300;border:1px dashed #e0a800}
 .coat-h{grid-column:1/-1;width:100%;font-size:12px;margin-top:2px;text-align:right}
 .pp-film{display:inline-block;background:#e0f2fe;color:#075985;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:600}
@@ -992,6 +995,7 @@ const Demo = {
       deleted_work_orders: d.deleted || [], carry_links: d.carry_links || [], so_headers: d.so_h || [], so_items: d.so_i || [], fc_po: d.fc || [], deliveries: d.dlv || [], fc_monthly: d.fcm || []};
     const res = {}; BACKUP_TABLES.forEach(([name, t]) => res[name] = map[t] || []); return res; },
   async getMeta(k){ return (this.db().meta || {})[k] ?? null; },
+  async queueWo(){ return this.db().wo.filter(w => !w.closed && !w.cancelled).map(w => ({job_ticket: w.job_ticket, total_m: w.total_m, run_m: w.run_m})); },
   async setMeta(k, v){ const d = this.db(); (d.meta ||= {})[k] = v; this.save(); },
   async deletedList(){ return [...(this.db().deleted || [])].map((x, i) => ({id: i + 1, ...x})).reverse(); },
   async restoreWorkOrder(id){ const d = this.db(), x = d.deleted[id - 1];
@@ -1269,6 +1273,7 @@ const Live = {
     for (const [name, t, order] of BACKUP_TABLES) { onStep && onStep(name);
       try { res[name] = await this.fetchTable(t, order); } catch (e) { res[name] = null; } }
     return res; },
+  async queueWo(){ return this.pageAll(() => this.sb.from('work_orders').select('job_ticket,total_m,run_m').not('closed', 'is', true).order('job_ticket')); },
   async getMeta(k){ try { const r = this.chk(await this.sb.from('app_meta').select('value').eq('key', k).maybeSingle()); return r ? r.value : null; } catch { return undefined; } },
   async setMeta(k, v){ this.chk(await this.sb.from('app_meta').upsert({key: k, value: v, updated_at: new Date().toISOString()})); },
   async deletedList(){ return this.chk(await this.sb.from('deleted_work_orders').select('*').order('deleted_at', {ascending: false}).limit(200)); },
@@ -4833,13 +4838,111 @@ const ShipPage = {
   }
 };
 
+/* ================== วางแผนคิวเครื่อง: ใครอยู่คิวไหน จะเสร็จวันไหน ทันกำหนดส่งไหม ================== */
+const QueuePlan = {
+  DEF: {hours: 8, ot: 0, startH: 8, endH: 17, speed: 50, setup: 60, m: {}, order: {}},
+  cfg: null, rows: [], f: store.get('vp_q_f', {orient: 'landscape', fs: 9, font: 'Tahoma', band: 'on'}),
+  isRun: r => /กำลัง|ทยอย/.test(r.print_status || ''), isPause: r => isPause(r.print_status), printDone: r => /เสร็จ|ปั๊มเปล่า/.test(r.print_status || ''),
+  mc(m){ const c = this.cfg.m[m] || {}; return {speed: +c.speed || +this.cfg.speed || 50, setup: c.setup === 0 || c.setup ? +c.setup : +this.cfg.setup || 0}; },
+  async load(){
+    if (!this.cfg) { let c = null; try { c = await API.getMeta('queue_cfg'); } catch {} this.cfg = {...this.DEF, ...store.get('vp_queue_cfg', {}), ...(c || {})}; this.cfg.m ||= {}; this.cfg.order ||= {}; }
+    const [P, W] = await Promise.all([API.progress('', true, false), API.queueWo()]), wm = new Map(W.map(w => [w.job_ticket, w]));
+    this.rows = P.filter(r => !r.closed && !r.cancelled && !this.printDone(r) && !/^เสร็จ/.test(r.qc_status || '')).map(r => { const w = wm.get(r.job_ticket) || {};
+      const tot = +w.total_m || +w.run_m || 0, o = +r.order_qty || 0, done = Math.max(+r.print_qty || 0, 0), frac = o ? Math.max(0, 1 - done / o) : 1;
+      return {...r, _tot: tot, _left: Math.round(tot * frac), _pct: o ? Math.min(100, Math.round(done / o * 100)) : 0}; });
+  },
+  save(){ store.set('vp_queue_cfg', this.cfg); clearTimeout(this._st); this._st = setTimeout(() => API.setMeta('queue_cfg', this.cfg).catch(() => {}), 600); },
+  // คิวของเครื่อง: งานที่กำลังทำอยู่บนเครื่องก่อน → ลำดับที่จัดเอง → งานใหม่แทรกตามกำหนดส่ง
+  queue(m){
+    const L = this.rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m), due = r => r.due_date || '9999-12-31';
+    const run = L.filter(r => this.isRun(r)).sort((a, b) => due(a).localeCompare(due(b))), rest = L.filter(r => !this.isRun(r)).sort((a, b) => due(a).localeCompare(due(b)) || a.job_ticket.localeCompare(b.job_ticket));
+    const saved = (this.cfg.order[m] || []).map(j => rest.find(r => r.job_ticket === j)).filter(Boolean), out = [...saved];
+    rest.filter(r => !saved.includes(r)).forEach(r => { const i = out.findIndex(x => due(x) > due(r)); if (i < 0) out.push(r); else out.splice(i, 0, r); });
+    return [...run, ...out];
+  },
+  // จัดเวลา: ชั่วโมงทำงาน/วัน (+OT) จันทร์–เสาร์ เริ่มจากตอนนี้
+  plan(m){
+    const C = this.cfg, cap = (+C.hours || 8) * 60 + (+C.ot || 0) * 60, mc = this.mc(m), now = new Date(Date.now() + 7 * 3600e3);
+    let day = now.toISOString().slice(0, 10), hm = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const nextWd = d => { let t = Date.parse(d); do { t += 864e5; } while (new Date(t).getUTCDay() === 0); return new Date(t).toISOString().slice(0, 10); };
+    if (new Date(Date.parse(day)).getUTCDay() === 0) { day = nextWd(day); hm = C.startH; }
+    let left = new Date(Date.parse(day)).getUTCDay() === 0 ? 0 : Math.max(0, Math.min(1, (C.endH - Math.max(hm, C.startH)) / (C.endH - C.startH))) * cap;
+    if (left <= 0) { day = nextWd(day); left = cap; }
+    return this.queue(m).map(r => { const need = (this.isRun(r) ? 0 : mc.setup) + (mc.speed ? r._left / mc.speed : 0), start = day;
+      let rem = need; while (rem > left + 1e-6) { rem -= left; day = nextWd(day); left = cap; } left -= rem;
+      const late = r.due_date && day > r.due_date ? Kpi.diff(r.due_date, day) : 0;
+      return {...r, _min: need, _start: start, _end: day, _late: late}; });
+  },
+  machines(){ const ms = [...new Set(this.rows.map(r => r.machine || '(ไม่ระบุเครื่อง)'))]; const ord = WOForm.L?.spec?.machine || [];
+    return ms.sort((a, b) => (ord.indexOf(a) < 0 ? 999 : ord.indexOf(a)) - (ord.indexOf(b) < 0 ? 999 : ord.indexOf(b)) || a.localeCompare(b)); },
+  hrs: m => m >= 60 ? `${fmtN(Math.floor(m / 60))} ชม. ${Math.round(m % 60) ? Math.round(m % 60) + ' น.' : ''}`.trim() : `${Math.round(m)} น.`,
+  async page(){
+    $('#rpBody').innerHTML = `<div class="toolbar"><button class="btn ghost sm" id="qpRe">↻ รีเฟรช</button>${Office.ro ? '' : '<button class="btn ghost sm" id="qpCfg">⚙ ตั้งค่าความเร็ว / เวลาทำงาน</button>'}
+      <span class="sp"></span><button class="btn ghost sm" id="qpImg">🖼 รูปภาพ</button><button class="btn ghost sm" id="qpPrint">🖨 พิมพ์</button></div><div id="qpBody"><div class="empty">กำลังโหลด…</div></div>`;
+    $('#qpRe').onclick = () => this.page(); $('#qpCfg') && ($('#qpCfg').onclick = () => this.settings());
+    $('#qpPrint').onclick = () => this.print(); $('#qpImg').onclick = () => { RptPrint._img = true; this.print(); };
+    try { if (!WOForm.L) WOForm.L = await API.lookups(); await this.load(); } catch (e) { $('#qpBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    this.draw();
+  },
+  sumRow(m){ const P = this.plan(m), mc = this.mc(m), min = P.reduce((a, r) => a + r._min, 0), cap = ((+this.cfg.hours || 8) + (+this.cfg.ot || 0)) * 60;
+    return {m, P, mc, min, nRun: P.filter(r => this.isRun(r)).length, days: min / cap, end: P.at(-1)?._end, late: P.filter(r => r._late).length, left: P.reduce((a, r) => a + r._left, 0)}; },
+  draw(){
+    const S = this.machines().map(m => this.sumRow(m)), t = todayISO(), ro = Office.ro;
+    const C = this.cfg, maxD = Math.max(1, ...S.map(x => x.days));
+    $('#qpBody').innerHTML = `<div class="hint" style="margin:0 0 8px">เวลาทำงาน ${C.hours} ชม./วัน${+C.ot ? ` + OT ${C.ot} ชม.` : ''} · จันทร์–เสาร์ ${pad2(C.startH)}:00–${pad2(C.endH)}:00 · ตั้งเครื่องเริ่มต้น ${C.setup} นาที/JOB · ความเร็วเริ่มต้น ${C.speed} ม./นาที (ตั้งรายเครื่องได้) — เวลาเป็นค่าประมาณจากเมตรที่ยังไม่ได้พิมพ์</div>
+      <div class="card tbl-wrap"><table class="trk qp-sum"><thead><tr><th>เครื่อง</th><th class="num">ความเร็ว (ม./นาที)</th><th class="num">JOB ในคิว</th><th class="num">เมตรคงเหลือ</th><th class="num">เวลางาน</th><th style="width:28%">ภาระงาน (วันทำงาน)</th><th>คิวหมดประมาณ</th><th class="num">ไม่ทันกำหนด</th></tr></thead><tbody>
+      ${S.map(x => `<tr><td><a href="#qp-${esc(x.m)}" class="qp-go"><b>${esc(x.m)}</b></a></td><td class="num">${fmtN(x.mc.speed)}${C.m[x.m]?.speed ? '' : ' <small class="hint">(เริ่มต้น)</small>'}</td><td class="num">${x.P.length}</td><td class="num">${fmtN(x.left)}</td><td class="num">${this.hrs(x.min)}</td>
+        <td><div class="qp-bar"><i style="width:${Math.min(100, x.days / maxD * 100)}%;background:${x.late ? '#f87171' : x.days > 5 ? '#fb923c' : '#4ade80'}"></i><span>${x.days.toFixed(1)} วัน</span></div></td><td>${x.end ? fmtD(x.end) : '-'}</td><td class="num">${x.late ? `<b class="stock-neg">${x.late}</b>` : '<span class="hint">0</span>'}</td></tr>`).join('')}</tbody></table></div>
+      ${S.map(x => `<div class="card qp-m" id="qp-${esc(x.m)}"><div class="qp-mh"><b>🖨️ ${esc(x.m)}</b><span class="hint">${x.P.length} JOB · ${this.hrs(x.min)} · คิวหมด ${x.end ? fmtD(x.end) : '-'}${x.late ? ` · <b class="stock-neg">ไม่ทัน ${x.late} JOB</b>` : ''}</span>${!ro && (C.order[x.m] || []).length ? `<button class="btn ghost sm" data-qrs="${esc(x.m)}">↺ เรียงตามกำหนดส่ง</button>` : ''}</div>
+        <div class="tbl-wrap"><table class="trk"><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะพิมพ์</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num">เวลา</th><th>คาดว่าเริ่ม – เสร็จ</th><th>ผล</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
+        ${x.P.map((r, i) => `<tr class="${this.isRun(r) ? 'qp-run' : ''}"><td>${i + 1}</td><td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td>
+          <td><span class="st ${this.isRun(r) ? 'st-run' : this.isPause(r) ? 'st-pause' : 'st-no'}">${esc(r.print_status || '')}</span>${r._pct ? ` <small class="hint">${r._pct}%</small>` : ''}</td>
+          <td>${r.due_date ? `<span class="${r.due_date < t ? 'stock-neg' : ''}">${fmtD(r.due_date)}</span>` : '<span class="hint">ไม่ระบุ</span>'}</td><td class="num">${r._tot ? fmtN(r._left) : '<span class="hint" title="ใบสั่งผลิตไม่มีเมตรที่ต้องใช้">?</span>'}</td><td class="num">${this.hrs(r._min)}</td>
+          <td>${r._start === r._end ? fmtD(r._end) : `${fmtD(r._start).slice(0, 5)} – ${fmtD(r._end)}`}</td><td>${!r.due_date ? '<span class="hint">-</span>' : r._late ? `<b class="stock-neg">🔴 ช้า ${r._late} วัน</b>` : '<span style="color:#15803d">✅ ทัน</span>'}</td>
+          ${ro ? '' : `<td style="white-space:nowrap">${this.isRun(r) ? '<small class="hint">อยู่บนเครื่อง</small>' : `<button class="btn ghost sm qp-mv" data-qu="${esc(r.job_ticket)}" data-qm="${esc(x.m)}" title="เลื่อนขึ้น"${i === x.nRun ? ' disabled' : ''}>↑</button><button class="btn ghost sm qp-mv" data-qd="${esc(r.job_ticket)}" data-qm="${esc(x.m)}" title="เลื่อนลง"${i === x.P.length - 1 ? ' disabled' : ''}>↓</button>`}</td>`}</tr>`).join('')}</tbody></table></div></div>`).join('') || '<div class="empty">ไม่มีงานรอพิมพ์</div>'}`;
+    const mv = (m, j, d) => { const Q = this.queue(m).filter(r => !this.isRun(r)).map(r => r.job_ticket), i = Q.indexOf(j), k = i + d; if (i < 0 || k < 0 || k >= Q.length) return; [Q[i], Q[k]] = [Q[k], Q[i]]; this.cfg.order[m] = Q; this.save(); this.draw(); };
+    $('#qpBody').querySelectorAll('[data-qu]').forEach(b => b.onclick = () => mv(b.dataset.qm, b.dataset.qu, -1));
+    $('#qpBody').querySelectorAll('[data-qd]').forEach(b => b.onclick = () => mv(b.dataset.qm, b.dataset.qd, 1));
+    $('#qpBody').querySelectorAll('[data-qrs]').forEach(b => b.onclick = () => { delete this.cfg.order[b.dataset.qrs]; this.save(); this.draw(); });
+    $('#qpBody').querySelectorAll('.qp-go').forEach(a => a.onclick = e => { e.preventDefault(); document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior: 'smooth', block: 'start'}); });
+    $('#qpBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
+  },
+  settings(){
+    const C = this.cfg, ms = this.machines();
+    $('#dlgBody').innerHTML = `<h3>⚙ ตั้งค่าคิวเครื่อง</h3><div class="qp-cfg">
+      <label>ชั่วโมงทำงาน/วัน<input id="qc_h" class="field" inputmode="decimal" value="${C.hours}"></label><label>OT/วัน (ชม.)<input id="qc_o" class="field" inputmode="decimal" value="${C.ot}"></label>
+      <label>เริ่มงาน (โมง)<input id="qc_s" class="field" inputmode="numeric" value="${C.startH}"></label><label>เลิกงาน (โมง)<input id="qc_e" class="field" inputmode="numeric" value="${C.endH}"></label>
+      <label>ความเร็วเริ่มต้น (ม./นาที)<input id="qc_sp" class="field" inputmode="decimal" value="${C.speed}"></label><label>ตั้งเครื่องเริ่มต้น (นาที/JOB)<input id="qc_su" class="field" inputmode="numeric" value="${C.setup}"></label></div>
+      <h4 class="kp-h" style="margin-top:12px">รายเครื่อง <small class="hint">(เว้นว่าง = ใช้ค่าเริ่มต้น)</small></h4>
+      <div class="tbl-wrap" style="max-height:40vh"><table class="trk"><thead><tr><th>เครื่อง</th><th>ความเร็ว (ม./นาที)</th><th>ตั้งเครื่อง (นาที)</th></tr></thead><tbody>
+      ${ms.map((m, i) => `<tr><td>${esc(m)}</td><td><input class="field qc-sp" data-i="${i}" inputmode="decimal" value="${C.m[m]?.speed ?? ''}" placeholder="${C.speed}" style="max-width:110px"></td><td><input class="field qc-su" data-i="${i}" inputmode="numeric" value="${C.m[m]?.setup ?? ''}" placeholder="${C.setup}" style="max-width:110px"></td></tr>`).join('')}</tbody></table></div>
+      <div class="acts"><button class="btn ghost" id="qc_x">ยกเลิก</button><button class="btn" id="qc_ok">บันทึก</button></div>`;
+    const d = $('#dlg'); d.showModal(); $('#qc_x').onclick = () => d.close();
+    $('#qc_ok').onclick = () => { const n = id => +String($(id).value).replace(/,/g, '') || 0;
+      Object.assign(C, {hours: n('#qc_h') || 8, ot: n('#qc_o'), startH: n('#qc_s') || 8, endH: n('#qc_e') || 17, speed: n('#qc_sp') || 50, setup: n('#qc_su')});
+      ms.forEach((m, i) => { const sp = document.querySelector(`.qc-sp[data-i="${i}"]`).value.trim(), su = document.querySelector(`.qc-su[data-i="${i}"]`).value.trim();
+        if (sp || su) C.m[m] = {...(sp ? {speed: +sp} : {}), ...(su !== '' ? {setup: +su} : {})}; else delete C.m[m]; });
+      this.save(); d.close(); toast('บันทึกแล้ว'); this.draw(); };
+  },
+  print(){
+    const S = this.machines().map(m => this.sumRow(m)), C = this.cfg;
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>แผนคิวเครื่อง</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}<br>${C.hours} ชม./วัน${+C.ot ? ` + OT ${C.ot}` : ''} · จันทร์–เสาร์ · ตั้งเครื่อง ${C.setup} นาที/JOB</div></div>
+      <table><thead><tr><th>เครื่อง</th><th class="num">ม./นาที</th><th class="num">JOB</th><th class="num">เมตรคงเหลือ</th><th class="num">เวลางาน</th><th>คิวหมด</th><th class="num">ไม่ทันกำหนด</th></tr></thead><tbody>
+      ${S.map(x => `<tr><td>${esc(x.m)}</td><td class="num">${fmtN(x.mc.speed)}</td><td class="num">${x.P.length}</td><td class="num">${fmtN(x.left)}</td><td class="num">${this.hrs(x.min)}</td><td>${x.end ? fmtD(x.end) : '-'}</td><td class="num">${x.late || ''}</td></tr>`).join('')}</tbody></table>
+      ${S.map(x => `<h3 style="margin:4mm 0 1mm">${esc(x.m)} · ${x.P.length} JOB · คิวหมด ${x.end ? fmtD(x.end) : '-'}</h3><table><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะพิมพ์</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num">เวลา</th><th>คาดว่าเสร็จ</th><th>ผล</th></tr></thead><tbody>
+        ${x.P.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.job_ticket)}</td><td>${esc(r.customer_name || '')}</td><td>${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td>${r.due_date ? fmtD(r.due_date) : ''}</td><td class="num">${fmtN(r._left)}</td><td class="num">${this.hrs(r._min)}</td><td>${fmtD(r._end)}</td><td>${!r.due_date ? '' : r._late ? `ช้า ${r._late} วัน` : 'ทัน'}</td></tr>`).join('')}</tbody></table>`).join('')}</div>`;
+    RptPrint.go({title: 'แผนคิวเครื่อง', orient: this.f.orient, fs: this.f.fs, font: this.f.font}, html);
+  }
+};
+
 /* ================== หน้า Dashboard / รายงาน ================== */
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
+    if (this.view === 'queue') return QueuePlan.page();
     if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
