@@ -44,7 +44,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
 .sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .sec h2 .req{color:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
 .chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
@@ -1907,7 +1907,7 @@ const WOForm = {
           ${this.f('across','ดวง/แถว (Across)')}${this.f('die_rows','แถวในบล็อกมีด',{unit:'แถว'})}</div>`,
         this.f('order_qty','จำนวนที่สั่งผลิตรวม',{unit:'ดวง', req:1, big:1}) + this.f('length_rows','จำนวนแถวแนวยาว',{calc:1}) +
         this.f('repeat_mm','ระยะตั้งงาน',{unit:'มม.'}) +
-        `<div class="wf"><span>ช่องไฟแนวยาว (Gap) <small>(มม.)</small></span><input class="field calc" id="gapCalc" readonly tabindex="-1" title="= ระยะตั้งงาน − สูง"></div>` +
+        `<div class="wf"><span>ช่องไฟแนวยาว (Gap) <small>(มม.)</small></span><input class="field calc" id="gapCalc" readonly tabindex="-1" title="= ระยะตั้งงาน − สูง"></div><div id="gapWarn" class="gap-warn hidden"></div>` +
         this.f('machine','เครื่องพิมพ์',{list:'dl_machine', red:1})))}
       ${this.sec(2, 'วัตถุดิบ (Material)', split(
         this.f('supplier','วัตถุดิบของ (Supplier)',{lk:'suppliers'}) +
@@ -2115,12 +2115,18 @@ const WOForm = {
     $('#pullChk')?.addEventListener('change', e => { this.pull = e.target.checked; e.target.parentElement.classList.toggle('on', this.pull); });
     $('#carryEdit').onclick = () => { this.carryManual = true; if (this.wo.carry_forward_qty == null && total > 0) this.wo.carry_forward_qty = total; this.checkStock(); setTimeout(() => $('#carryIn')?.focus(), 30); };
   },
-  updGap(){ const el = $('#gapCalc'); if (!el) return; const r = parseFloat(String(this.wo.repeat_mm ?? '').replace(/,/g,'')), h = parseFloat(String(this.wo.height_mm ?? '').replace(/,/g,''));
-    el.value = r > 0 && h > 0 ? +(r - h).toFixed(2) : ''; },
+  updGap(){ const el = $('#gapCalc'); if (!el) return; const num = k => parseFloat(String(this.wo[k] ?? '').replace(/,/g,'')), r = num('repeat_mm'), h = num('height_mm'), w = num('width_mm');
+    const g = r > 0 && h > 0 ? +(r - h).toFixed(2) : null; el.value = g ?? ''; el.classList.toggle('gap-neg', g < 0);
+    // ช่องไฟติดลบ = ด้านตามม้วนยาวกว่าระยะตั้งงาน → งานม้วนผิดแน่ · งานแผ่นอาจวางดวงขวาง (หมุน 90°)
+    const box = $('#gapWarn'); if (!box) return; let t = '', ok = false;
+    if (g !== null && g < 0) { const alt = w > 0 ? +(r - w).toFixed(2) : null;
+      if (this.wo.is_sheet && !this.wo.is_roll && alt !== null && alt >= 0) { ok = true; t = `งานแผ่นวางดวงแนวขวาง (หมุน 90°) · ช่องไฟจริง = ${r} − ${w} = <b>${alt}</b> มม.`; }
+      else t = `🔴 ช่องไฟติดลบ — ด้าน "สูง" (${h}) ยาวกว่าระยะตั้งงาน (${r})<br>ตรวจว่าใส่ขนาดสลับด้าน หรือระยะตั้งงานผิด${this.wo.is_roll ? ' · <b>งานม้วนวางดวงขวางไม่ได้</b>' : alt !== null && alt >= 0 ? ' · ถ้าเป็นงานแผ่นวางขวาง ติ๊ก "งานแผ่น" ในข้อ 5 รูปแบบการส่งมอบ' : ''}`; }
+    box.innerHTML = t; box.classList.toggle('hidden', !t); box.classList.toggle('ok', ok); },
   updSqm(){ this.updGap(); const el = $('#sqm'); if (!el) return; const m = parseFloat(String(this.wo.total_m ?? '').replace(/,/g,'')), w = parseFloat(String(this.wo.web_width_mm ?? '').replace(/,/g,''));
     el.value = m > 0 && w > 0 ? (m * w / 1000).toLocaleString('en-US', {maximumFractionDigits: 2}) : ''; },
   onChange(c){
-    if (['total_m','web_width_mm','order_qty','across','die_rows','repeat_mm','setup_waste_m','height_mm'].includes(c)) setTimeout(() => this.updSqm());
+    if (['total_m','web_width_mm','order_qty','across','die_rows','repeat_mm','setup_waste_m','height_mm','width_mm'].includes(c)) setTimeout(() => this.updSqm());
     if (['is_roll','is_sheet','is_continuous'].includes(c)) setTimeout(() => this.render());
     if (c === 'corner_radius') $('#woForm').querySelectorAll('.rchip[data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r === +this.wo.corner_radius));
     if (['customer_name','product_name','product_code'].includes(c)) { clearTimeout(this._st); this._st = setTimeout(() => this.checkStock(), 400); }
