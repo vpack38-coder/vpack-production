@@ -1689,7 +1689,7 @@ function jobTicketHTML2(wo, orderBy){
   </div>
 
   <div class="t2-tiles">
-    <div><span>ขนาดดวง (กว้าง × สูง)</span><b>${n(v('width_mm'))} × ${n(v('height_mm'))} <small>มม.</small></b></div>
+    <div><span>ขนาดดวง (กว้าง × สูง)</span><b>${n(v('width_mm'))} × ${n(v('height_mm'))} <small>มม.</small>${rot ? ` <span style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:4px;background:#c00;color:#fff;font-size:.75em;vertical-align:middle;white-space:nowrap">↻ วิ่ง ${n(v('height_mm'))}×${n(v('width_mm'))}</span>` : ''}</b></div>
     <div><span>ดวง/แถว × แถวบล็อกมีด</span><b>${n(v('across'))} × ${n(v('die_rows'))}</b></div>
     <div class="hl"><span>จำนวนสั่งผลิตรวม</span><b>${n(v('order_qty'))} <small>ดวง</small></b></div>
     <div class="hl2"><span>เครื่องพิมพ์</span><b>${e(v('machine')) || '&nbsp;'}</b></div>
