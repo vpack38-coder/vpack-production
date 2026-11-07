@@ -1007,6 +1007,7 @@ const Demo = {
     items.forEach(x => { const o = keepFlags.find(y => y.line === x.line) || {}; d.so_i.push({skip: false, cancelled: false, ...o, ...x, id: o.id || ++d.seq, so_no: h.so_no}); });
     this.save(); },
   async soDelete(no){ const d = this.soDb(); d.so_h = d.so_h.filter(x => x.so_no !== no); d.so_i = d.so_i.filter(x => x.so_no !== no); this.save(); },
+  async soItemDelete(id){ const d = this.soDb(); d.so_i = d.so_i.filter(x => x.id !== id); this.save(); },
   async backupData(){ const d = this.db(), m = this.m(), calc = await this.calc(), stock = await this.stockView('');
     const map = {work_orders: d.wo, v_job_progress: calc, v_stock: stock, production_logs: d.prod_logs, qc_logs: d.qc_logs, scan_inbox: d.inbox,
       customers: m.customers, products: m.products, raw_materials: m.raw_materials, suppliers: m.suppliers, lookups: m.lookups, employees: d.emp,
@@ -1243,6 +1244,7 @@ const Live = {
     this.chk(await this.sb.from('so_items').delete().eq('so_no', h.so_no).not('line', 'in', `(${keep.join(',') || 0})`));
     if (items.length) this.chk(await this.sb.from('so_items').upsert(items.map(x => ({...x, so_no: h.so_no})), {onConflict: 'so_no,line'})); },
   async soDelete(no){ this.chk(await this.sb.from('so_headers').delete().eq('so_no', no)); },
+  async soItemDelete(id){ this.chk(await this.sb.from('so_items').delete().eq('id', id)); },
   async pageAll(build){ let out = [], from = 0; for (;;) { const r = this.chk(await build().range(from, from + 999)); out = out.concat(r); if (r.length < 1000) break; from += 1000; } return out; },
   async qsData(cfg){
     const [fc, dl, pr] = await Promise.all([
@@ -2609,7 +2611,10 @@ const SOPage = {
   async load(){
     const [so, wos, stk] = await Promise.all([API.soList(), API.woSoLinks(), API.stockPositive().catch(() => [])]);
     const runs = {}; wos.forEach(w => { if (w.product_code && !/-R\d+$/.test(w.job_ticket)) runs[w.product_code] = (runs[w.product_code] || 0) + 1; });
-    const stock = {}; stk.forEach(r => { const k = r.product_code || '#' + r.product_name; (stock[k] ||= {qty: 0, jobs: []}); stock[k].qty += +r.stock_qty; stock[k].jobs.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); });
+    // สต็อก: จับคู่ด้วยรหัสสินค้า (ไม่สนตัวพิมพ์เล็ก/ใหญ่ ช่องว่าง) ถ้าไม่เจอใช้ชื่อสินค้า
+    const nk = v => String(v || '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, ''), byC = {}, byN = {}, cut = new Set(wos.filter(w => w.cancelled).map(w => w.job_ticket));
+    stk.forEach(r => { if (cut.has(r.job_ticket)) return; [[byC, nk(r.product_code)], [byN, nk(r.product_name)]].forEach(([M, k]) => { if (!k) return; (M[k] ||= {qty: 0, jobs: []}); M[k].qty += +r.stock_qty; M[k].jobs.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); }); });
+    const stockOf = it => (it.product_code && byC[nk(it.product_code)]) || byN[nk(it.product_name)] || null;
     const heads = new Map(so.heads.map(h => [h.so_no, h]));
     so.items.forEach(it => { const h = heads.get(it.so_no) || {}; const n = this.normSo(it.so_no);
       it.jobs = wos.filter(w => w.job_ticket === it.job_ticket || (this.normSo(w.so_no) === n && n && ((it.product_code && w.product_code === it.product_code) || (!it.product_code && w.product_name === it.product_name)))).map(w => w.job_ticket);
@@ -2617,7 +2622,7 @@ const SOPage = {
       it.isCancel = it.cancelled || h.cancelled;
       it.isPending = !it.isCancel && !it.skip && !it.jobs.length && !['P', 'L'].includes(it.status) && !(+it.delivered_qty >= +it.qty && +it.qty > 0);
       it.run = runs[it.product_code] || 0;
-      it.stock = stock[it.product_code || '#' + it.product_name] || null; });
+      it.stock = stockOf(it); });
     this.data = {heads, items: so.items};
     return this.data;
   },
@@ -2680,13 +2685,13 @@ const SOPage = {
       if (it.jobs.length) return it.jobs.map(j => `<a href="#" class="so-job" data-open="${esc(j)}">✔ ${esc(j)}</a>`).join(' ');
       if (it.skip) return `<span class="so-skip" title="${esc(it.skip_note || '')}">ไม่ต้องผลิต${it.skip_note ? ' · ' + esc(it.skip_note) : ''}</span> <button class="lnk" data-unskip="${it.id}">ยกเลิก</button>`;
       if (it.isCancel) return '';
-      return (it.cjobs?.length ? it.cjobs.map(j => `<a href="#" class="so-job cx" data-open="${esc(j)}" title="ใบสั่งผลิตนี้ถูกยกเลิก">✖ ${esc(j)}</a> `).join('') : '') + `<button class="btn sm" data-wo="${it.id}">📝 เปิดใบสั่งผลิต</button> <button class="btn ghost sm" data-skip="${it.id}" title="ส่งจากสต็อก / ไม่ต้องผลิต">ไม่ผลิต</button> <button class="btn ghost sm" data-link="${it.id}" title="ผูกกับ JOB ที่เปิดไว้แล้ว">🔗</button>`; };
+      return (it.cjobs?.length ? it.cjobs.map(j => `<a href="#" class="so-job cx" data-open="${esc(j)}" title="ใบสั่งผลิตนี้ถูกยกเลิก">✖ ${esc(j)}</a> `).join('') : '') + `<button class="btn sm" data-wo="${it.id}">📝 เปิดใบสั่งผลิต</button> <button class="btn ghost sm" data-skip="${it.id}" title="ส่งจากสต็อก / ไม่ต้องผลิต">ไม่ผลิต</button> <button class="btn ghost sm" data-link="${it.id}" title="ผูกกับ JOB ที่เปิดไว้แล้ว">🔗</button>${Office.ro ? '' : ` <button class="btn ghost sm" data-idel="${it.id}" title="ลบรายการนี้" style="color:var(--bad)">🗑</button>`}`; };
     $('#soBody').innerHTML = `<div class="wt-info" style="margin:0 0 8px">รอเปิดใบสั่งผลิตทั้งหมด <b style="color:#c2410c">${fmtN(pend)}</b> รายการ · แสดง ${fmtN(groups.length)} ใบ SO</div>` + (groups.length ? groups.map(({h, items, show}) => `
       <div class="card so-card ${h.cancelled ? 'cancel' : ''}">
         <div class="so-h"><b class="so-no">SO ${esc(h.so_no)}</b><span>${fmtD(h.so_date)}</span><span class="so-cu">${esc(h.customer_name || '')}</span>${h.po_no ? `<span>PO: <b>${esc(h.po_no)}</b></span>` : ''}
           ${h.cancelled ? '<span class="so-st x">ยกเลิกทั้งใบ</span>' : ''}${h.source === 'manual' ? '<span class="so-st man">คีย์เอง</span>' : ''}
           <span class="sp"></span><span class="wt-info">${items.filter(i => i.isPending).length} รอเปิด / ${items.length} รายการ</span>
-          ${h.source === 'manual' ? `<button class="btn ghost sm" data-edit="${esc(h.so_no)}">แก้ไข</button><button class="btn ghost sm" data-del="${esc(h.so_no)}" style="color:var(--bad)">ลบ</button>` : ''}</div>
+          ${h.source === 'manual' ? `<button class="btn ghost sm" data-edit="${esc(h.so_no)}">แก้ไข</button>` : ''}${Office.ro ? '' : `<button class="btn ghost sm" data-del="${esc(h.so_no)}" data-src="${esc(h.source || '')}" style="color:var(--bad)" title="ลบ SO ทั้งใบ">🗑 ลบ</button>`}</div>
         <table class="so-t"><thead><tr><th style="width:34px">#</th><th style="width:170px">รหัสสินค้า</th><th>ชื่อสินค้า</th><th class="num" style="width:95px">จำนวน</th><th style="width:88px">กำหนดส่ง</th><th style="width:150px">สต็อกที่มี</th><th style="width:80px">เคยผลิต</th><th style="width:100px">ส่งของ</th><th style="width:270px">ใบสั่งผลิต</th></tr></thead><tbody>
         ${show.map(it => `<tr class="${it.isCancel ? 'x' : ''}"><td>${it.line}</td><td><b>${esc(it.product_code || '')}</b>${it.item_type === 'P7' ? ' <span class="so-st">ค่าบริการ</span>' : ''}</td>
           <td>${esc(it.product_name || '')}${it.remark ? `<div class="so-rm">${esc(it.remark).replace(/\n/g, '<br>')}</div>` : ''}${it.changed_note ? `<div class="so-ch">⚠ ${esc(it.changed_note)} <button class="lnk" data-ack="${it.id}">รับทราบ</button></div>` : ''}</td>
@@ -2707,7 +2712,13 @@ const SOPage = {
       const w = await API.getWorkOrder(j); if (!w) return toast('ไม่พบ JOB ' + j);
       await API.soItemUpdate(x.id, {job_ticket: w.job_ticket}); await this.load(); this.draw(); this.refreshBadge(); });
     $('#soBody').querySelectorAll('[data-ack]').forEach(b => b.onclick = async () => { await API.soItemUpdate(+b.dataset.ack, {changed_note: null}); await this.load(); this.draw(); });
-    $('#soBody').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!(await Office.confirm(`ลบ SO ${b.dataset.del} ที่คีย์เอง?`))) return; await API.soDelete(b.dataset.del); await this.load(); this.draw(); this.refreshBadge(); });
+    const reimp = '\n\n⚠ SO นี้มาจากไฟล์ Autoflight — ถ้านำเข้าไฟล์ที่มี SO นี้อีก รายการจะกลับมา\nถ้าแค่ "ส่งจากสต็อก / ไม่ต้องผลิต" ให้กดปุ่ม "ไม่ผลิต" แทนการลบ';
+    $('#soBody').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const no = b.dataset.del, n = D.items.filter(i => i.so_no === no), lk = n.filter(i => i.jobs.length).length;
+      if (!(await Office.confirm(`ลบ SO ${no} ทั้งใบ (${n.length} รายการ)?${lk ? `\nมี ${lk} รายการที่เปิดใบสั่งผลิตแล้ว — ใบสั่งผลิตยังอยู่ ไม่ถูกลบ` : ''}${b.dataset.src === 'manual' ? '' : reimp}`))) return;
+      try { await API.soDelete(no); toast('ลบแล้ว'); } catch (e) { return toast(e.message); } await this.load(); this.draw(); this.refreshBadge(); });
+    $('#soBody').querySelectorAll('[data-idel]').forEach(b => b.onclick = async () => { const x = it(b.dataset.idel), h = D.heads.get(x.so_no) || {};
+      if (!(await Office.confirm(`ลบรายการ ${x.line}. ${x.product_code || ''} ${x.product_name || ''}\nจาก SO ${x.so_no}?${h.source === 'manual' ? '' : reimp}`))) return;
+      try { await API.soItemDelete(x.id); toast('ลบแล้ว'); } catch (e) { return toast(e.message); } await this.load(); this.draw(); this.refreshBadge(); });
     $('#soBody').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => this.manual(b.dataset.edit));
   },
   ask(title, ph, val){ return new Promise(res => {
