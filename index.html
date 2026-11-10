@@ -1267,6 +1267,7 @@ const Live = {
   async dlvDelete(id){ this.chk(await this.sb.from('deliveries').delete().eq('id', id)); },
   async dlvImport(items){
     if ((await this.sb.from('deliveries').select('price').limit(1)).error) items.forEach(x => { delete x.price; delete x.amount; });   // ยังไม่ได้รัน SQL 27
+    if ((await this.sb.from('deliveries').select('so_ref').limit(1)).error) items.forEach(x => { delete x.so_ref; });               // ยังไม่ได้รัน SQL 31
     const sis = [...new Set(items.map(x => x.si_no))]; let ex = [];
     for (let k = 0; k < sis.length; k += 150) ex = ex.concat(this.chk(await this.sb.from('deliveries').select('*').in('si_no', sis.slice(k, k + 150))));
     ex = ex.concat(await this.pageAll(() => this.sb.from('deliveries').select('*').is('si_no', null)));
@@ -2806,6 +2807,8 @@ const DlvImport = {
     for (let k = 1; k < L.length; k++) { if (!L[k].trim()) continue;
       const v = SOImport.line(L[k], H.length), d = {}; H.forEach((h, i) => d[h] = (v[i] ?? '').trim());
       if (d.coor) { cur = d; continue; }
+      // บรรทัดใต้สินค้า: "ใบสั่งขาย# SO01 /69100013" → เลข SO ของรายการก่อนหน้า (ใช้จับคู่งานที่ไม่มีเลข PO)
+      const ms = !(+d.qty > 0) && ((d.ordercode || '') + ' ' + (d.refto || '')).match(/SO\s*(\d+)\s*\/\s*(\d+)/i); if (ms && out.length && !out.at(-1).so_ref) { out.at(-1).so_ref = `${ms[1]}/${ms[2]}`; continue; }
       if (!(+d.qty > 0)) continue;   // บรรทัดที่ไม่มีจำนวน
       if (!cur || !d.prodcode || !(+d.runno > 0)) continue;
       if (/^c/i.test(cur.stat || '')) continue;      // ใบที่ยกเลิก
@@ -2833,7 +2836,8 @@ const DlvImport = {
         const nm = longer(o.product_name, x.product_name), cn = o.source === 'csv' && longer(o.customer_name, x.customer_name);
         if (nm) patch.product_name = x.product_name; if (cn) patch.customer_name = x.customer_name;
         const pr = 'price' in x && x.price != null && (+o.price !== +x.price || +o.amount !== +x.amount); if (pr) Object.assign(patch, {price: x.price, amount: x.amount});   // ราคาขายจากใบกำกับ
-        if (+o.qty !== +x.qty || o.si_line !== x.si_line || nm || cn || pr) { upd.push({id: o.id, patch}); stats.upd++; } return; }
+        const sr = 'so_ref' in x && x.so_ref && o.so_ref !== x.so_ref; if (sr) patch.so_ref = x.so_ref;
+        if (+o.qty !== +x.qty || o.si_line !== x.si_line || nm || cn || pr || sr) { upd.push({id: o.id, patch}); stats.upd++; } return; }
       o = ex.find(e => !used.has(e.id) && e.si_no === x.si_no && +e.qty === +x.qty && e.customer_code === x.customer_code);
       if (o) { used.add(o.id); stats.codeDiff.push(`SI01/${x.si_no}: ในระบบ ${o.product_code} ↔ Autoflight ${x.product_code}`); if (o.si_line == null) upd.push({id: o.id, patch: {si_line: x.si_line}}); return; }
       o = ex.filter(e => !used.has(e.id) && !e.si_no && e.customer_code === x.customer_code && e.product_code === x.product_code && (!e.po_no || !x.po_no || e.po_no === x.po_no))
@@ -4719,9 +4723,13 @@ const ShipPage = {
     D.dl.forEach(d => {
       if (d.ship_ignore || svc.has(this.n(d.product_code)) || (!d.ship_key && /^\s*ค่า/.test(d.product_name || ''))) { if ((d.delivery_date || '9999') >= C.start) hidden.push(d); return; }
       const sk = d.ship_key && d.ship_key !== '__keep' ? d.ship_key : null;
-      let L = sk ? lines.get(sk) : d.po_no ? lines.get(this.key(d.po_no, d.product_code)) : null;
+      const hasPo = d.po_no && !NO_REF(d.po_no);   // PO "." / "-" / ไม่มี → ไม่ใช้จับคู่
+      let L = sk ? lines.get(sk) : hasPo ? lines.get(this.key(d.po_no, d.product_code)) : null;
       if (!L && d.job_ticket) L = [...lines.values()].find(x => x.jobs.some(j => j.job_ticket === d.job_ticket.trim())) || null;
-      if (!L && !sk && d.po_no) {   // รหัสสินค้าไม่ตรง: PO เดียวกัน ลูกค้าเดียวกัน → ถ้ามีรายการเดียว หรือยอดตรงกัน ให้จับคู่อัตโนมัติ
+      if (!L && !sk && d.so_ref) {   // ไม่มี PO → จับคู่ด้วยเลข SO ที่อยู่ในใบกำกับ
+        const c = [...lines.values()].filter(x => x.so_nos?.has(d.so_ref) && this.codeSim(x.product_code, d.product_code));
+        L = c.find(x => this.n(x.product_code) === this.n(d.product_code)) || (c.length === 1 ? c[0] : null); if (L) d._auto = true; }
+      if (!L && !sk && hasPo) {   // รหัสสินค้าไม่ตรง: PO เดียวกัน ลูกค้าเดียวกัน → ถ้ามีรายการเดียว หรือยอดตรงกัน ให้จับคู่อัตโนมัติ
         const c = (byPo.get(this.n(d.po_no)) || []).filter(x => this.codeSim(x.product_code, d.product_code));
         L = c.length === 1 ? c[0] : c.find(x => +x.qty === +d.qty) || null; if (L) d._auto = true; }
       if (L) L.dl.push(d); else if ((d.delivery_date || '9999') >= C.start) orphan.push(d); });
