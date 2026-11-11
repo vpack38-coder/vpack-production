@@ -44,7 +44,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
 .sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .sec h2 .req{color:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.sc-steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:0 16px}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
 .chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
@@ -807,6 +807,15 @@ function deviceId(){ let d = store.get('vp_device'); if (!d) { d = 'D' + Math.ra
 // ช่องเลข PO / SO ที่ใส่ไว้แทน "ยังไม่มีเลข" เช่น . - ไม่มี รอ PO N/A → ถือว่าว่าง
 const NO_REF = v => { const t = String(v ?? '').toLowerCase().replace(/[\s\u00a0\u200b]+/g, '');
   return !t || /^[-–—._\/\\*x×]+$/.test(t) || /^(ไม่มี|ไม่มีpo|ไม่มีเลข|ไม่มีเลขที่|ไม่มีso|รอ|รอpo|รอเลข|รอเลขpo|n\/?a|none|nil|null|no|nopo|tbd)$/.test(t); };
+// รายการ "ค่าบริการ" ใน SO (ค่าบล็อค ค่าเพลท ค่าขนส่ง…) — Autoflight ใช้ประเภท P7 ปนกับสินค้าจริงบางลูกค้า (เช่น งานใบปลิว/กล่อง) จึงดูจากรหัส/ชื่อด้วย
+const isSvc = i => i?.item_type === 'P7' && (/^\s*ค่า/.test(i.product_name || '') || /^zs-/i.test(i.product_code || ''));
+// งานจ้างภายนอก (Subcon)
+const SUBCON_STEPS = ['พิมพ์ (Offset)', 'พิมพ์ (อื่นๆ)', 'รันนัมเบอร์', 'เคลือบ', 'ปั๊มฟอยล์', 'ไดคัท', 'ทั้งงาน', 'อื่นๆ'];
+const subSteps = w => String(w?.subcon_steps || '').split(',').map(x => x.trim()).filter(Boolean);
+const subPrint = w => !!w?.subcon && subSteps(w).some(x => /พิมพ์|ทั้งงาน/.test(x));   // พิมพ์ข้างนอก → ไม่นับในคิวเครื่องเรา
+const subState = (w, t = todayISO()) => !w?.subcon ? null : w.subcon_back ? 'back' : w.subcon_sent ? (w.subcon_due && w.subcon_due < t ? 'late' : 'out') : 'wait';
+const SUB_ST = {wait: ['รอส่งออก', '#64748b', '⏳'], out: ['อยู่ที่ซับคอน', '#c2410c', '🏭'], late: ['เลยนัดรับ', '#dc2626', '🔴'], back: ['รับกลับแล้ว', '#15803d', '✅']};
+const subconBanner = w => w?.subcon ? `<div style="margin:1.5mm 0;padding:1.2mm 3mm;border:2px solid #c2410c;border-radius:4px;color:#c2410c;font-weight:700;font-size:1.05em">🏭 จ้างภายนอก: ส่ง ${esc(w.subcon_vendor || '(ยังไม่ระบุร้าน)')} ทำ ${esc(subSteps(w).join(', ') || '-')}${w.subcon_due ? ' · นัดรับ ' + fmtD(w.subcon_due) : ''}</div>` : '';
 const SPEED_WO = 'job_ticket,machine,diecut_machine,customer_name,product_name,product_code,width_mm,height_mm,paper_type,paper_name,color_count,ink_type,order_qty,total_m,doc_date,repeat_mm,across,die_rows,run_div';
 const SPEEDS = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120];
 // ช่องจำนวนใส่สูตรได้ เช่น 12000*2, 12000x2, 5000*3+200 → คำนวณให้ แล้วเก็บสูตรไว้ในหมายเหตุ
@@ -990,7 +999,7 @@ const Demo = {
     plan.ins.forEach(x => d.dlv.push({id: ++d.seq, ...x})); plan.upd.forEach(u => Object.assign(d.dlv.find(x => x.id === u.id), u.patch)); this.save(); return plan.stats; },
   soDb(){ const d = this.db(); d.so_h ||= []; d.so_i ||= []; return d; },
   async soList(){ const d = this.soDb(); return {heads: d.so_h, items: d.so_i}; },
-  async woSoLinks(){ return this.db().wo.map(w => ({job_ticket: w.job_ticket, so_no: w.so_no, po_no: w.po_no, product_code: w.product_code, product_name: w.product_name, doc_date: w.doc_date, cancelled: !!w.cancelled})); },
+  async woSoLinks(){ return this.db().wo.map(w => ({job_ticket: w.job_ticket, so_no: w.so_no, po_no: w.po_no, product_code: w.product_code, product_name: w.product_name, doc_date: w.doc_date, cancelled: !!w.cancelled, order_qty: w.order_qty})); },
   async stockPositive(){ return (await this.calc()).filter(r => +r.stock_qty > 0); },
   async soImport(P){ const d = this.soDb(), nos = new Set(P.heads.keys());
     const plan = SOImport.plan(P, d.so_i.filter(x => nos.has(x.so_no)), d.so_h.filter(h => nos.has(h.so_no)).map(h => h.so_no));
@@ -1017,6 +1026,7 @@ const Demo = {
   async speedData(){ const d = this.db();
     const L = [...d.prod_logs.filter(l => +l.speed), ...d.inbox.filter(r => r.dept === 'prod' && r.review_status === 'pending' && +r.speed).map(r => ({...r, logged_at: r.scanned_at, pending: true}))];
     const js = new Set(L.map(r => r.job_ticket)); return {logs: L, wo: d.wo.filter(w => js.has(w.job_ticket))}; },
+  async subconList(){ return this.db().wo.filter(w => w.subcon && !w.cancelled); },
   async queueWo(){ return this.db().wo.filter(w => !w.closed && !w.cancelled).map(w => ({job_ticket: w.job_ticket, total_m: w.total_m, run_m: w.run_m, repeat_mm: w.repeat_mm, across: w.across, die_rows: w.die_rows, run_div: w.run_div})); },
   async setMeta(k, v){ const d = this.db(); (d.meta ||= {})[k] = v; this.save(); },
   async deletedList(){ return [...(this.db().deleted || [])].map((x, i) => ({id: i + 1, ...x})).reverse(); },
@@ -1222,12 +1232,16 @@ const Live = {
   async stockFor(cust, prod){
     return this.chk(await this.sb.from('v_job_progress').select('job_ticket,stock_qty').eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0));
   },
-  async updateWorkOrder(job, p){ let r = await this.sb.from('work_orders').update(p).eq('job_ticket', job);
-    if (r.error && /layout_rotate/.test(r.error.message || '') && 'layout_rotate' in p) { const {layout_rotate, ...q} = p; if (layout_rotate) toast('ยังไม่ได้รัน SQL 29 — ช่อง "หมุน 90°" ยังไม่ถูกบันทึก'); r = await this.sb.from('work_orders').update(q).eq('job_ticket', job); }
+  // ช่องใหม่ที่ยังไม่ได้รัน SQL (column ... does not exist) → ตัดช่องนั้นออกแล้วบันทึกส่วนที่เหลือ พร้อมเตือน
+  async updateWorkOrder(job, p){ let q = {...p}, r, miss = [];
+    for (let k = 0; k < 12; k++) { r = await this.sb.from('work_orders').update(q).eq('job_ticket', job);
+      const m = r.error && (r.error.message || '').match(/'([a-z_0-9]+)' column|column "?([a-z_0-9]+)"? (?:of relation "work_orders" )?does not exist/i), col = m && (m[1] || m[2]);
+      if (!col || !(col in q)) break; if (q[col] !== null && q[col] !== false && q[col] !== '') miss.push(col); delete q[col]; }
+    if (miss.length) toast(`ยังไม่ได้รัน SQL ล่าสุด — ช่อง ${miss.map(c => WO_LABELS[c] || c).join(', ')} ยังไม่ถูกบันทึก`);
     this.chk(r); },
   async soList(){ const [h, i] = await Promise.all([this.fetchTable('so_headers', 'so_no'), this.fetchTable('so_items', 'id')]); return {heads: h, items: i}; },
   async woSoLinks(){ let out = [], from = 0;
-    for (;;) { const r = this.chk(await this.sb.from('work_orders').select('job_ticket,so_no,po_no,product_code,product_name,doc_date,cancelled').range(from, from + 999)); out = out.concat(r); if (r.length < 1000) break; from += 1000; }
+    for (;;) { const r = this.chk(await this.sb.from('work_orders').select('job_ticket,so_no,po_no,product_code,product_name,doc_date,cancelled,order_qty').range(from, from + 999)); out = out.concat(r); if (r.length < 1000) break; from += 1000; }
     return out; },
   async stockPositive(){ return this.chk(await this.sb.from('v_job_progress').select('job_ticket,product_code,product_name,customer_name,stock_qty').gt('stock_qty', 0).limit(2000)); },
   async soImport(P){
@@ -1316,6 +1330,7 @@ const Live = {
     for (let k = 0; k < jobs.length; k += 150) wo.push(...this.chk(await this.sb.from('work_orders').select(SPEED_WO).in('job_ticket', jobs.slice(k, k + 150))));
     return {logs: L, wo};
   },
+  async subconList(){ try { return await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_name,po_no,due_date,order_qty,closed,subcon_vendor,subcon_steps,subcon_sent,subcon_due,subcon_back,subcon_cost,subcon_bill,subcon').eq('subcon', true).not('cancelled', 'is', true).order('job_ticket')); } catch { return []; } },
   async queueWo(){ return this.pageAll(() => this.sb.from('work_orders').select('job_ticket,total_m,run_m,repeat_mm,across,die_rows,run_div').not('closed', 'is', true).order('job_ticket')); },
   async getMeta(k){ try { const r = this.chk(await this.sb.from('app_meta').select('value').eq('key', k).maybeSingle()); return r ? r.value : null; } catch { return undefined; } },
   async setMeta(k, v){ this.chk(await this.sb.from('app_meta').upsert({key: k, value: v, updated_at: new Date().toISOString()})); },
@@ -1542,7 +1557,7 @@ function jobTicketHTML(wo, orderBy){
         <span class="lbl v">${esc(v('job_label'))}</span><span>${cb(has('other_job'), true)}</span>`)}</div>
     </div>
 
-    <div class="tkbar">1. ข้อมูลเบื้องต้น (Input)</div>
+    ${subconBanner(wo)}<div class="tkbar">1. ข้อมูลเบื้องต้น (Input)</div>
     <div class="tksec" style="display:grid;grid-template-columns:1fr 62mm;gap:3mm">
       ${g('52mm 26mm 1fr', `
         ${row('กว้าง (มม.)', n(v('width_mm')), 'MM.', 'vb')}
@@ -1692,6 +1707,7 @@ function jobTicketHTML2(wo, orderBy){
     <div class="t2-qr q1"><div class="qh">ฝ่ายผลิต</div><div class="q" id="tkq_prod"></div><div class="qf">สแกนเริ่มงาน / ส่งยอด</div></div>
   </div>
 
+  ${subconBanner(wo)}
   <div class="t2-tiles">
     <div><span>ขนาดดวง (กว้าง × สูง)</span><b>${n(v('width_mm'))} × ${n(v('height_mm'))} <small>มม.</small>${rot ? ` <span style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:4px;background:#c00;color:#fff;font-size:.75em;vertical-align:middle;white-space:nowrap">↻ วิ่ง ${n(v('height_mm'))}×${n(v('width_mm'))}</span>` : ''}</b></div>
     <div><span>ดวง/แถว × แถวบล็อกมีด</span><b>${n(v('across'))} × ${n(v('die_rows'))}</b></div>
@@ -1765,7 +1781,7 @@ function jobTicketHTML2(wo, orderBy){
 </div>`;
 }
 
-const WO_FIELDS = [["customer_name", "text"], ["product_name", "text"], ["product_code", "text"], ["job_ticket", "text"], ["doc_date", "date"], ["po_no", "text"], ["so_no", "text"], ["due_date", "date"], ["other_job", "boolean"], ["width_mm", "numeric"], ["height_mm", "numeric"], ["across", "numeric"], ["die_rows", "numeric"], ["order_qty", "numeric"], ["length_rows", "numeric"], ["repeat_mm", "numeric"], ["machine", "text"], ["supplier", "text"], ["paper_code", "text"], ["paper_name", "text"], ["paper_type", "text"], ["adhesive", "text"], ["liner", "text"], ["web_width_mm", "numeric"], ["run_m", "numeric"], ["setup_waste_m", "numeric"], ["total_m", "numeric"], ["ink_type", "text"], ["color_count", "numeric"], ["special_color", "boolean"], ["pantone", "text"], ["coating", "text"], ["coating_code", "text"], ["paper_face_mm", "numeric"], ["spot_uv", "boolean"], ["diecut_no", "text"], ["diecut_corner", "text"], ["corner_radius", "numeric"], ["diecut_machine", "text"], ["slitter", "text"], ["foil_type", "text"], ["foil_color", "text"], ["no_perf", "boolean"], ["perf", "boolean"], ["perf_spec", "text"], ["is_roll", "boolean"], ["roll_outer", "boolean"], ["roll_inner", "boolean"], ["core_size", "numeric"], ["roll_gap", "text"], ["roll_across", "numeric"], ["per_roll", "text"], ["per_meter", "text"], ["margin_left", "text"], ["margin_right", "text"], ["layout_h", "numeric"], ["layout_v", "numeric"], ["pack_qty", "text"], ["finished_size", "text"], ["cut_flush", "boolean"], ["leave_edge", "boolean"], ["fold_per_page", "numeric"], ["sprocket", "boolean"], ["sheet_perf", "boolean"], ["sheet_perf_mm", "text"], ["is_sheet", "boolean"], ["layout_rotate", "boolean"], ["is_continuous", "boolean"], ["job_label", "text"], ["mto", "boolean"], ["mts", "boolean"], ["roll_direction", "text"], ["remark", "text"], ["due_note", "text"], ["foil_type_check", "boolean"], ["foil_color_check", "boolean"], ["roll_perf", "boolean"], ["roll_perf_mm", "text"], ["roll_no_perf", "boolean"], ["sheet_gap", "text"], ["adhesive_kill", "text"], ["adhesive_kill_note", "text"], ["carry_forward_qty", "numeric"], ["actual_qty", "numeric"], ["after_qc_qty", "numeric"], ["lot_no", "text"], ["has_paper", "boolean"], ["paper_ordered", "boolean"], ["printer_name", "text"], ["diecut_name", "text"], ["qc_name", "text"], ["art_name", "text"], ["ordered_by", "text"], ["run_div", "numeric"]];
+const WO_FIELDS = [["customer_name", "text"], ["product_name", "text"], ["product_code", "text"], ["job_ticket", "text"], ["doc_date", "date"], ["po_no", "text"], ["so_no", "text"], ["due_date", "date"], ["other_job", "boolean"], ["width_mm", "numeric"], ["height_mm", "numeric"], ["across", "numeric"], ["die_rows", "numeric"], ["order_qty", "numeric"], ["length_rows", "numeric"], ["repeat_mm", "numeric"], ["machine", "text"], ["supplier", "text"], ["paper_code", "text"], ["paper_name", "text"], ["paper_type", "text"], ["adhesive", "text"], ["liner", "text"], ["web_width_mm", "numeric"], ["run_m", "numeric"], ["setup_waste_m", "numeric"], ["total_m", "numeric"], ["ink_type", "text"], ["color_count", "numeric"], ["special_color", "boolean"], ["pantone", "text"], ["coating", "text"], ["coating_code", "text"], ["paper_face_mm", "numeric"], ["spot_uv", "boolean"], ["diecut_no", "text"], ["diecut_corner", "text"], ["corner_radius", "numeric"], ["diecut_machine", "text"], ["slitter", "text"], ["foil_type", "text"], ["foil_color", "text"], ["no_perf", "boolean"], ["perf", "boolean"], ["perf_spec", "text"], ["is_roll", "boolean"], ["roll_outer", "boolean"], ["roll_inner", "boolean"], ["core_size", "numeric"], ["roll_gap", "text"], ["roll_across", "numeric"], ["per_roll", "text"], ["per_meter", "text"], ["margin_left", "text"], ["margin_right", "text"], ["layout_h", "numeric"], ["layout_v", "numeric"], ["pack_qty", "text"], ["finished_size", "text"], ["cut_flush", "boolean"], ["leave_edge", "boolean"], ["fold_per_page", "numeric"], ["sprocket", "boolean"], ["sheet_perf", "boolean"], ["sheet_perf_mm", "text"], ["is_sheet", "boolean"], ["layout_rotate", "boolean"], ["subcon", "boolean"], ["subcon_vendor", "text"], ["subcon_steps", "text"], ["subcon_sent", "date"], ["subcon_due", "date"], ["subcon_back", "date"], ["subcon_cost", "numeric"], ["subcon_bill", "text"], ["is_continuous", "boolean"], ["job_label", "text"], ["mto", "boolean"], ["mts", "boolean"], ["roll_direction", "text"], ["remark", "text"], ["due_note", "text"], ["foil_type_check", "boolean"], ["foil_color_check", "boolean"], ["roll_perf", "boolean"], ["roll_perf_mm", "text"], ["roll_no_perf", "boolean"], ["sheet_gap", "text"], ["adhesive_kill", "text"], ["adhesive_kill_note", "text"], ["carry_forward_qty", "numeric"], ["actual_qty", "numeric"], ["after_qc_qty", "numeric"], ["lot_no", "text"], ["has_paper", "boolean"], ["paper_ordered", "boolean"], ["printer_name", "text"], ["diecut_name", "text"], ["qc_name", "text"], ["art_name", "text"], ["ordered_by", "text"], ["run_div", "numeric"]];
 const DEMO_LOOKUPS = {"spec": {"machine": ["Rotary Sanki-6", "Rotary Sanki-7", "Intermittent BangSung", "Intermittent Sanki-6", "Letterpress Iwasaki", "Letterpress Onda", "Letterpress Label man", "Silk Screen", "Ricoh Pro C7200x", "Die-1", "Die BangSung", "Die Hikari"], "diecut_machine": ["Die-1", "Die BangSung", "Die Hikari", "Graphtec CE7000", "Rotary Sanki-6", "Rotary Sanki-7", "Intermittent Sanki-6"], "paper_type": ["กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "ขาวด้าน (Matte Paper)", "กระดาษคราฟท์ (Kraft Paper)", "PP ขาวเงา (PP White Gloss)", "PP ขาวด้าน (PP White Matt)", "PP ใส (Clear / Transparent PP)", "PP มุก (Pearlescent PP)", "PE (ยืดหยุ่น) (Polyethylene (PE))", "PET ทนความร้อน (Polyester (PET))", "PVC ใส (PVC Clear)", "PVC ขาวเงา (Glossy White PVC)", "Direct Thermal (DT) ฉีกขาด", "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "Direct Thermal Paper (DT-RM)", "Direct Thermal Paper (DT-TOP)", "Direct Thermal Paper", "Thermal Transfer (TT)", "เปลือกไข่ (Destructible Vinyl)", "วอยด์เงิน (ทิ้งคราบ) (Silver VOID)", "สุญญากาศ (Static Clad / Window Decal)", "PP SILVER", "PET SILVER MAT (เงินด้าน)", "PE ขาวด้าน (PE White Matt)", "การ์ดสี", "กระดาษกล่องแป้งหลังเทา", "Co-Ex ขาวด้าน"], "adhesive": ["กาวรีมูฟ (Remove Adhesive)", "กาวธรรมดา (Permanent Adhesive)", "กาวห้องเย็น (Freezer Grade Adhesive)", "กาวเหนียวพิเศษ (High Tack Adhesive)", "สุญญากาศ (Vacuum Sticker)", "กาวทนความร้อน (Heat Resistant Adhesive)", "กาวดำ"], "liner": ["หลังคราฟท์", "หลังปอนด์", "กลาสซีน", "หลังปอนด์ (เหลือง)", "หลังใส (PET Liner)"], "ink_type": ["สีน้ำมัน", "สี UV", "สี CMYK"], "coating": ["OPP ใส", "OPP ด้าน", "UV เงา", "UV ด้าน", "วานิช (Varnish)"], "coating_code": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_type": ["OKG", "SAM", "PP", "KURT", "OS", "LN/R307/GZD/H0", "AVY-BW0112N-AAG793"], "foil_color": ["ทอง", "เงิน", "ฟ้า"], "diecut_corner": ["มุมแหลม", "วงกลม", "วงรี", "แบบพิเศษ", "มุมมน R"], "job_label": ["FORECAST:", "PROOFS:", "ครั้งที่ Revised", "เคลมสินค้า"], "diecut_no": ["R3-(68x90)-2/1", "S-(68x75)-2/1", "S-(35x35)-4/1", "C15-5F/2F", "RB00005", "S-(203.2x193.4)-4/1", "B01099", "R2-(210x115)-1", "R4-(120x164)-1", "S-(100x100)-2/1", "A01155", "A00681", "B00366", "A00043-44", "B01009", "R2-(105x130)-1", "RB00008", "A01164", "R1.5-(55x35)-2F", "SP-(65x100)-2F", "A01120", "R5-(280x135)-1", "S-(70x80)-2/1", "SP-(63x88)-2/1", "S-(63x88)-2/1", "R15.5-(46x46)-3/3"]}, "customers": ["ควอลิตี้ ลาเบล โปรดักส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ควาร์ค ซิสเต็ม จำกัด (สำนักงานใหญ่)", "ซานโต ไฟร์ โปรดักท์ จำกัด (สำนักงานใหญ่)", "มนต์นมสด", "ร้านเพ็ญนภา", "ลีดเดอร์ ไฟร์ เซฟตี้ จำกัด (สำนักงานใหญ่)", "สหโชค แฟคทอรี่ 2560 จำกัด (สำนักงานใหญ่)", "เคแอนด์เจ พับลิชิ่ง จำกัด (สำนักงานใหญ่)", "แอล แอนด์ อี โซลิด สเตท จำกัด (สำนักงานใหญ่)", "โคมาร์ค (ไทยแลนด์) จำกัด (สำนักงานใหญ่)", "ไทย ยูเนียน อโกรเคมีเคิล จำกัด (สำนักงานใหญ่)", "ไทยซินอุตสาหกรรม จำกัด (สำนักงานใหญ่)", "ไทยลามิเนต แมนูแฟคเจอเรอร์ จำกัด (สำนักงานใหญ่)", "ไทยเมอร์รี่ จำกัด (สำนักงานใหญ่)", "ไร้ซ์แลนด์ อินเตอร์เนชั่นแนล จำกัด (สำนักงานใหญ่)"], "products": [["pen-40x40-PVC-G", "สติกเกอร์ PVC ขาวเงา วงกลม ขนาด 4x4cm. 3ดวง/แถว HYDRO STATION THAILAND"], ["qs-95x30-PPWMRM-2S", "ST-PP-RM ขาวด้าน  Size 95x30mm; Dai.3\" 1,500pcs/Roll กรีดในดวง 2 ข้าง"], ["qs-102x75-STDTBL-2K", "ST-DT ฉีกไม่ขาด หลังฟ้า Size 102x75mm. Dia.3\" ; 2,000pcs/roll"], ["qs-100x35-DTSBL-1000", "ST-DT หลังฟ้า ฉีกไม่ขาด Size 100x35mm; Dia.1.5:; 1,000pcs/roll"], ["qs-102x152.4-DTTC-PK", "DT Paper Topcoat 80g.w/BM Size 102x152.4mm.250/roll แถบชมพู"], ["qs-102x152.4-DTTCBLP", "DT Paper Topcoat 80g w/BM Size 102x152.4mm.250/Roll แถบฟ้า ปรุกลางดวง"], ["qlp-45x280-PPWG-MML", "สติกเกอร์ PP ขาวเงา ขนาด 45x280mm. พิมพ์ 4 สี+OPP ใส มาชเมลโล่ว เคลือบช็อกโกแลต"], ["qlp-45x250-PPWG-PAN", "สติกเกอร์ PP ขาวเงา ขนาด 45x250mm. มินิเบอร์เกอร์ สังขยาใบเตย"], ["kmt-s-0002-PCL", "พิมพ์เคเงิน สติ๊กเกอร์ Zincomin Zinc, Vitamins&Minerals 60'S MDC (PCL)"], ["tlm-s-4MT108-4001", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10x3cm. (500 Pcs/Roll) MSUMT4001"], ["tmr-80x60-PP-WM", "สติกเกอร์ Direct Thermal PP ขาวด้าน ขนาด 8x6cm. พิมพ์ 1 สีดำ 3,000 ดวง/ม้วน"], ["egat-35x35-LED-PPRM ID24790", "ฉลาก หลอด LED ขนาด 35x35mm. ID24790 L&E LED-T8 16 วัตต์ เดย์ไลท์"], ["qs-76x126-SGTT-1000", "ST-TT Size 76x126mm. Dia.3\" 1,000pcs/roll"], ["qs-4x4\"-DTBM", "DT Paper w/BM Size 4\" x 4\" กระดาษต่อเนื่องแบบมีปรุ"], ["qs-s-102x75-100x40", "DT Paper w/BM Size: 102x75mm; 525pcs/roll ดวงเปล่า"], ["ldf-s-STKPOI-NL", "สติกเกอร์ชี้จุดเครื่องดับเพลิง รูปถังดับเพลิง มีเบอร์โทร"], ["egat-45x45-POT-PET ID 6242", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm ID 6242 NIKKO DAILY LIFE COLLECTION 1.2"], ["egat-45x45-POT-PET ID 6243", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6243 NIKKO DAILY LIFE COLLECTION 1.5"], ["egat-45x45-POT-PET ID 6244", "ฉลาก กาต้มน้ำไฟฟ้า ขนาด 45x45mm. ID 6244 NIKKO DAILY LIFE COLLECTION 1.8"], ["qlp-65x290-PPC-CCNC", "สติกเกอร์ PP ใส ขนาด 65x290mm พิมพ์ 4 สี+รองขาว เค้กมะพร้าว Coconut"], ["santo-95x65-PVCC", "สติ๊กเกอร์วิธีใช้เครื่องดับเพลิง (แผ่นใส) ขนาด 9.5x6.5cm."], ["santo-89x47-PVCWG-Y", "สติ๊กเกอร์ชื่อบริษัทฯ (สีเหลือง) ขนาด 8.9x4.7cm."], ["shc-s-20x30", "สติกเกอร์ชี้จุดติดตั้ง+วิธีใช้เครื่องดับเพลิง ขนาด 20x30cm. (ดึงสลัก)"], ["kj-s-12C1031-PJTA165", "12C1031 NAME PLATE PJ-TA165 (SHEET) SIZE 40x80MM."], ["kj-s-12G1031-PJWA182", "12G1031 NAME PLATE PJ-WA182 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-10M1035-PJSL163", "10M1035 NAME PLATE PJ-SL163 (SHEET) SIZE 40x80MM. มีเบอร์โทร"], ["kj-s-31D1045-SBC9W3", "31D1045 NAME PLATE SB-C9W3 SIZE 105x165MM."], ["kj-s-10B114-PJSL161", "10B114 CAUTION LABEL PJ-SL161 SIZE 14x55MM."], ["qs-40x20-PPUPO", "ST-UPO (Fasson) Size: 40x20mm; Dia.3\"; 5,000/roll 2 ดวงชิด"], ["mont-58x58-PPWM-HL", "สติกเกอร์วงกลม PP ขาวด้าน ขนาด 58x58mm. โยเกิร์ต น้ำผึ้งผสมมะนาว"], ["tlm-s-4MT041-4002", "สติกเกอร์กึ่งมันกึ่งด้านสีขาว ขนาด 10.1x7.5cm. (500Pcs/Roll) MSUMT4002"], ["kj-s-11D1401V", "11D1401V GUARRANTY STICKER SIZE 70x100MM."], ["kj-s-2K123VTNR191STV", "2K123VT NAME PLATE KS-NR191STV SIZE 23x65MM."], ["tuac-PPWG-290x160", "สติกเกอร์ PP ขาวเงา ขนาด 290x106mm พิมพ์ 5 สี เคลือบ UV อีมา-เอส 1000  มิลลิลิตร"], ["rl-34x64-PPCL", "สติกเกอร์ PP ใส ขนาด 34x64mm Resealable for KROGER 2Lbs. พิมพ์ 4 สี"]], "raw": [{"code": "SVLW", "name": "SVLW (ROLL-SQM) Gloss PVC/White", "paper_type": "PVC ขาวเงา (Glossy White PVC)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SY7050N.1000-AAG730", "name": "SY7050N.1000(AAG730) SYNTHETIC PAPER/R480/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 208}, {"code": "HBTLA-BL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 220}, {"code": "OJI-THL-O", "name": "Direct Thermal Paper TOP 76 GSM", "paper_type": "Direct Thermal Paper", "supplier": "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "width_mm": 216}, {"code": "KP1429", "name": "สติกเกอร์ PP ขาวเงา 60 ไมครอน กาว Hotmelt หลังกลาสซีส 60 แกรม", "paper_type": "PP ขาวเงา (PP White Gloss)", "supplier": "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "width_mm": 115}, {"code": "AW0331P-AAH099", "name": "AW0331P(AAH099) FASTCOAT 2 PEFC/S1010/ BG40WH IMP FSC (PEFC)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 110}, {"code": "HBTLS-WL-HL#28", "name": "HBTLA-BL#28 : Baggage Tag with Blue Glassine Direct Thermal", "paper_type": "Direct Thermal Synthetic (DTS) ฉีกไม่ขาด", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 176}, {"code": "HMCL-AG-WERM", "name": "HMCL-AG-WERM 106CM.(ROLL-SQM) Cast Coated/White Removable", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 330}, {"code": "FLD/RPC5/GZD", "name": "EAN8324400 FLD/RPC5/GZD RAFLACOAT FIT-FSC RPC5 WHITE GLASS C5-FSC", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 165}, {"code": "HTLW#45-W", "name": "Gloss white PET (TC) 45/Solvent/White glassine 60", "paper_type": "PET ทนความร้อน (Polyester (PET))", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 111}, {"code": "HPPTL-WE", "name": "GLOSS CLEAR TOP COATED POLYPROPYLENE LABEL", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 150}, {"code": "SVLT-Y", "name": "SVLT-Y Gloss PVC/Transparent PVC ใส/หลังเหลือง", "paper_type": "PVC ใส (PVC Clear)", "supplier": "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)", "width_mm": 80}, {"code": "FGSL-ALMH", "name": "ADCEL-Semigloss paper 80G.(Hotmelt Glue)(LAMH60)", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "SCX80W-WG", "name": "สติกเกอร์กึ่งมันกึ่งด้าน หลังกลาสซีนขาว", "paper_type": "กึ่งมันกึ่งด้าน (Semi-Gloss Paper)", "supplier": "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "width_mm": 100}, {"code": "DJP/RP37/GZI/H0", "name": "PP SILVER TC 50 FIT RP37 WHITE GLASSINE 65-FSC RTAC BACKPRINT", "paper_type": "PP SILVER ", "supplier": "UPM Raflatac Co., Ltd. (Head Office)", "width_mm": 100}, {"code": "BW0153-AAD953", "name": "BW0153 (AAD953) SYNTHETIC PAPER/S4700N/BG40WH IMP FSC", "paper_type": "PP ขาวด้าน (PP White Matt)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 175}, {"code": "MZ0152-W-AAH706", "name": "MZ0152-W(AAH706) 1M Matte ChromePET TC/S333/BG50Wh", "paper_type": "PET SILVER MAT (เงินด้าน)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 80}, {"code": "AW0271-AAG535", "name": "AW0271 High Gloss Paper/S1010/BG40 Wht Imp FSC", "paper_type": "ขาวเงา,อาร์ตมัน (Gloss Art Paper)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 130}, {"code": "BW0266A-AAG573", "name": "BW0266A(AAG573) PP50 TCClear/S692N/BG40Wh Imp FSC", "paper_type": "PP ใส (Clear / Transparent PP)", "supplier": "Avery Dennison (Thailand) Ltd. (Head Office)", "width_mm": 220}], "suppliers": ["Avery Dennison (Thailand) Ltd. (Head Office)", "PSA MATERIAL TECHNOLOGY (THAILAND) CO.,LTD.", "UPM Raflatac Co., Ltd. (Head Office)", "เพรสซิเดนท์ซัพพลาย จำกัด (สำนักงานใหญ่)", "แอดเซล อินดัสทรีส์ (ประเทศไทย) จำกัด (สำนักงานใหญ่)", "โอจิ เปเปอร์ (ไทยแลนด์) จำกัด สาขาที่ 00001", "ไทย เคเค อุตสาหกรรม จำกัด (สำนักงานใหญ่)"]};
 /* ================== ใบสั่งผลิต (แทน ProductionOrder / EDITORDER) ================== */
 const WO_BOOL = new Set(WO_FIELDS.filter(f => f[1] === 'boolean').map(f => f[0]));
@@ -1809,6 +1825,7 @@ const WOForm = {
     $('#woOpen').onkeydown = e => { if (e.key === 'Enter') this.open($('#woOpen').value.trim()); };
     $('#woFromSo').onclick = () => this.pickSO();
     $('#woNew').onclick = async () => { if (this.dirty && !(await Office.confirm('ล้างฟอร์มเพื่อเริ่มใบใหม่? ข้อมูลที่ยังไม่บันทึกจะหาย'))) return; this.load(blankWO(), 'new'); };
+    if (!this.prefill) this._soItem = null;
     if (this.prefill) { const p = this.prefill; this.prefill = null; await this.load({...blankWO(), ...p}, 'new'); this.setDirty(true);
       if (p.product_code) { await this.copyLastSpec(p.product_code); const sp = t => String(t || '').replace(/\s+/g, '');
         Object.keys(p).forEach(k => { if (p[k] === null || p[k] === undefined) return; if (k === 'product_name' && sp(this.wo.product_name).startsWith(sp(p[k])) && sp(p[k]).length >= 15) return; this.wo[k] = p[k]; }); this.render(); this.onChange('order_qty'); }
@@ -1945,6 +1962,12 @@ const WOForm = {
         this.pair('สีฟอยล์', this.c('foil_color_check','') + this.ctl('foil_color',{list:'dl_foil_color'}), {cls:'p-chk-l'}),
         `<div></div>`,
         this.pair('หมายเหตุเทคนิค', this.c('no_perf','ไม่มีปรุ') + this.c('perf','มีปรุ') + this.ctl('perf_spec',{ph:'ปรุกี่ มม. เช่น 3:1'}), {cls:'p-perf', span:2})))}
+      ${this.sec('🏭', 'งานจ้างภายนอก (Subcon)', (() => { const w = this.wo, st = subState(w), on = subSteps(w);
+        return `<div class="pk-types">${this.c('subcon', 'มีส่งไปทำข้างนอก (ซับคอน)')}${st ? `<span class="so-st" style="background:${SUB_ST[st][1]};color:#fff">${SUB_ST[st][2]} ${SUB_ST[st][0]}</span>` : '<span class="hint">ติ๊กถ้ามีบางขั้นตอน/ทั้งงานส่งไปทำร้านอื่น เช่น รันนัมเบอร์ หรือพิมพ์ Offset</span>'}</div>
+          ${w.subcon ? `<div class="sc-steps"><span class="hint">ส่งไปทำ:</span>${SUBCON_STEPS.map(x => `<button type="button" class="rchip ${on.includes(x) ? 'on' : ''}" data-scs="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+          ${g(this.f('subcon_vendor', 'ร้าน / ซัพพลายเออร์', {list: 'dl_suppliers'}), this.f('subcon_sent', 'วันที่ส่งไป'), this.f('subcon_due', 'วันนัดรับ'), this.f('subcon_back', 'วันที่รับกลับ'),
+            this.f('subcon_cost', 'ค่าจ้าง', {unit: 'บาท'}), this.f('subcon_bill', 'เลขที่บิลซับคอน'))}
+          ${subPrint(w) ? '<div class="hint" style="margin-top:4px">ส่งพิมพ์ข้างนอก → งานนี้จะไม่นับในคิวเครื่องพิมพ์ของเรา</div>' : ''}` : ''}`; })())}
       ${this.sec(5, 'รูปแบบการส่งมอบ (Packaging)', (() => {
         const w = this.wo, none = !w.is_roll && !w.is_sheet && !w.is_continuous;
         const dirBtn = d => `<button type="button" class="dir ${w.roll_direction === d ? 'on' : ''}" data-dir="${d}"><img src="${ROLL_IMG[d]}" alt="${d}"><span class="tick">${w.roll_direction === d ? '✓' : ''}</span></button>`;
@@ -1992,6 +2015,8 @@ const WOForm = {
   bind(){
     const form = $('#woForm');
     form.querySelectorAll('[data-toggle]').forEach(h => h.onclick = () => this.toggleSec(h.dataset.toggle));
+    form.querySelectorAll('[data-scs]').forEach(b => b.onclick = () => { const x = b.dataset.scs, L = subSteps(this.wo), i = L.indexOf(x);
+      if (i < 0) L.push(x); else L.splice(i, 1); this.wo.subcon_steps = L.join(', ') || null; b.classList.toggle('on', i < 0); this.setDirty(true); });
     form.querySelectorAll('[data-oc]').forEach(b => b.onclick = () => {
       const c = b.dataset.oc, on = this.wo[c] === b.dataset.ov; this.wo[c] = on ? null : b.dataset.ov; this.setDirty(true);
       form.querySelectorAll(`[data-oc="${c}"]`).forEach(x => x.classList.toggle('on', !on && x === b)); });
@@ -2138,6 +2163,7 @@ const WOForm = {
   updSqm(){ this.updGap(); const el = $('#sqm'); if (!el) return; const m = parseFloat(String(this.wo.total_m ?? '').replace(/,/g,'')), w = parseFloat(String(this.wo.web_width_mm ?? '').replace(/,/g,''));
     el.value = m > 0 && w > 0 ? (m * w / 1000).toLocaleString('en-US', {maximumFractionDigits: 2}) : ''; },
   onChange(c){
+    if (c === 'subcon') { const y = window.scrollY; setTimeout(() => { this.render(); window.scrollTo(0, y); }); }
     if (['total_m','web_width_mm','order_qty','across','die_rows','repeat_mm','setup_waste_m','height_mm','width_mm','layout_rotate','is_roll'].includes(c)) setTimeout(() => this.updSqm());
     if (['is_roll','is_sheet','is_continuous'].includes(c)) setTimeout(() => this.render());
     if (c === 'corner_radius') $('#woForm').querySelectorAll('.rchip[data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r === +this.wo.corner_radius));
@@ -2253,6 +2279,8 @@ const WOForm = {
         else if (kind !== 'revise') p.carry_forward_qty = null;   // ระบบคำนวณยอดยกมาจากสต็อกให้
         const res = await API.createWorkOrder(p, kind === 'revise' ? 'revise' : 'new', this.wo.job_ticket, pull);
         job = res.job_ticket; carry = res.carry;
+        if (this._soItem && kind !== 'revise') { API.soItemUpdate(this._soItem, {job_ticket: job}).catch(() => {}); }   // เปิดจากบรรทัด SO → ผูกบรรทัดนั้นกับ JOB นี้
+        this._soItem = null;
       }
       await API.rememberMasters?.(p, this.L);
       this.L = await API.lookups();
@@ -2609,7 +2637,7 @@ const SOImport = {
     const om = new Map(oldItems.map(x => [x.so_no + '|' + x.line, x])), newItems = [], updItems = [], stats = {so: P.heads.size, newSO: 0, newItems: 0, changed: 0, cancelled: 0, bad: P.bad};
     P.heads.forEach(h => { if (!oldHeads.includes(h.so_no)) stats.newSO++; });
     P.items.forEach(x => { const o = om.get(x.so_no + '|' + x.line);
-      if (!o) { newItems.push({...x, skip: x.item_type === 'P7', skip_note: x.item_type === 'P7' ? 'ค่าบริการ (ไม่ต้องผลิต)' : null}); stats.newItems++; if (x.cancelled) stats.cancelled++; return; }
+      if (!o) { newItems.push({...x, skip: isSvc(x), skip_note: isSvc(x) ? 'ค่าบริการ (ไม่ต้องผลิต)' : null}); stats.newItems++; if (x.cancelled) stats.cancelled++; return; }
       const ch = [];
       if (+o.qty !== +x.qty) ch.push(`จำนวน ${fmtN(o.qty)} → ${fmtN(x.qty)}`);
       if ((o.product_code || '') !== (x.product_code || '')) ch.push(`รหัสสินค้า ${o.product_code || '-'} → ${x.product_code || '-'}`);
@@ -2624,6 +2652,9 @@ const SOImport = {
 const SOPage = {
   view: store.get('vp_so_view', 'pending'), q: '', data: null, lastCount: null,
   normSo(s){ return String(s || '').replace(/^SO/i, '').replace(/\s+/g, '').split('/').pop(); },
+  // เทียบเลข SO: ถ้ามีเล่มทั้งคู่ (01/… กับ 02/…) ต้องเล่มเดียวกันด้วย — เล่ม 02 (PROJECT) เลขซ้ำกับเล่ม 01 ได้
+  soEq(a, b){ const f = x => { const t = String(x || '').replace(/^SO/i, '').replace(/\s+/g, ''), p = t.split('/'); return p.length > 1 ? {bk: String(+p[0] || p[0]), no: p.pop()} : {bk: null, no: t}; };
+    const A = f(a), B = f(b); return !!A.no && A.no === B.no && (!A.bk || !B.bk || A.bk === B.bk); },
   custName(n){ const L = WOForm.L?.customers || [], x = String(n || '').replace(/^(บริษัท|บจก\.|ห้างหุ้นส่วนจำกัด|หจก\.)\s*/, '').trim(), sp = t => t.replace(/\s+/g, '');
     return L.find(c => c === n) || L.find(c => c === x) || L.find(c => sp(c) === sp(x)) || (x.length >= 20 && L.find(c => sp(c).startsWith(sp(x)))) || x; },
   async load(){
@@ -2634,8 +2665,17 @@ const SOPage = {
     stk.forEach(r => { if (cut.has(r.job_ticket)) return; [[byC, nk(r.product_code)], [byN, nk(r.product_name)]].forEach(([M, k]) => { if (!k) return; (M[k] ||= {qty: 0, jobs: []}); M[k].qty += +r.stock_qty; M[k].jobs.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); }); });
     const stockOf = it => (it.product_code && byC[nk(it.product_code)]) || byN[nk(it.product_name)] || null;
     const heads = new Map(so.heads.map(h => [h.so_no, h]));
-    so.items.forEach(it => { const h = heads.get(it.so_no) || {}; const n = this.normSo(it.so_no);
-      it.jobs = wos.filter(w => w.job_ticket === it.job_ticket || (this.normSo(w.so_no) === n && n && ((it.product_code && w.product_code === it.product_code) || (!it.product_code && w.product_name === it.product_name)))).map(w => w.job_ticket);
+    // ผูก JOB กับรายการ SO: 1) ผูกตรง (เปิดจากบรรทัดนี้ / กด 🔗) 2) เลข SO + สินค้าเดียวกัน
+    //   SO ที่มีหลายบรรทัดสินค้าเดียวกัน (เช่น งานโปรเจกต์แบ่งส่ง) → แจก JOB ให้ทีละบรรทัด ไม่นับซ้ำทุกบรรทัด
+    const direct = new Set(so.items.map(i => i.job_ticket).filter(Boolean)), same = (it, w) => (it.product_code && w.product_code === it.product_code) || (!it.product_code && w.product_name === it.product_name);
+    const grp = new Map(); so.items.forEach(it => { const k = it.so_no + '|' + (it.product_code || '#' + it.product_name); (grp.get(k) || grp.set(k, []).get(k)).push(it); });
+    grp.forEach(G => { const cand = wos.filter(w => !direct.has(w.job_ticket) && same(G[0], w) && this.soEq(w.so_no, G[0].so_no)).sort((a, b) => String(a.job_ticket).localeCompare(String(b.job_ticket)));
+      if (G.length === 1) { G[0]._auto = cand; return; }
+      G.forEach(it => it._auto = []); const free = G.filter(it => !it.job_ticket).sort((a, b) => a.line - b.line), pool = [...cand];
+      free.forEach(it => { if (!pool.length) return; const i = Math.max(0, pool.findIndex(w => +w.order_qty === +it.qty)); it._auto = pool.splice(i, 1); });
+      if (pool.length && free.length) free.at(-1)._auto.push(...pool); });
+    so.items.forEach(it => { const h = heads.get(it.so_no) || {};
+      it.jobs = [...wos.filter(w => w.job_ticket === it.job_ticket), ...(it._auto || [])].map(w => w.job_ticket); delete it._auto;
       it.jobs = [...new Set(it.jobs)]; it.cjobs = it.jobs.filter(j => wos.find(w => w.job_ticket === j)?.cancelled); it.jobs = it.jobs.filter(j => !it.cjobs.includes(j));
       it.isCancel = it.cancelled || h.cancelled;
       it.isPending = !it.isCancel && !it.skip && !it.jobs.length && !['P', 'L'].includes(it.status) && !(+it.delivered_qty >= +it.qty && +it.qty > 0);
@@ -2711,7 +2751,7 @@ const SOPage = {
           <span class="sp"></span><span class="wt-info">${items.filter(i => i.isPending).length} รอเปิด / ${items.length} รายการ</span>
           ${h.source === 'manual' ? `<button class="btn ghost sm" data-edit="${esc(h.so_no)}">แก้ไข</button>` : ''}${Office.ro ? '' : `<button class="btn ghost sm" data-del="${esc(h.so_no)}" data-src="${esc(h.source || '')}" style="color:var(--bad)" title="ลบ SO ทั้งใบ">🗑 ลบ</button>`}</div>
         <table class="so-t"><thead><tr><th style="width:34px">#</th><th style="width:170px">รหัสสินค้า</th><th>ชื่อสินค้า</th><th class="num" style="width:95px">จำนวน</th><th style="width:88px">กำหนดส่ง</th><th style="width:150px">สต็อกที่มี</th><th style="width:80px">เคยผลิต</th><th style="width:100px">ส่งของ</th><th style="width:270px">ใบสั่งผลิต</th></tr></thead><tbody>
-        ${show.map(it => `<tr class="${it.isCancel ? 'x' : ''}"><td>${it.line}</td><td><b>${esc(it.product_code || '')}</b>${it.item_type === 'P7' ? ' <span class="so-st">ค่าบริการ</span>' : ''}</td>
+        ${show.map(it => `<tr class="${it.isCancel ? 'x' : ''}"><td>${it.line}</td><td><b>${esc(it.product_code || '')}</b>${isSvc(it) ? ' <span class="so-st">ค่าบริการ</span>' : ''}</td>
           <td>${esc(it.product_name || '')}${it.remark ? `<div class="so-rm">${esc(it.remark).replace(/\n/g, '<br>')}</div>` : ''}${it.changed_note ? `<div class="so-ch">⚠ ${esc(it.changed_note)} <button class="lnk" data-ack="${it.id}">รับทราบ</button></div>` : ''}</td>
           <td class="num"><b>${fmtN(it.qty)}</b> <small>${esc(it.unit || '')}</small></td><td class="${it.due_date && it.due_date < todayISO() && it.isPending ? 'stock-neg' : ''}">${fmtD(it.due_date)}</td>
           <td>${it.stock ? `<b class="so-stk" title="${esc(it.stock.jobs.join(', '))}">${fmtN(it.stock.qty)}</b><div class="so-rm">${esc(it.stock.jobs.slice(0, 2).join(', '))}${it.stock.jobs.length > 2 ? ' …' : ''}</div>${it.stock.qty >= +it.qty && it.isPending ? '<div class="so-ok">✓ สต็อกพอส่ง</div>' : ''}` : '<span class="wt-info">–</span>'}</td>
@@ -2748,7 +2788,7 @@ const SOPage = {
     const h = this.data.heads.get(it.so_no) || {};
     WOForm.prefill = {customer_name: this.custName(h.customer_name), product_code: it.product_code || null, product_name: it.product_name || null, order_qty: it.qty || null,
       po_no: h.po_no || null, so_no: it.so_no, due_date: it.due_date || null, remark: it.remark || null, doc_date: todayISO()};
-    WOForm.wo = null; store.set('vp_open_job', null); Office.go('wo');
+    WOForm.wo = null; WOForm._soItem = it.id; store.set('vp_open_job', null); Office.go('wo');
   },
   manual(no){
     const D = this.data, h = no ? {...D.heads.get(no)} : {so_no: '', so_date: todayISO(), po_no: '', customer_name: '', note: ''};
@@ -3278,7 +3318,7 @@ const QRSheet = {
 };
 
 /* ================== WORKORDER — ตารางแบบ Excel (กรองทีละคอลัมน์) ================== */
-const WO_LABELS = {"layout_rotate": "วางดวงหมุน 90°", "run_div": "ตัวหารระยะยาว", "cancelled": "ยกเลิก", "cancel_reason": "เหตุผลที่ยกเลิก", "customer_name": "ชื่อลูกค้า", "product_name": "ชื่อสินค้าที่ผลิต", "product_code": "รหัสงาน", "job_ticket": "JOB TICKET", "doc_date": "วันที่เอกสาร", "po_no": "P/O No.", "so_no": "S/O No.", "due_date": "กำหนดส่ง", "other_job": "งานอื่นๆ", "width_mm": "กว้าง(มม.)", "height_mm": "สูง(มม.)", "across": "จำนวนดวง/แถว (Across)", "die_rows": "จำนวนแถวในบล็อกมีด", "order_qty": "จำนวนที่สั่งผลิต(ดวง)", "length_rows": "จำนวนแถวแนวยาว(แถว)", "repeat_mm": "ระยะตั้งงาน (มม.)", "machine": "เครื่องพิมพ์", "supplier": "วัตถุดิบของ (Supplier)", "paper_code": "รหัสกระดาษ", "paper_name": "ชื่อกระดาษ", "paper_type": "ประเภทกระดาษ", "adhesive": "ประเภทกาว", "liner": "หลังกระดาษ", "web_width_mm": "กระดาษหน้ากว้าง(มม.)", "run_m": "ระยะยาวงานจริง(เมตร)", "setup_waste_m": "ระยะเผื่อตั้งงาน(เมตร)", "total_m": "รวมเมตรที่ต้องใช้(เมตร)", "ink_type": "ชนิดสี", "color_count": "จำนวนสี", "special_color": "สีพิเศษ", "pantone": "รหัส Pantone", "coating": "การเคลือบ", "coating_code": "รหัสเคลือบ", "paper_face_mm": "หน้ากระดาษ (mm.)", "spot_uv": "Spot UV", "diecut_no": "เลขที่ไดคัท", "diecut_corner": "มุมไดคัท", "corner_radius": "ขนาดมุมมน", "diecut_machine": "เครื่องไดคัท", "slitter": "เครื่อง Slitter", "foil_type": "ชนิดฟอยล์", "foil_color": "สีฟอยล์", "no_perf": "ไม่มีปรุ (หมายเหตุเทคนิค)", "perf": "มีปรุ (หมายเหตุเทคนิค)", "perf_spec": "ปรุกี่ (มม.) เช่น 3:1", "is_roll": "ระบบม้วน", "roll_outer": "ม้วนนอก", "roll_inner": "ม้วนใน", "core_size": "แกนกระดาษ", "roll_gap": "ช่องไฟ", "roll_across": "จำนวน/แถว (งานม้วน)", "per_roll": "จำนวนดวง/ม้วน", "per_meter": "จำนวน/เมตร", "margin_left": "ขอบซ้าย(มม.)", "margin_right": "ขอบขวา(มม.)", "layout_h": "การจัดวางแนวนอน", "layout_v": "การจัดวางแนวตั้ง", "pack_qty": "จำนวนบรรจุ", "finished_size": "ขนาดสำเร็จ(มม.)", "cut_flush": "ตัดชิดดวง", "leave_edge": "เหลือขอบ", "fold_per_page": "พับหน้าละ(ดวง)", "sprocket": "รูหนามเตย", "sheet_perf": "มีปรุ (งานแผ่น)", "sheet_perf_mm": "ปรุกี่(มม.) งานแผ่น", "is_sheet": "งานแผ่น", "is_continuous": "คอมต่อเนื่อง", "job_label": "งาน (PROOFS:/FORECAST:/เคลมสินค้า)", "mto": "Made to Order", "mts": "Made to Stock", "roll_direction": "ทิศทางการม้วน A-H", "remark": "หมายเหตุ (ส่วนที่ 6 บันทึกเพิ่มเติม/QC)", "foil_type_check": "ติ๊ก ชนิดฟอยล์", "foil_color_check": "ติ๊ก สีฟอยล์", "roll_perf": "มีปรุ (รายละเอียดงานม้วน)", "roll_perf_mm": "มีปรุกี่มม. (งานม้วน)", "roll_no_perf": "ไม่มีปรุ (รายละเอียดงานม้วน)", "sheet_gap": "ช่องไฟ (Gap) งานแผ่น", "adhesive_kill": "ฆ่ากาว: ไม่มี/บางส่วน/ทั้งหมด", "adhesive_kill_note": "รายละเอียดฆ่ากาว (ตำแหน่ง/พื้นที่)", "carry_forward_qty": "ยอดคงเหลือยกมา (ดวง)", "actual_qty": "ยอดผลิตจริง (ดวง)", "after_qc_qty": "ยอดหลังจาก QC (ดวง)", "lot_no": "LOT Number", "has_paper": "มีกระดาษแล้ว", "paper_ordered": "สั่งกระดาษแล้ว", "printer_name": "ลงชื่อ ช่างพิมพ์", "diecut_name": "ลงชื่อ ช่างไดคัท", "qc_name": "ลงชื่อ QC", "art_name": "ลงชื่อ Art", "ordered_by": "ผู้สั่งงาน", "closed": "ปิดจ๊อบ", "created_at": "วันที่บันทึก", "updated_at": "แก้ไขล่าสุด"};
+const WO_LABELS = {"layout_rotate": "วางดวงหมุน 90°", "subcon": "จ้างภายนอก", "subcon_vendor": "ร้านซับคอน", "subcon_steps": "ขั้นตอนที่ส่งทำ", "subcon_sent": "วันส่งซับคอน", "subcon_due": "นัดรับจากซับคอน", "subcon_back": "รับกลับจากซับคอน", "subcon_cost": "ค่าจ้างซับคอน", "subcon_bill": "เลขบิลซับคอน", "run_div": "ตัวหารระยะยาว", "cancelled": "ยกเลิก", "cancel_reason": "เหตุผลที่ยกเลิก", "customer_name": "ชื่อลูกค้า", "product_name": "ชื่อสินค้าที่ผลิต", "product_code": "รหัสงาน", "job_ticket": "JOB TICKET", "doc_date": "วันที่เอกสาร", "po_no": "P/O No.", "so_no": "S/O No.", "due_date": "กำหนดส่ง", "other_job": "งานอื่นๆ", "width_mm": "กว้าง(มม.)", "height_mm": "สูง(มม.)", "across": "จำนวนดวง/แถว (Across)", "die_rows": "จำนวนแถวในบล็อกมีด", "order_qty": "จำนวนที่สั่งผลิต(ดวง)", "length_rows": "จำนวนแถวแนวยาว(แถว)", "repeat_mm": "ระยะตั้งงาน (มม.)", "machine": "เครื่องพิมพ์", "supplier": "วัตถุดิบของ (Supplier)", "paper_code": "รหัสกระดาษ", "paper_name": "ชื่อกระดาษ", "paper_type": "ประเภทกระดาษ", "adhesive": "ประเภทกาว", "liner": "หลังกระดาษ", "web_width_mm": "กระดาษหน้ากว้าง(มม.)", "run_m": "ระยะยาวงานจริง(เมตร)", "setup_waste_m": "ระยะเผื่อตั้งงาน(เมตร)", "total_m": "รวมเมตรที่ต้องใช้(เมตร)", "ink_type": "ชนิดสี", "color_count": "จำนวนสี", "special_color": "สีพิเศษ", "pantone": "รหัส Pantone", "coating": "การเคลือบ", "coating_code": "รหัสเคลือบ", "paper_face_mm": "หน้ากระดาษ (mm.)", "spot_uv": "Spot UV", "diecut_no": "เลขที่ไดคัท", "diecut_corner": "มุมไดคัท", "corner_radius": "ขนาดมุมมน", "diecut_machine": "เครื่องไดคัท", "slitter": "เครื่อง Slitter", "foil_type": "ชนิดฟอยล์", "foil_color": "สีฟอยล์", "no_perf": "ไม่มีปรุ (หมายเหตุเทคนิค)", "perf": "มีปรุ (หมายเหตุเทคนิค)", "perf_spec": "ปรุกี่ (มม.) เช่น 3:1", "is_roll": "ระบบม้วน", "roll_outer": "ม้วนนอก", "roll_inner": "ม้วนใน", "core_size": "แกนกระดาษ", "roll_gap": "ช่องไฟ", "roll_across": "จำนวน/แถว (งานม้วน)", "per_roll": "จำนวนดวง/ม้วน", "per_meter": "จำนวน/เมตร", "margin_left": "ขอบซ้าย(มม.)", "margin_right": "ขอบขวา(มม.)", "layout_h": "การจัดวางแนวนอน", "layout_v": "การจัดวางแนวตั้ง", "pack_qty": "จำนวนบรรจุ", "finished_size": "ขนาดสำเร็จ(มม.)", "cut_flush": "ตัดชิดดวง", "leave_edge": "เหลือขอบ", "fold_per_page": "พับหน้าละ(ดวง)", "sprocket": "รูหนามเตย", "sheet_perf": "มีปรุ (งานแผ่น)", "sheet_perf_mm": "ปรุกี่(มม.) งานแผ่น", "is_sheet": "งานแผ่น", "is_continuous": "คอมต่อเนื่อง", "job_label": "งาน (PROOFS:/FORECAST:/เคลมสินค้า)", "mto": "Made to Order", "mts": "Made to Stock", "roll_direction": "ทิศทางการม้วน A-H", "remark": "หมายเหตุ (ส่วนที่ 6 บันทึกเพิ่มเติม/QC)", "foil_type_check": "ติ๊ก ชนิดฟอยล์", "foil_color_check": "ติ๊ก สีฟอยล์", "roll_perf": "มีปรุ (รายละเอียดงานม้วน)", "roll_perf_mm": "มีปรุกี่มม. (งานม้วน)", "roll_no_perf": "ไม่มีปรุ (รายละเอียดงานม้วน)", "sheet_gap": "ช่องไฟ (Gap) งานแผ่น", "adhesive_kill": "ฆ่ากาว: ไม่มี/บางส่วน/ทั้งหมด", "adhesive_kill_note": "รายละเอียดฆ่ากาว (ตำแหน่ง/พื้นที่)", "carry_forward_qty": "ยอดคงเหลือยกมา (ดวง)", "actual_qty": "ยอดผลิตจริง (ดวง)", "after_qc_qty": "ยอดหลังจาก QC (ดวง)", "lot_no": "LOT Number", "has_paper": "มีกระดาษแล้ว", "paper_ordered": "สั่งกระดาษแล้ว", "printer_name": "ลงชื่อ ช่างพิมพ์", "diecut_name": "ลงชื่อ ช่างไดคัท", "qc_name": "ลงชื่อ QC", "art_name": "ลงชื่อ Art", "ordered_by": "ผู้สั่งงาน", "closed": "ปิดจ๊อบ", "created_at": "วันที่บันทึก", "updated_at": "แก้ไขล่าสุด"};
 const WOTable = {
   rows: [], filters: {}, sort: null, q: '', limit: 300,
   COLS(){ return [...WO_FIELDS.map(f => f[0]), 'closed', 'cancelled', 'cancel_reason', 'created_at']; },
@@ -4690,7 +4730,7 @@ const ShipPage = {
       if (base.date && (!L.date || base.date > L.date)) L.date = base.date; return L; };
     // 1) SO จาก Autoflight
     const H = new Map(D.so_h.filter(h => !h.cancelled).map(h => [h.so_no, h]));
-    D.so_i.filter(i => !i.cancelled && i.item_type !== 'P7' && H.has(i.so_no) && i.product_code).forEach(i => { const h = H.get(i.so_no), po = NO_REF(h.po_no) ? 'SO ' + i.so_no : h.po_no.trim();
+    D.so_i.filter(i => !i.cancelled && !isSvc(i) && H.has(i.so_no) && i.product_code).forEach(i => { const h = H.get(i.so_no), po = NO_REF(h.po_no) ? 'SO ' + i.so_no : h.po_no.trim();
       const L = add(po, i.product_code.trim(), {product_name: i.product_name, customer_name: h.customer_name, customer_code: h.customer_code, unit: i.unit, due: i.due_date, src: 'SO', date: h.so_date});
       L.qty += N(i.qty); L.so_nos.add(i.so_no); L.af_shipped += N(i.delivered_qty); if (i.job_ticket) L.linkJobs = [...(L.linkJobs || []), i.job_ticket]; });
     // 2) PO ระยะยาว / Forecast (ควาร์ค)
@@ -4718,7 +4758,7 @@ const ShipPage = {
     lines.forEach(L => { const J = L.jobs.filter(j => j.due_date); if (!J.length) return; const op = J.filter(j => !j.closed), nd = (op.length ? op : J).map(j => j.due_date).sort()[0];
       if (nd && nd !== L.due) { L.so_due = L.due; L.due = nd; } });
     // การส่งของ
-    const orphan = [], hidden = [], svc = new Set(D.so_i.filter(i => i.item_type === 'P7' && i.product_code).map(i => this.n(i.product_code)));
+    const orphan = [], hidden = [], svc = new Set(D.so_i.filter(i => isSvc(i) && i.product_code).map(i => this.n(i.product_code)));
     const byPo = new Map(); lines.forEach(L => { const k = this.n(L.po_no); (byPo.get(k) || byPo.set(k, []).get(k)).push(L); });
     D.dl.forEach(d => {
       if (d.ship_ignore || svc.has(this.n(d.product_code)) || (!d.ship_key && /^\s*ค่า/.test(d.product_name || ''))) { if ((d.delivery_date || '9999') >= C.start) hidden.push(d); return; }
@@ -4981,9 +5021,10 @@ const QueuePlan = {
     return {speed: +c.speed || (a ? Math.round(a.avg) : 0) || +this.cfg.speed || 50, src: +c.speed ? 'set' : a ? 'avg' : 'def', n: a?.n || 0, mpm: !!c.mpm, setup: c.setup === 0 || c.setup ? +c.setup : +this.cfg.setup || 0}; },
   async load(){
     if (!this.cfg) { let c = null; try { c = await API.getMeta('queue_cfg'); } catch {} this.cfg = {...this.DEF, ...store.get('vp_queue_cfg', {}), ...(c || {})}; this.cfg.m ||= {}; this.cfg.order ||= {}; }
-    const [P, W, SD] = await Promise.all([API.progress('', true, false), API.queueWo(), API.speedData().catch(() => ({logs: [], wo: []}))]), wm = new Map(W.map(w => [w.job_ticket, w]));
+    const [P, W, SD, SC] = await Promise.all([API.progress('', true, false), API.queueWo(), API.speedData().catch(() => ({logs: [], wo: []})), API.subconList().catch(() => [])]), wm = new Map(W.map(w => [w.job_ticket, w]));
+    const outP = new Set(SC.filter(subPrint).map(w => w.job_ticket));   // พิมพ์ที่ซับคอน → ไม่อยู่ในคิวเครื่องเรา
     const G = SpeedRpt.group(SD, 'พิมพ์'); this.jobSpd = new Map(G.map(g => [g.job_ticket, g.last])); this.avg = SpeedRpt.byMachine(G);
-    this.rows = P.filter(r => !r.closed && !r.cancelled && !this.printDone(r) && !/^เสร็จ/.test(r.qc_status || '')).map(r => { const w = wm.get(r.job_ticket) || {};
+    this.rows = P.filter(r => !r.closed && !r.cancelled && !outP.has(r.job_ticket) && !this.printDone(r) && !/^เสร็จ/.test(r.qc_status || '')).map(r => { const w = wm.get(r.job_ticket) || {};
       const tot = +w.total_m || +w.run_m || 0, o = +r.order_qty || 0, done = Math.max(+r.print_qty || 0, 0), frac = o ? Math.max(0, 1 - done / o) : 1;
       return {...r, _tot: tot, _left: Math.round(tot * frac), _pct: o ? Math.min(100, Math.round(done / o * 100)) : 0, _rp: +w.repeat_mm || 0, _dv: +w.run_div || 1000}; });
   },
@@ -5119,6 +5160,38 @@ const SpeedRpt = {
     RptPrint.go({title: 'ความเร็วเครื่อง', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>ประวัติความเร็วเครื่อง</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}${f ? '<br>' + esc(f) : ''}</div></div>${this.table(G, false)}</div>`); }
 };
 
+/* ================== งานจ้างภายนอก (ซับคอน): อยู่ที่ไหน เลยนัดรับหรือยัง ================== */
+const SubconRpt = {
+  f: store.get('vp_sc_f', 'open'), rows: [],
+  async page(){
+    $('#rpBody').innerHTML = `<div class="toolbar"><div class="seg" id="scSeg">${[['open', 'ยังไม่รับกลับ'], ['all', 'ทั้งหมด']].map(([k, l]) => `<button data-v="${k}" class="${this.f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <input id="scQ" class="field" style="max-width:240px" placeholder="ค้นหา JOB / ลูกค้า / ร้าน"><span class="sp"></span><button class="btn ghost sm" id="scImg">🖼 รูปภาพ</button><button class="btn ghost sm" id="scPrint">🖨 พิมพ์</button></div><div id="scBody"><div class="empty">กำลังโหลด…</div></div>`;
+    document.querySelectorAll('#scSeg button').forEach(b => b.onclick = () => { this.f = b.dataset.v; store.set('vp_sc_f', this.f); document.querySelectorAll('#scSeg button').forEach(x => x.classList.toggle('on', x === b)); this.draw(); });
+    $('#scQ').oninput = () => this.draw(); $('#scPrint').onclick = () => this.print(); $('#scImg').onclick = () => { RptPrint._img = true; this.print(); };
+    try { this.rows = await API.subconList(); } catch (e) { $('#scBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    this.draw();
+  },
+  vis(){ const q = $('#scQ')?.value || '', t = todayISO();
+    return this.rows.filter(w => (this.f === 'all' || (!w.subcon_back && !w.closed)) && qHit([w.job_ticket, w.customer_name, w.product_name, w.subcon_vendor, w.po_no, w.subcon_steps].join(' '), q))
+      .sort((a, b) => ['late', 'out', 'wait', 'back'].indexOf(subState(a, t)) - ['late', 'out', 'wait', 'back'].indexOf(subState(b, t)) || String(a.subcon_due || '9').localeCompare(String(b.subcon_due || '9'))); },
+  table(R, scr){ const t = todayISO(), ro = Office.ro || !scr;
+    return `<table class="${scr ? 'trk' : ''}"><thead><tr><th>สถานะ</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>ร้านซับคอน</th><th>ส่งทำ</th><th>ส่งไป</th><th>นัดรับ</th><th>รับกลับ</th><th>กำหนดส่งลูกค้า</th><th class="num">ค่าจ้าง</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
+      ${R.map(w => { const st = subState(w, t); return `<tr><td style="white-space:nowrap"><b style="color:${SUB_ST[st][1]}">${SUB_ST[st][2]} ${SUB_ST[st][0]}</b></td><td>${scr ? `<a href="#" class="jl" data-open="${esc(w.job_ticket)}">${esc(w.job_ticket)}</a>` : esc(w.job_ticket)}</td>
+        <td class="cu">${esc(w.customer_name || '')}</td><td class="pn">${esc(w.product_name || '')}</td><td><b>${esc(w.subcon_vendor || '-')}</b></td><td>${esc(subSteps(w).join(', '))}</td>
+        <td>${w.subcon_sent ? fmtD(w.subcon_sent) : '-'}</td><td class="${st === 'late' ? 'stock-neg' : ''}">${w.subcon_due ? fmtD(w.subcon_due) : '-'}</td><td>${w.subcon_back ? fmtD(w.subcon_back) : '-'}</td>
+        <td class="${w.due_date && w.due_date < t && !w.closed ? 'stock-neg' : ''}">${w.due_date ? fmtD(w.due_date) : '-'}</td><td class="num">${w.subcon_cost ? Number(w.subcon_cost).toLocaleString('en-US') : ''}</td>
+        ${ro ? '' : `<td style="white-space:nowrap">${!w.subcon_sent ? `<button class="btn ghost sm" data-sx="${esc(w.job_ticket)}">📤 ส่งออกวันนี้</button>` : !w.subcon_back ? `<button class="btn ghost sm" data-sb="${esc(w.job_ticket)}">📥 รับกลับวันนี้</button>` : ''}</td>`}</tr>`; }).join('') || `<tr><td colspan="12" class="empty">ไม่มีงานซับคอน${this.f === 'open' ? 'ที่ยังไม่รับกลับ' : ''}</td></tr>`}</tbody></table>`; },
+  draw(){ const R = this.vis(), t = todayISO(), V = new Map();
+    R.forEach(w => { const k = w.subcon_vendor || '(ไม่ระบุร้าน)', x = V.get(k) || {n: 0, out: 0, late: 0}; x.n++; const st = subState(w, t); if (st === 'out' || st === 'late') x.out++; if (st === 'late') x.late++; V.set(k, x); });
+    $('#scBody').innerHTML = `<div class="hint" style="margin:0 0 6px">งานที่ติ๊ก "มีส่งไปทำข้างนอก" ในใบสั่งผลิต · ${R.length} งาน${V.size ? ' · ' + [...V].map(([k, x]) => `${esc(k)} ${x.n} งาน${x.late ? ` (<b class="stock-neg">เลยนัด ${x.late}</b>)` : ''}`).join(' · ') : ''}</div>
+      <div class="card tbl-wrap">${this.table(R, true)}</div>`;
+    const set = async (j, p, msg) => { try { await API.updateWorkOrder(j, p); toast(msg); this.rows = await API.subconList(); this.draw(); } catch (e) { toast(e.message); } };
+    $('#scBody').querySelectorAll('[data-sx]').forEach(b => b.onclick = () => set(b.dataset.sx, {subcon_sent: todayISO()}, `ส่งออก ${b.dataset.sx} แล้ว`));
+    $('#scBody').querySelectorAll('[data-sb]').forEach(b => b.onclick = () => set(b.dataset.sb, {subcon_back: todayISO()}, `รับกลับ ${b.dataset.sb} แล้ว`));
+    $('#scBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); }); },
+  print(){ RptPrint.go({title: 'งานซับคอน', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>งานจ้างภายนอก (ซับคอน)</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}<br>${this.f === 'open' ? 'เฉพาะที่ยังไม่รับกลับ' : 'ทั้งหมด'}</div></div>${this.table(this.vis(), false)}</div>`); }
+};
+
 /* ================== ใบสรุปงาน: ราย JOB / ราย PO ตั้งแต่ใบสั่งผลิต → ผลิต → QC → ส่งของ ================== */
 const JobSum = {
   mode: store.get('vp_js_mode', 'job'), q: '', cur: null,
@@ -5163,7 +5236,7 @@ const JobSum = {
     const size = +w.width_mm ? `${N(w.width_mm)}×${N(w.height_mm)} มม.` : '-';
     const kv = [['ลูกค้า', w.customer_name], ['สินค้า', w.product_name], ['รหัสสินค้า', w.product_code], ['เลขที่ PO', w.po_no || '-'], ['S/O', w.so_no || '-'], ['วันที่เปิดใบสั่ง', this.d(T.open)], ['กำหนดส่ง', this.d(x.due)], ['งาน', w.job_label || w.job_type || '-'],
       ['ขนาด', size], ['กระดาษ', w.paper_type || w.paper_name || '-'], ['สี / หมึก', [w.color_count ? N(w.color_count) + ' สี' : '', w.ink_type].filter(Boolean).join(' · ') || '-'], ['เคลือบ', w.coating_code || w.coating || '-'],
-      ['เครื่องพิมพ์', w.machine || '-'], ['เครื่องไดคัท', w.diecut_machine || '-'], ['เมตรที่ต้องใช้', w.total_m ? N(w.total_m) + ' ม.' : '-'], ['ม้วนละ / แกน', [w.per_roll ? w.per_roll + ' ดวง' : '', w.core_size ? 'แกน ' + w.core_size : ''].filter(Boolean).join(' · ') || '-']];
+      ['เครื่องพิมพ์', w.machine || '-'], ['เครื่องไดคัท', w.diecut_machine || '-'], ...(w.subcon ? [['🏭 จ้างภายนอก', `${w.subcon_vendor || '-'} · ${subSteps(w).join(', ') || '-'}`], ['ค่าจ้าง / บิลซับคอน', [w.subcon_cost ? Number(w.subcon_cost).toLocaleString('en-US') + ' บาท' : '', w.subcon_bill].filter(Boolean).join(' · ') || '-']] : []), ['เมตรที่ต้องใช้', w.total_m ? N(w.total_m) + ' ม.' : '-'], ['ม้วนละ / แกน', [w.per_roll ? w.per_roll + ' ดวง' : '', w.core_size ? 'แกน ' + w.core_size : ''].filter(Boolean).join(' · ') || '-']];
     return `<div class="js-sh">
       <div class="js-top"><div><h2>ใบสรุปงาน JOB ${esc(w.job_ticket)} ${this.st(x)}</h2><div>${esc(w.customer_name || '')}</div></div><div class="r">V-Packaging<br>ข้อมูล ณ ${fmtT(new Date().toISOString())}</div></div>
       <h4>1. รายละเอียดใบสั่งผลิต</h4><div class="js-kv">${kv.map(([k, v]) => `<div><small>${k}</small>${esc(String(v ?? '-'))}</div>`).join('')}</div>
@@ -5173,7 +5246,7 @@ const JobSum = {
         <div><small>QC ได้ / ยอดสั่ง</small><b>${pct(Q.qc, Q.order)}</b><small>${N(Q.qc)} / ${N(Q.order)}</small></div>
         <div><small>ของเสีย</small><b>${Q.wastePct != null ? Q.wastePct + '%' : '-'}</b><small>${Q.wastePct != null && Q.waste > 0 ? N(Q.waste) + ' ดวง' : Q.wastePct == null ? 'รอ QC' : ''}</small></div>
         <div><small>มูลค่าขาย</small><b>${this.money(x.invAmt ?? (x.P ? x.P.price * Q.order : null))}</b><small>${x.invAmt != null ? 'ตามใบกำกับ (ไม่รวม VAT)' : x.P ? 'ประมาณจากราคา SO × ยอดสั่ง' : 'ไม่มีราคา'}</small></div></div>
-      <h4>3. ไทม์ไลน์</h4><div class="js-tl">${step('เปิดใบสั่งผลิต', T.open)}${step('พิมพ์', T.p0, T.p1)}${step('ไดคัท', T.d0, T.d1)}${step('QC', T.q0, T.q1)}${step('ส่งของ', T.s0, T.s1)}</div>
+      <h4>3. ไทม์ไลน์</h4><div class="js-tl">${step('เปิดใบสั่งผลิต', T.open)}${step('พิมพ์', T.p0, T.p1)}${step('ไดคัท', T.d0, T.d1)}${w.subcon ? step('🏭 ซับคอน', w.subcon_sent, w.subcon_back) : ''}${step('QC', T.q0, T.q1)}${step('ส่งของ', T.s0, T.s1)}</div>
       ${x.pauses ? `<div class="js-note">⏸ ถูกพักงาน (งานแทรก) ${x.pauses} ครั้ง</div>` : ''}
       <h4>4. ยอดแต่ละขั้นตอน</h4><table><thead><tr><th>ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">ไดคัท</th><th class="num">QC ผ่าน</th><th class="num">ส่งแล้ว</th><th class="num">ความเร็วเครื่อง (ครั้ง/นาที)</th></tr></thead>
         <tbody><tr><td class="num">${N(Q.order)}</td><td class="num">${N(Q.print)}</td><td class="num">${N(Q.die)}</td><td class="num">${N(Q.qc)}</td><td class="num">${N(Q.ship)}</td><td class="num">${x.spd.length ? Math.min(...x.spd) === Math.max(...x.spd) ? N(x.spd[0]) : N(Math.min(...x.spd)) + '–' + N(Math.max(...x.spd)) : '-'}</td></tr></tbody></table>
@@ -5256,12 +5329,13 @@ const JobSum = {
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="jobsum">📄 สรุปงาน</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="jobsum">📄 สรุปงาน</button><button data-v="subcon">🏭 งานซับคอน</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
     if (this.view === 'queue') return QueuePlan.page();
     if (this.view === 'speed') return SpeedRpt.page();
     if (this.view === 'jobsum') return JobSum.page();
+    if (this.view === 'subcon') return SubconRpt.page();
     if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
