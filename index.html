@@ -1,9 +1,15 @@
 <!doctype html>
+<!--
+  V-Pack Job Tracking — ระบบ MES (Manufacturing Execution System) ระบบติดตามการผลิตของโรงพิมพ์ V-pack
+  ครอบคลุม: รับคำสั่งซื้อ (SO / PO) → ใบสั่งผลิต → สแกนผลิต/QC → สต็อกสินค้าสำเร็จรูป → จัดส่ง → รายงาน
+  ส่วนเสริม: คิวเครื่อง · สั่งกระดาษ · งานซับคอน · ใบสรุปงาน — แบบ "กึ่ง MRP" (ผลิตตามสั่ง ไม่เก็บสต็อกวัตถุดิบ)
+  ข้อมูลอยู่บน Supabase · บัญชี/ภาษีอยู่ที่ Autoflight (เชื่อมด้วยไฟล์ CSV)
+-->
 <html lang="th">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>V-Pack Job Tracking</title>
+<title>V-Pack Job Tracking · ระบบ MES ติดตามการผลิต</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -44,7 +50,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
 .sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .sec h2 .req{color:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.sc-steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:0 16px}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.sc-steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:0 16px}.logo-mes{font-size:10px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:4px;background:#1f3a68;color:#fff;vertical-align:middle;margin-left:2px}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
 .chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
@@ -5459,7 +5465,7 @@ const HomePage = {
         <div id="hmTree">${this.menu.map(g => `<div class="hs-g"><div class="hs-gt">📁 ${g.g}</div>${g.items.map(i => `<a href="#" class="hs-i" data-k="${i.k}">${i.ic} ${i.t}</a>`).join('')}</div>`).join('')}</div>
       </aside>
       <section class="home-main">
-        <div class="home-hello"><div><b>V-PACK Job Tracking</b><span>ระบบใบสั่งผลิต · ติดตามการผลิต · QC · สต็อก</span></div><div class="home-date">${fmtD(new Date(Date.now() + 7*3600e3).toISOString())}</div></div>
+        <div class="home-hello"><div><b>V-PACK Job Tracking</b><span>ระบบ MES (Manufacturing Execution System) · ติดตามการผลิต ตั้งแต่ SO → ผลิต → QC → สต็อก → จัดส่ง</span></div><div class="home-date">${fmtD(new Date(Date.now() + 7*3600e3).toISOString())}</div></div>
         <div id="hmWarn"></div>
         <div class="home-stats" id="hmStats">
           <div class="st" data-k="inbox"><span>ข้อมูลสแกนรอตรวจ</span><b id="s1">…</b></div>
@@ -5724,7 +5730,7 @@ const Office = {
     if (this.shipping || params.has('ship')) return this.startShip(s);
     $('#app').innerHTML = `
       <div class="top"><div class="in">
-        <div class="logo" id="logoHome" style="cursor:pointer" title="กลับหน้าเมนูหลัก">V-PACK <span>Job Tracking</span></div>
+        <div class="logo" id="logoHome" style="cursor:pointer" title="V-Pack Job Tracking · ระบบ MES ติดตามการผลิต — กลับหน้าเมนูหลัก">V-PACK <span>Job Tracking</span> <small class="logo-mes">MES</small></div>
         <nav class="tabs">
           <button class="tab" data-t="home" style="--tc:#0f766e">🏠 หน้าหลัก</button>
           <button class="tab" data-t="so" style="--tc:#a16207">SO รอเปิด <span class="badge hidden" id="soBadge"></span></button>
