@@ -50,7 +50,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sec h2{font-size:15px;font-weight:600;margin:0 0 10px;display:flex;gap:8px;align-items:baseline}
 .sec h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px}
 .sec h2 .req{color:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.sc-steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:0 16px}.logo-mes{font-size:10px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:4px;background:#1f3a68;color:#fff;vertical-align:middle;margin-left:2px}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.chips.spd{grid-template-columns:repeat(4,1fr)}.chips.wr .chip{font-size:14px;padding:10px 6px}.rot-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}.rot-row .wc{padding:3px 10px}.pp-bill{margin-top:3px;font-size:11.5px;color:#0f766e;font-weight:600;white-space:nowrap}.wr-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}.sc-steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:0 16px}.logo-mes{font-size:10px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:4px;background:#1f3a68;color:#fff;vertical-align:middle;margin-left:2px}.gap-warn{margin:-2px 0 6px 158px;padding:6px 10px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12.5px;line-height:1.5}.gap-warn.ok{background:#fef3c7;color:#92400e}.field.calc.gap-neg,.field.gap-neg{color:#dc2626;font-weight:700;background:#fef2f2}.qkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.qroll{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}.qroll label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
 .chips.three{grid-template-columns:repeat(3,1fr)}
 .chip.st-stock{grid-column:1/-1;border-style:dashed}
 .chip.st-pause{color:#475569;background:#f1f5f9}.chip.st-pause.on{background:#64748b;color:#fff;border-color:#64748b}
@@ -822,6 +822,10 @@ const subPrint = w => !!w?.subcon && subSteps(w).some(x => /พิมพ์|ท�
 const subState = (w, t = todayISO()) => !w?.subcon ? null : w.subcon_back ? 'back' : w.subcon_sent ? (w.subcon_due && w.subcon_due < t ? 'late' : 'out') : 'wait';
 const SUB_ST = {wait: ['รอส่งออก', '#64748b', '⏳'], out: ['อยู่ที่ซับคอน', '#c2410c', '🏭'], late: ['เลยนัดรับ', '#dc2626', '🔴'], back: ['รับกลับแล้ว', '#15803d', '✅']};
 const subconBanner = w => w?.subcon ? `<div style="margin:1.5mm 0;padding:1.2mm 3mm;border:2px solid #c2410c;border-radius:4px;color:#c2410c;font-weight:700;font-size:1.05em">🏭 จ้างภายนอก: ส่ง ${esc(w.subcon_vendor || '(ยังไม่ระบุร้าน)')} ทำ ${esc(subSteps(w).join(', ') || '-')}${w.subcon_due ? ' · นัดรับ ' + fmtD(w.subcon_due) : ''}</div>` : '';
+// สาเหตุของเสีย: ช่าง/QC เลือกตอนสแกน → เก็บในหมายเหตุรูปแบบ "⚠ เสีย 500: สีเพี้ยน, กาวเยิ้ม" (ใช้ทำรายงาน)
+const WASTE_R = ['สีเพี้ยน / สีไม่ตรง', 'หมึกเลอะ / พิมพ์ไม่ติด', 'ไดคัทเบี้ยว / ไม่ขาด', 'กาวเยิ้ม / กาวไม่ติด', 'กระดาษยับ / ขาด', 'ม้วนหลวม / ม้วนเบี้ยว', 'ตั้งเครื่อง / ทดสอบงาน', 'รอยขีด / สกปรก', 'อื่นๆ'];
+const wasteTag = (R, q) => R.length ? `⚠ เสีย${+q > 0 ? ' ' + fmtN(+q) : ''}: ${R.join(', ')}` : '';
+const wasteOf = note => { const m = String(note || '').match(/⚠\s*เสีย(?:\s+([\d,]+))?:\s*([^·\n]+)/); return m ? {qty: m[1] ? +m[1].replace(/,/g, '') : null, reasons: m[2].split(',').map(x => x.trim()).filter(Boolean)} : null; };
 const SPEED_WO = 'job_ticket,machine,diecut_machine,customer_name,product_name,product_code,width_mm,height_mm,paper_type,paper_name,color_count,ink_type,order_qty,total_m,doc_date,repeat_mm,across,die_rows,run_div';
 const SPEEDS = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120];
 // ช่องจำนวนใส่สูตรได้ เช่น 12000*2, 12000x2, 5000*3+200 → คำนวณให้ แล้วเก็บสูตรไว้ในหมายเหตุ
@@ -1032,8 +1036,10 @@ const Demo = {
   async speedData(){ const d = this.db();
     const L = [...d.prod_logs.filter(l => +l.speed), ...d.inbox.filter(r => r.dept === 'prod' && r.review_status === 'pending' && +r.speed).map(r => ({...r, logged_at: r.scanned_at, pending: true}))];
     const js = new Set(L.map(r => r.job_ticket)); return {logs: L, wo: d.wo.filter(w => js.has(w.job_ticket))}; },
+  async woBrief(jobs){ const S = new Set(jobs); return this.db().wo.filter(w => S.has(w.job_ticket)); },
+  async progressOpen(){ return (await this.progress('', true, false)).filter(r => !r.closed && !r.cancelled); },
   async subconList(){ return this.db().wo.filter(w => w.subcon && !w.cancelled); },
-  async queueWo(){ return this.db().wo.filter(w => !w.closed && !w.cancelled).map(w => ({job_ticket: w.job_ticket, total_m: w.total_m, run_m: w.run_m, repeat_mm: w.repeat_mm, across: w.across, die_rows: w.die_rows, run_div: w.run_div})); },
+  async queueWo(){ return this.db().wo.filter(w => !w.closed && !w.cancelled).map(w => ({job_ticket: w.job_ticket, total_m: w.total_m, run_m: w.run_m, repeat_mm: w.repeat_mm, across: w.across, die_rows: w.die_rows, run_div: w.run_div, diecut_machine: w.diecut_machine})); },
   async setMeta(k, v){ const d = this.db(); (d.meta ||= {})[k] = v; this.save(); },
   async deletedList(){ return [...(this.db().deleted || [])].map((x, i) => ({id: i + 1, ...x})).reverse(); },
   async restoreWorkOrder(id){ const d = this.db(), x = d.deleted[id - 1];
@@ -1336,8 +1342,10 @@ const Live = {
     for (let k = 0; k < jobs.length; k += 150) wo.push(...this.chk(await this.sb.from('work_orders').select(SPEED_WO).in('job_ticket', jobs.slice(k, k + 150))));
     return {logs: L, wo};
   },
+  async woBrief(jobs){ const out = []; for (let k = 0; k < jobs.length; k += 150) out.push(...this.chk(await this.sb.from('work_orders').select('job_ticket,customer_name,product_name,machine,diecut_machine').in('job_ticket', jobs.slice(k, k + 150)))); return out; },
+  async progressOpen(){ return this.pageAll(() => this.sb.from('v_job_progress').select('*').eq('closed', false).eq('cancelled', false).order('job_ticket')); },
   async subconList(){ try { return await this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_name,po_no,due_date,order_qty,closed,subcon_vendor,subcon_steps,subcon_sent,subcon_due,subcon_back,subcon_cost,subcon_bill,subcon').eq('subcon', true).not('cancelled', 'is', true).order('job_ticket')); } catch { return []; } },
-  async queueWo(){ return this.pageAll(() => this.sb.from('work_orders').select('job_ticket,total_m,run_m,repeat_mm,across,die_rows,run_div').not('closed', 'is', true).order('job_ticket')); },
+  async queueWo(){ return this.pageAll(() => this.sb.from('work_orders').select('job_ticket,total_m,run_m,repeat_mm,across,die_rows,run_div,diecut_machine').not('closed', 'is', true).order('job_ticket')); },
   async getMeta(k){ try { const r = this.chk(await this.sb.from('app_meta').select('value').eq('key', k).maybeSingle()); return r ? r.value : null; } catch { return undefined; } },
   async setMeta(k, v){ this.chk(await this.sb.from('app_meta').upsert({key: k, value: v, updated_at: new Date().toISOString()})); },
   async deletedList(){ return this.chk(await this.sb.from('deleted_work_orders').select('*').order('deleted_at', {ascending: false}).limit(200)); },
@@ -1423,7 +1431,7 @@ async function renderScan(dept, job){
   }
 
   const lastName = store.get('vp_name_' + dept, '');
-  const st = { employee: info.employees.includes(lastName) ? lastName : '', other: '', step: '', status: '', qty: '', note: '', speed: '', spdO: '', qmode: dept === 'prod' && /rotary/i.test((info.machine || '') + (info.diecut_machine || '')) ? 'roll' : 'dot', rolls: '', rlen: String(rollLen(info)) };
+  const st = { employee: info.employees.includes(lastName) ? lastName : '', other: '', step: '', status: '', qty: '', note: '', speed: '', spdO: '', wr: [], wq: '', qmode: dept === 'prod' && /rotary/i.test((info.machine || '') + (info.diecut_machine || '')) ? 'roll' : 'dot', rolls: '', rlen: String(rollLen(info)) };
   let n = 0;
   const num = () => `<span class="n">${++n}</span>`;
 
@@ -1457,6 +1465,10 @@ async function renderScan(dept, job){
       <div class="chips spd" id="spdChips">${SPEEDS.map(v => `<button class="chip" data-v="${v}">${v}</button>`).join('')}<button class="chip" data-v="__o">อื่นๆ</button></div>
       <input id="spdOther" class="field hidden" style="margin-top:8px" inputmode="decimal" placeholder="พิมพ์ตัวเลข เช่น 65 (ครั้ง/นาที)">
       <div class="hint" style="margin-top:6px">ใส่ตัวเลขบนหน้าจอเครื่อง (ครั้ง/นาที) ตอนวิ่งงานปกติ — ใช้ทำคิวเครื่องและประเมินราคางานครั้งต่อไป</div></div>` : ''}
+    <div class="sec hidden" id="wrSec"><h2>♻️ ของเสีย <span class="req">(ถ้ามี)</span></h2>
+      <div class="chips wr" id="wrChips">${WASTE_R.map(v => `<button class="chip" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>
+      <input id="wrQty" class="field hidden" style="margin-top:8px" inputmode="numeric" placeholder="จำนวนเสียประมาณ (ดวง) — ไม่ใส่ก็ได้">
+      <div class="hint" style="margin-top:6px">เลือกได้หลายข้อ ระบบบันทึกในหมายเหตุให้เอง ใช้ดูว่าของเสียเกิดจากอะไรบ่อย</div></div>
     <div class="sec"><h2>หมายเหตุ</h2><textarea id="note" class="field" rows="2" placeholder="ถ้ามี"></textarea></div>
     <div class="submitbar"><div class="inner"><button class="btn block" id="submit" disabled>ส่งข้อมูล</button></div></div>`}
     ${info.recent.length ? `<div class="recent"><h3>ล่าสุดของ JOB นี้ (${esc(D.title)})</h3>${info.recent.map(r => `
@@ -1472,6 +1484,8 @@ async function renderScan(dept, job){
     $('#otherName').classList.toggle('hidden', st.employee !== '__other');
     document.querySelectorAll('#stepChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.step));
     document.querySelectorAll('#stChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.status));
+    { const ok = st.status && /ทยอย|เสร็จ|สุดท้าย/.test(st.status); $('#wrSec').classList.toggle('hidden', !ok);
+      document.querySelectorAll('#wrChips .chip').forEach(c => c.classList.toggle('on', st.wr.includes(c.dataset.v))); $('#wrQty').classList.toggle('hidden', !st.wr.length); }
     if ($('#spdSec')) { $('#spdSec').classList.toggle('hidden', !(st.step && st.status && !isPause(st.status)));
       document.querySelectorAll('#spdChips .chip').forEach(c => c.classList.toggle('on', c.dataset.v === st.speed)); $('#spdOther').classList.toggle('hidden', st.speed !== '__o'); }
     $('#qtySec').classList.toggle('hidden', !needQty()); { const rq = $('#qtySec .req'); if (rq) rq.textContent = optQty() ? '(ถ้ามี)' : '*'; }
@@ -1487,6 +1501,8 @@ async function renderScan(dept, job){
   };
   const bind = (sel, key) => document.querySelectorAll(sel + ' .chip').forEach(c => c.onclick = () => { st[key] = c.dataset.v; refresh(); if (key==='status' && needQty()) setTimeout(() => $('#qty').focus(), 50); });
   bind('#empChips', 'employee'); bind('#stepChips', 'step'); bind('#stChips', 'status');
+  document.querySelectorAll('#wrChips .chip').forEach(c => c.onclick = () => { const v = c.dataset.v, i = st.wr.indexOf(v); if (i < 0) st.wr.push(v); else st.wr.splice(i, 1); refresh(); });
+  $('#wrQty').oninput = e => { st.wq = e.target.value.replace(/[^\d]/g, ''); e.target.value = st.wq ? Number(st.wq).toLocaleString('en-US') : ''; };
   document.querySelectorAll('#spdChips .chip').forEach(c => c.onclick = () => { st.speed = st.speed === c.dataset.v ? '' : c.dataset.v; refresh(); if (st.speed === '__o') setTimeout(() => $('#spdOther').focus(), 50); });
   $('#spdOther') && ($('#spdOther').oninput = e => { st.spdO = e.target.value.replace(/[^\d.]/g, ''); });
   $('#otherName').oninput = e => { st.other = e.target.value; refresh(); };
@@ -1505,6 +1521,7 @@ async function renderScan(dept, job){
     const employee = st.employee === '__other' ? st.other.trim() : st.employee;
     const spd = dept !== 'prod' || isPause(st.status) ? null : +(st.speed === '__o' ? st.spdO : st.speed) || null;
     let qty = null, note = st.note;
+    if (st.wr.length && /ทยอย|เสร็จ|สุดท้าย/.test(st.status)) note = noteWithExpr(note, wasteTag(st.wr, st.wq));
     if (needQty()) { if (st.qmode === 'roll' && +st.rolls > 0) { qty = rollEst(info, +st.rolls, +st.rlen); note = noteWithExpr(note, `🌀 ${+st.rolls} ม้วนใหญ่ × ${fmtN(+st.rlen)} ม.${qty ? ` ≈ ${fmtN(qty)} ดวง (ประมาณ)` : ' (รอออฟฟิศคำนวณ)'}`); }
       else { const Q = qv(); qty = Q.v > 0 ? Q.v : null; note = noteWithExpr(note, Q.expr && Q.expr.replace(/\*/g, '×')); } }
     const payload = { dept, job: info.job_ticket, employee, step: st.step, status: st.status, qty, note, device: deviceId(), speed: spd };
@@ -5021,23 +5038,36 @@ const ShipPage = {
 /* ================== วางแผนคิวเครื่อง: ใครอยู่คิวไหน จะเสร็จวันไหน ทันกำหนดส่งไหม ================== */
 const QueuePlan = {
   DEF: {hours: 8, ot: 0, startH: 8, endH: 17, speed: 50, setup: 60, m: {}, order: {}},
-  cfg: null, rows: [], f: store.get('vp_q_f', {orient: 'landscape', fs: 9, font: 'Tahoma', band: 'on'}),
-  isRun: r => /กำลัง|ทยอย/.test(r.print_status || ''), isPause: r => isPause(r.print_status), printDone: r => /เสร็จ|ปั๊มเปล่า/.test(r.print_status || ''),
+  cfg: null, rows: [], mode: store.get('vp_q_mode', 'print'), f: store.get('vp_q_f', {orient: 'landscape', fs: 9, font: 'Tahoma', band: 'on'}),
+  MODES: {print: ['🖨 เครื่องพิมพ์', 'พิมพ์'], die: ['✂️ เครื่องไดคัท', 'ไดคัท'], qc: ['📦 รอ QC / แพ็ค', 'QC']},
+  isRun: r => /กำลัง|ทยอย/.test(r._st ?? r.print_status ?? ''), isPause: r => isPause(r._st ?? r.print_status), printDone: r => /เสร็จ|ปั๊มเปล่า/.test(r.print_status || ''),
+  dieDone: r => /เสร็จ/.test(r.diecut_status || ''), qcDone: r => /^เสร็จ|สุดท้าย/.test(r.qc_status || ''),
   mc(m){ const c = this.cfg.m[m] || {}, a0 = this.avg?.get(m), a = a0?.n >= 3 ? a0 : null;   // ความเร็ว: ตั้งเองรายเครื่อง → ค่าเฉลี่ยจริงจากช่าง → ค่าเริ่มต้น
     return {speed: +c.speed || (a ? Math.round(a.avg) : 0) || +this.cfg.speed || 50, src: +c.speed ? 'set' : a ? 'avg' : 'def', n: a?.n || 0, mpm: !!c.mpm, setup: c.setup === 0 || c.setup ? +c.setup : +this.cfg.setup || 0}; },
   async load(){
     if (!this.cfg) { let c = null; try { c = await API.getMeta('queue_cfg'); } catch {} this.cfg = {...this.DEF, ...store.get('vp_queue_cfg', {}), ...(c || {})}; this.cfg.m ||= {}; this.cfg.order ||= {}; }
-    const [P, W, SD, SC] = await Promise.all([API.progress('', true, false), API.queueWo(), API.speedData().catch(() => ({logs: [], wo: []})), API.subconList().catch(() => [])]), wm = new Map(W.map(w => [w.job_ticket, w]));
-    const outP = new Set(SC.filter(subPrint).map(w => w.job_ticket));   // พิมพ์ที่ซับคอน → ไม่อยู่ในคิวเครื่องเรา
-    const G = SpeedRpt.group(SD, 'พิมพ์'); this.jobSpd = new Map(G.map(g => [g.job_ticket, g.last])); this.avg = SpeedRpt.byMachine(G);
-    this.rows = P.filter(r => !r.closed && !r.cancelled && !outP.has(r.job_ticket) && !this.printDone(r) && !/^เสร็จ/.test(r.qc_status || '')).map(r => { const w = wm.get(r.job_ticket) || {};
-      const tot = +w.total_m || +w.run_m || 0, o = +r.order_qty || 0, done = Math.max(+r.print_qty || 0, 0), frac = o ? Math.max(0, 1 - done / o) : 1;
-      return {...r, _tot: tot, _left: Math.round(tot * frac), _pct: o ? Math.min(100, Math.round(done / o * 100)) : 0, _rp: +w.repeat_mm || 0, _dv: +w.run_div || 1000}; });
+    const [P, W, SD, SC] = await Promise.all([API.progressOpen(), API.queueWo(), API.speedData().catch(() => ({logs: [], wo: []})), API.subconList().catch(() => [])]);
+    this.D = {P, wm: new Map(W.map(w => [w.job_ticket, w])), SD, sc: new Map(SC.map(w => [w.job_ticket, w]))}; this.build();
+  },
+  // แยกงานตามโหมด: พิมพ์ = ยังพิมพ์ไม่เสร็จ · ไดคัท = เริ่มพิมพ์/พิมพ์เสร็จแล้ว รอไดคัท · QC = ไดคัทเสร็จ (หรือไม่มีไดคัท) รอ QC/แพ็ค
+  build(){ const {P, wm, SD, sc} = this.D, md = this.mode, G = SpeedRpt.group(SD, md === 'die' ? 'ไดคัท' : 'พิมพ์');
+    this.jobSpd = new Map(G.map(g => [g.job_ticket, g.last])); this.avg = SpeedRpt.byMachine(G);
+    const subHas = (j, re) => { const w = sc.get(j); return !!w && subSteps(w).some(x => re.test(x)); }, back = j => !!sc.get(j)?.subcon_back;
+    const mk = (r, done, st, m) => { const w = wm.get(r.job_ticket) || {}, tot = +w.total_m || +w.run_m || 0, o = +r.order_qty || 0, d = Math.max(+done || 0, 0), frac = o ? Math.max(0, 1 - d / o) : 1;
+      return {...r, _m: m || '(ไม่ระบุเครื่อง)', _st: st || '', _tot: tot, _left: Math.round(tot * frac), _pct: o ? Math.min(100, Math.round(d / o * 100)) : 0, _rp: +w.repeat_mm || 0, _dv: +w.run_div || 1000, _dm: w.diecut_machine}; };
+    const open = P.filter(r => !r.closed && !r.cancelled && !this.qcDone(r));
+    if (md === 'print') this.rows = open.filter(r => !subHas(r.job_ticket, /พิมพ์|ทั้งงาน/) && !this.printDone(r)).map(r => mk(r, r.print_qty, r.print_status, r.machine));
+    else if (md === 'die') this.rows = open.filter(r => { const w = wm.get(r.job_ticket) || {};
+        return w.diecut_machine && w.diecut_machine !== r.machine && !this.dieDone(r) && !subHas(r.job_ticket, /ไดคัท|ทั้งงาน/) && (this.printDone(r) || +r.print_qty > 0 || /กำลัง|ทยอย/.test(r.print_status || '') || (subHas(r.job_ticket, /พิมพ์/) && back(r.job_ticket))); })
+      .map(r => mk(r, r.diecut_qty, r.diecut_status, wm.get(r.job_ticket)?.diecut_machine));
+    else this.rows = open.filter(r => { const w = wm.get(r.job_ticket) || {}, s = sc.get(r.job_ticket);
+        return /กำลัง|ทยอย/.test(r.qc_status || '') || (w.diecut_machine ? this.dieDone(r) : this.printDone(r)) || (s && s.subcon_back); })
+      .map(r => ({...mk(r, r.qc_qty ?? r.eff_qc, r.qc_status, ''), _sub: sc.get(r.job_ticket)}));
   },
   save(){ store.set('vp_queue_cfg', this.cfg); clearTimeout(this._st); this._st = setTimeout(() => API.setMeta('queue_cfg', this.cfg).catch(() => {}), 600); },
   // คิวของเครื่อง: งานที่กำลังทำอยู่บนเครื่องก่อน → ลำดับที่จัดเอง → งานใหม่แทรกตามกำหนดส่ง
   queue(m){
-    const L = this.rows.filter(r => (r.machine || '(ไม่ระบุเครื่อง)') === m), due = r => r.due_date || '9999-12-31';
+    const L = this.rows.filter(r => r._m === m), due = r => r.due_date || '9999-12-31';
     const run = L.filter(r => this.isRun(r)).sort((a, b) => due(a).localeCompare(due(b))), rest = L.filter(r => !this.isRun(r)).sort((a, b) => due(a).localeCompare(due(b)) || a.job_ticket.localeCompare(b.job_ticket));
     const saved = (this.cfg.order[m] || []).map(j => rest.find(r => r.job_ticket === j)).filter(Boolean), out = [...saved];
     rest.filter(r => !saved.includes(r)).forEach(r => { const i = out.findIndex(x => due(x) > due(r)); if (i < 0) out.push(r); else out.splice(i, 0, r); });
@@ -5058,30 +5088,44 @@ const QueuePlan = {
       const late = r.due_date && day > r.due_date ? Kpi.diff(r.due_date, day) : 0;
       return {...r, _min: need, _start: start, _end: day, _late: late, _spd: spd, _js: !!js, _mpm: mpm}; });
   },
-  machines(){ const ord = WOForm.L?.spec?.machine || [], ms = [...new Set([...ord, ...this.rows.map(r => r.machine || '(ไม่ระบุเครื่อง)')])];   // ทุกเครื่องในฐานข้อมูล Spec + เครื่องที่มีงาน
+  machines(){ const ord = WOForm.L?.spec?.[this.mode === 'die' ? 'diecut_machine' : 'machine'] || [], ms = [...new Set([...ord, ...this.rows.map(r => r._m)])];   // ทุกเครื่องในฐานข้อมูล Spec + เครื่องที่มีงาน
     return ms.sort((a, b) => (ord.indexOf(a) < 0 ? 999 : ord.indexOf(a)) - (ord.indexOf(b) < 0 ? 999 : ord.indexOf(b)) || a.localeCompare(b)); },
   hrs: m => m >= 60 ? `${fmtN(Math.floor(m / 60))} ชม. ${Math.round(m % 60) ? Math.round(m % 60) + ' น.' : ''}`.trim() : `${Math.round(m)} น.`,
   async page(){
-    $('#rpBody').innerHTML = `<div class="toolbar"><button class="btn ghost sm" id="qpRe">↻ รีเฟรช</button>${Office.ro ? '' : '<button class="btn ghost sm" id="qpCfg">⚙ ตั้งค่าความเร็ว / เวลาทำงาน</button>'}
+    $('#rpBody').innerHTML = `<div class="toolbar"><div class="seg" id="qpMode">${Object.entries(this.MODES).map(([k, [l]]) => `<button data-v="${k}" class="${this.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div><button class="btn ghost sm" id="qpRe">↻ รีเฟรช</button>${Office.ro ? '' : '<button class="btn ghost sm" id="qpCfg">⚙ ตั้งค่าความเร็ว / เวลาทำงาน</button>'}
       <span class="sp"></span><button class="btn ghost sm" id="qpImg">🖼 รูปภาพ</button><button class="btn ghost sm" id="qpPrint">🖨 พิมพ์</button></div><div id="qpBody"><div class="empty">กำลังโหลด…</div></div>`;
     $('#qpRe').onclick = () => this.page(); $('#qpCfg') && ($('#qpCfg').onclick = () => this.settings());
+    document.querySelectorAll('#qpMode button').forEach(b => b.onclick = () => { this.mode = b.dataset.v; store.set('vp_q_mode', this.mode); document.querySelectorAll('#qpMode button').forEach(x => x.classList.toggle('on', x === b));
+      $('#qpCfg') && $('#qpCfg').classList.toggle('hidden', this.mode === 'qc'); if (this.D) { this.build(); this.draw(); } });
+    $('#qpCfg') && $('#qpCfg').classList.toggle('hidden', this.mode === 'qc');
     $('#qpPrint').onclick = () => this.print(); $('#qpImg').onclick = () => { RptPrint._img = true; this.print(); };
     try { if (!WOForm.L) WOForm.L = await API.lookups(); await this.load(); } catch (e) { $('#qpBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     this.draw();
   },
   sumRow(m){ const P = this.plan(m), mc = this.mc(m), min = P.reduce((a, r) => a + r._min, 0), cap = ((+this.cfg.hours || 8) + (+this.cfg.ot || 0)) * 60;
     return {m, P, mc, min, nRun: P.filter(r => this.isRun(r)).length, days: min / cap, end: P.at(-1)?._end, late: P.filter(r => r._late).length, left: P.reduce((a, r) => a + r._left, 0)}; },
+  qcRows(){ const due = r => r.due_date || '9999-12-31'; return [...this.rows].sort((a, b) => (+this.isRun(b) - +this.isRun(a)) || due(a).localeCompare(due(b)) || a.job_ticket.localeCompare(b.job_ticket)); },
+  qcTable(R, scr){ const t = todayISO();
+    return `<table class="${scr ? 'trk' : ''}"><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะ QC</th><th>กำหนดส่ง</th><th class="num">ยอดสั่ง</th><th class="num">QC แล้ว</th><th class="num">เหลือแพ็ค</th><th>มาจาก</th></tr></thead><tbody>
+      ${R.map((r, i) => { const done = +(r.qc_qty ?? r.eff_qc) || 0, left = Math.max(0, (+r.order_qty || 0) - done);
+        return `<tr class="${this.isRun(r) && scr ? 'qp-run' : ''}"><td>${i + 1}</td><td>${scr ? `<a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a>` : esc(r.job_ticket)}</td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td>
+        <td>${scr ? `<span class="st ${this.isRun(r) ? 'st-run' : 'st-no'}">${esc(/[ก-๙a-z]/i.test(r.qc_status || '') ? r.qc_status : 'รอ QC')}</span>` : esc(/[ก-๙a-z]/i.test(r.qc_status || '') ? r.qc_status : 'รอ QC')}</td><td class="${r.due_date && r.due_date < t ? 'stock-neg' : ''}">${r.due_date ? fmtD(r.due_date) : '-'}</td>
+        <td class="num">${fmtN(r.order_qty)}</td><td class="num">${done ? fmtN(done) : '-'}</td><td class="num"><b>${fmtN(left)}</b></td><td>${r._sub ? '🏭 ' + esc(r._sub.subcon_vendor || 'ซับคอน') : r._dm ? '✂️ ' + esc(r._dm) : '🖨 ' + esc(r.machine || '')}</td></tr>`; }).join('') || '<tr><td colspan="10" class="empty">ไม่มีงานรอ QC / แพ็ค</td></tr>'}</tbody></table>`; },
   draw(){
-    const S = this.machines().map(m => this.sumRow(m)), t = todayISO(), ro = Office.ro;
+    if (this.mode === 'qc') { const R = this.qcRows(), t = todayISO(), nl = R.filter(r => r.due_date && r.due_date < t).length;
+      $('#qpBody').innerHTML = `<div class="hint" style="margin:0 0 8px">งานที่ไดคัทเสร็จแล้ว (หรือพิมพ์เสร็จ / รับกลับจากซับคอน) รอ QC สลิท–ห่อ–แพ็ค · QC กำลังทำขึ้นก่อน แล้วเรียงตามกำหนดส่ง · ${R.length} JOB${nl ? ` · <b class="stock-neg">เลยกำหนดส่ง ${nl} JOB</b>` : ''}</div>
+        <div class="card tbl-wrap">${this.qcTable(R, true)}</div>`;
+      $('#qpBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); }); return; }
+    const S = this.machines().map(m => this.sumRow(m)), t = todayISO(), ro = Office.ro, stepL = this.MODES[this.mode][1];
     const C = this.cfg, maxD = Math.max(1, ...S.map(x => x.days));
     $('#qpBody').innerHTML = `<div class="hint" style="margin:0 0 8px">เวลาทำงาน ${C.hours} ชม./วัน${+C.ot ? ` + OT ${C.ot} ชม.` : ''} · จันทร์–เสาร์ ${pad2(C.startH)}:00–${pad2(C.endH)}:00 · ตั้งเครื่องเริ่มต้น ${C.setup} นาที/JOB · ความเร็วเริ่มต้น ${C.speed} ครั้ง/นาที (ตั้งรายเครื่องได้) — ความเร็วเป็น ครั้ง/นาที ตามหน้าจอเครื่อง ระบบแปลงเป็นเมตรด้วยระยะ repeat ในใบสั่งผลิต · เวลาเป็นค่าประมาณจากเมตรที่ยังไม่ได้พิมพ์</div>
       <div class="card tbl-wrap"><table class="trk qp-sum"><thead><tr><th>เครื่อง</th><th class="num">ความเร็ว (ครั้ง/นาที)</th><th class="num">JOB ในคิว</th><th class="num">เมตรคงเหลือ</th><th class="num">เวลางาน</th><th style="width:28%">ภาระงาน (วันทำงาน)</th><th>คิวหมดประมาณ</th><th class="num">ไม่ทันกำหนด</th></tr></thead><tbody>
       ${S.map(x => `<tr${x.P.length ? '' : ' class="qp-idle"'}><td>${x.P.length ? `<a href="#qp-${esc(x.m)}" class="qp-go"><b>${esc(x.m)}</b></a>` : `<b>${esc(x.m)}</b> <small class="hint">ว่าง</small>`}</td><td class="num">${fmtN(x.mc.speed)} <small class="hint">${{set: '', avg: `(เฉลี่ยจริง ${x.mc.n} JOB)`, def: '(เริ่มต้น)'}[x.mc.src]}</small></td><td class="num">${x.P.length}</td><td class="num">${fmtN(x.left)}</td><td class="num">${this.hrs(x.min)}</td>
         <td><div class="qp-bar"><i style="width:${Math.min(100, x.days / maxD * 100)}%;background:${x.late ? '#f87171' : x.days > 5 ? '#fb923c' : '#4ade80'}"></i><span>${x.days.toFixed(1)} วัน</span></div></td><td>${x.end ? fmtD(x.end) : '-'}</td><td class="num">${x.late ? `<b class="stock-neg">${x.late}</b>` : '<span class="hint">0</span>'}</td></tr>`).join('')}</tbody></table></div>
-      ${S.filter(x => x.P.length).map(x => `<div class="card qp-m" id="qp-${esc(x.m)}"><div class="qp-mh"><b>🖨️ ${esc(x.m)}</b><span class="hint">${x.P.length} JOB · ${this.hrs(x.min)} · คิวหมด ${x.end ? fmtD(x.end) : '-'}${x.late ? ` · <b class="stock-neg">ไม่ทัน ${x.late} JOB</b>` : ''}</span>${!ro && (C.order[x.m] || []).length ? `<button class="btn ghost sm" data-qrs="${esc(x.m)}">↺ เรียงตามกำหนดส่ง</button>` : ''}</div>
-        <div class="tbl-wrap"><table class="trk"><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะพิมพ์</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num" title="⚡ = ช่างใส่ตอนสแกน">ครั้ง/นาที</th><th class="num">เวลา</th><th>คาดว่าเริ่ม – เสร็จ</th><th>ผล</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
+      ${S.filter(x => x.P.length).map(x => `<div class="card qp-m" id="qp-${esc(x.m)}"><div class="qp-mh"><b>${this.mode === 'die' ? '✂️' : '🖨️'} ${esc(x.m)}</b><span class="hint">${x.P.length} JOB · ${this.hrs(x.min)} · คิวหมด ${x.end ? fmtD(x.end) : '-'}${x.late ? ` · <b class="stock-neg">ไม่ทัน ${x.late} JOB</b>` : ''}</span>${!ro && (C.order[x.m] || []).length ? `<button class="btn ghost sm" data-qrs="${esc(x.m)}">↺ เรียงตามกำหนดส่ง</button>` : ''}</div>
+        <div class="tbl-wrap"><table class="trk"><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะ${stepL}</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num" title="⚡ = ช่างใส่ตอนสแกน">ครั้ง/นาที</th><th class="num">เวลา</th><th>คาดว่าเริ่ม – เสร็จ</th><th>ผล</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
         ${x.P.map((r, i) => `<tr class="${this.isRun(r) ? 'qp-run' : ''}"><td>${i + 1}</td><td><a href="#" class="jl" data-open="${esc(r.job_ticket)}">${esc(r.job_ticket)}</a></td><td class="cu">${esc(r.customer_name || '')}</td><td class="pn">${esc(r.product_name || '')}</td>
-          <td><span class="st ${this.isRun(r) ? 'st-run' : this.isPause(r) ? 'st-pause' : 'st-no'}">${esc(r.print_status || '')}</span>${r._pct ? ` <small class="hint">${r._pct}%</small>` : ''}</td>
+          <td><span class="st ${this.isRun(r) ? 'st-run' : this.isPause(r) ? 'st-pause' : 'st-no'}">${esc(r._st || '')}</span>${r._pct ? ` <small class="hint">${r._pct}%</small>` : ''}</td>
           <td>${r.due_date ? `<span class="${r.due_date < t ? 'stock-neg' : ''}">${fmtD(r.due_date)}</span>` : '<span class="hint">ไม่ระบุ</span>'}</td><td class="num">${r._tot ? fmtN(r._left) : '<span class="hint" title="ใบสั่งผลิตไม่มีเมตรที่ต้องใช้">?</span>'}</td><td class="num" title="≈ ${fmtN(Math.round(r._mpm))} เมตร/นาที${r._rp || x.mc.mpm ? '' : ' (ใบสั่งผลิตไม่มีระยะ repeat ใช้ 100 มม.)'}">${r._js ? `<b>⚡${fmtN(r._spd)}</b>` : `<span class="hint">${fmtN(r._spd)}</span>`}</td><td class="num">${this.hrs(r._min)}</td>
           <td>${r._start === r._end ? fmtD(r._end) : `${fmtD(r._start).slice(0, 5)} – ${fmtD(r._end)}`}</td><td>${!r.due_date ? '<span class="hint">-</span>' : r._late ? `<b class="stock-neg">🔴 ช้า ${r._late} วัน</b>` : '<span style="color:#15803d">✅ ทัน</span>'}</td>
           ${ro ? '' : `<td style="white-space:nowrap">${this.isRun(r) ? '<small class="hint">อยู่บนเครื่อง</small>' : `<button class="btn ghost sm qp-mv" data-qu="${esc(r.job_ticket)}" data-qm="${esc(x.m)}" title="เลื่อนขึ้น"${i === x.nRun ? ' disabled' : ''}>↑</button><button class="btn ghost sm qp-mv" data-qd="${esc(r.job_ticket)}" data-qm="${esc(x.m)}" title="เลื่อนลง"${i === x.P.length - 1 ? ' disabled' : ''}>↓</button>`}</td>`}</tr>`).join('')}</tbody></table></div></div>`).join('') || '<div class="empty">ไม่มีงานรอพิมพ์</div>'}`;
@@ -5111,12 +5155,13 @@ const QueuePlan = {
       this.save(); d.close(); toast('บันทึกแล้ว'); this.draw(); };
   },
   print(){
-    const S = this.machines().map(m => this.sumRow(m)), C = this.cfg;
-    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>แผนคิวเครื่อง</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}<br>${C.hours} ชม./วัน${+C.ot ? ` + OT ${C.ot}` : ''} · จันทร์–เสาร์ · ตั้งเครื่อง ${C.setup} นาที/JOB</div></div>
+    if (this.mode === 'qc') return RptPrint.go({title: 'งานรอ QC / แพ็ค', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>งานรอ QC / แพ็ค</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}</div></div>${this.qcTable(this.qcRows(), false)}</div>`);
+    const S = this.machines().map(m => this.sumRow(m)), C = this.cfg, stepL = this.MODES[this.mode][1];
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>แผนคิวเครื่อง${stepL}</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}<br>${C.hours} ชม./วัน${+C.ot ? ` + OT ${C.ot}` : ''} · จันทร์–เสาร์ · ตั้งเครื่อง ${C.setup} นาที/JOB</div></div>
       <table><thead><tr><th>เครื่อง</th><th class="num">ครั้ง/นาที</th><th class="num">JOB</th><th class="num">เมตรคงเหลือ</th><th class="num">เวลางาน</th><th>คิวหมด</th><th class="num">ไม่ทันกำหนด</th></tr></thead><tbody>
       ${S.map(x => `<tr><td>${esc(x.m)}</td><td class="num">${fmtN(x.mc.speed)}</td><td class="num">${x.P.length}</td><td class="num">${fmtN(x.left)}</td><td class="num">${this.hrs(x.min)}</td><td>${x.end ? fmtD(x.end) : '-'}</td><td class="num">${x.late || ''}</td></tr>`).join('')}</tbody></table>
-      ${S.filter(x => x.P.length).map(x => `<h3 style="margin:4mm 0 1mm">${esc(x.m)} · ${x.P.length} JOB · คิวหมด ${x.end ? fmtD(x.end) : '-'}</h3><table><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะพิมพ์</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num">ครั้ง/นาที</th><th class="num">เวลา</th><th>คาดว่าเสร็จ</th><th>ผล</th></tr></thead><tbody>
-        ${x.P.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.job_ticket)}</td><td>${esc(r.customer_name || '')}</td><td>${esc(r.product_name || '')}</td><td>${esc(r.print_status || '')}</td><td>${r.due_date ? fmtD(r.due_date) : ''}</td><td class="num">${fmtN(r._left)}</td><td class="num">${fmtN(r._spd)}</td><td class="num">${this.hrs(r._min)}</td><td>${fmtD(r._end)}</td><td>${!r.due_date ? '' : r._late ? `ช้า ${r._late} วัน` : 'ทัน'}</td></tr>`).join('')}</tbody></table>`).join('')}</div>`;
+      ${S.filter(x => x.P.length).map(x => `<h3 style="margin:4mm 0 1mm">${esc(x.m)} · ${x.P.length} JOB · คิวหมด ${x.end ? fmtD(x.end) : '-'}</h3><table><thead><tr><th>#</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>สถานะ${stepL}</th><th>กำหนดส่ง</th><th class="num">เมตรเหลือ</th><th class="num">ครั้ง/นาที</th><th class="num">เวลา</th><th>คาดว่าเสร็จ</th><th>ผล</th></tr></thead><tbody>
+        ${x.P.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.job_ticket)}</td><td>${esc(r.customer_name || '')}</td><td>${esc(r.product_name || '')}</td><td>${esc(r._st || '')}</td><td>${r.due_date ? fmtD(r.due_date) : ''}</td><td class="num">${fmtN(r._left)}</td><td class="num">${fmtN(r._spd)}</td><td class="num">${this.hrs(r._min)}</td><td>${fmtD(r._end)}</td><td>${!r.due_date ? '' : r._late ? `ช้า ${r._late} วัน` : 'ทัน'}</td></tr>`).join('')}</tbody></table>`).join('')}</div>`;
     RptPrint.go({title: 'แผนคิวเครื่อง', orient: this.f.orient, fs: this.f.fs, font: this.f.font}, html);
   }
 };
@@ -5164,6 +5209,39 @@ const SpeedRpt = {
     $('#spBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); }); },
   print(){ const G = this.rows(), f = [this.q && `ค้นหา "${this.q}"`, (this.w || this.h) && `ขนาดใกล้ ${this.w || '-'}×${this.h || '-'} มม.`, this.step && `ขั้นตอน${this.step}`].filter(Boolean).join(' · ');
     RptPrint.go({title: 'ความเร็วเครื่อง', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>ประวัติความเร็วเครื่อง</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}${f ? '<br>' + esc(f) : ''}</div></div>${this.table(G, false)}</div>`); }
+};
+
+/* ================== สาเหตุของเสีย (จากที่ช่าง/QC เลือกตอนสแกน) ================== */
+const WasteRpt = {
+  f: store.get('vp_wr_f', {from: '', to: '', step: ''}), L: [],
+  async page(){ const t = todayISO(); if (!this.f.from) { this.f.from = t.slice(0, 8) + '01'; this.f.to = t; }
+    $('#rpBody').innerHTML = `<div class="toolbar"><span class="hint">ช่วงวันที่</span><input id="wrF" class="field" style="width:120px" value="${isoToTh(this.f.from)}"><span>–</span><input id="wrT" class="field" style="width:120px" value="${isoToTh(this.f.to)}">
+      <button class="btn sm" id="wrGo">แสดง</button><div class="seg" id="wrSeg">${[['', 'ทั้งหมด'], ['พิมพ์', 'พิมพ์'], ['ไดคัท', 'ไดคัท'], ['QC', 'QC']].map(([k, l]) => `<button data-v="${k}" class="${this.f.step === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <span class="sp"></span><button class="btn ghost sm" id="wrImg">🖼 รูปภาพ</button><button class="btn ghost sm" id="wrPrint">🖨 พิมพ์</button></div><div id="wrBody"><div class="empty">กำลังโหลด…</div></div>`;
+    $('#wrGo').onclick = () => { const a = thToIso($('#wrF').value), b = thToIso($('#wrT').value); if (!a || !b) return toast('ใส่วันที่ วว/ดด/ปปปป'); this.f.from = a; this.f.to = b; store.set('vp_wr_f', this.f); this.load(); };
+    document.querySelectorAll('#wrSeg button').forEach(b => b.onclick = () => { this.f.step = b.dataset.v; store.set('vp_wr_f', this.f); document.querySelectorAll('#wrSeg button').forEach(x => x.classList.toggle('on', x === b)); this.draw(); });
+    $('#wrPrint').onclick = () => this.print(); $('#wrImg').onclick = () => { RptPrint._img = true; this.print(); };
+    this.load(); },
+  async load(){ try { const D = await API.kpiLogs(this.f.from, this.f.to), L = [];
+      (D.prod || []).forEach(l => { const w = wasteOf(l.note); if (w) L.push({...l, ...w, step: l.step || 'ผลิต'}); }); (D.qc || []).forEach(l => { const w = wasteOf(l.note); if (w) L.push({...l, ...w, step: 'QC'}); });
+      const B = new Map((await API.woBrief([...new Set(L.map(l => l.job_ticket))])).map(w => [w.job_ticket, w]));
+      this.L = L.map(l => { const w = B.get(l.job_ticket) || {}; return {...l, customer_name: w.customer_name, product_name: w.product_name, mach: (l.step === 'ไดคัท' ? w.diecut_machine : l.step === 'QC' ? 'QC' : w.machine) || '-'}; })
+        .sort((a, b) => String(b.logged_at).localeCompare(String(a.logged_at)));
+      this.draw(); } catch (e) { $('#wrBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; } },
+  vis(){ return this.L.filter(l => !this.f.step || l.step === this.f.step); },
+  agg(L, key){ const M = new Map(); L.forEach(l => (key === 'reason' ? l.reasons : [l[key] || '-']).forEach(k => { const x = M.get(k) || {n: 0, q: 0}; x.n++; x.q += l.reasons.length ? (+l.qty || 0) / (key === 'reason' ? l.reasons.length : 1) : 0; M.set(k, x); }));
+    return [...M].sort((a, b) => b[1].n - a[1].n); },
+  html(scr){ const L = this.vis(), R = this.agg(L, 'reason'), tot = R.reduce((a, [, x]) => a + x.n, 0) || 1, M = this.agg(L, 'mach'), E = this.agg(L, 'employee_name').slice(0, 10), C = this.agg(L, 'customer_name').slice(0, 10);
+    const small = (t, A) => `<div><h4 class="kp-h">${t}</h4><table class="${scr ? 'trk' : ''}"><tbody>${A.map(([k, x]) => `<tr><td>${esc(k)}</td><td class="num">${x.n} ครั้ง</td></tr>`).join('') || '<tr><td class="hint">-</td></tr>'}</tbody></table></div>`;
+    return `<div class="hint" style="margin:0 0 6px">${fmtD(this.f.from)} – ${fmtD(this.f.to)}${this.f.step ? ' · ขั้นตอน' + this.f.step : ''} · บันทึกของเสีย ${L.length} ครั้ง · นับจากที่ช่าง/QC เลือกสาเหตุตอนสแกน (จำนวนเสียนับเฉพาะที่ระบุ แบ่งเท่า ๆ กันถ้าเลือกหลายสาเหตุ)</div>
+      <table class="${scr ? 'trk' : ''}"><thead><tr><th>สาเหตุ</th><th class="num">ครั้ง</th><th style="width:35%">สัดส่วน</th><th class="num">จำนวนเสียที่ระบุ (ดวง)</th></tr></thead><tbody>
+      ${R.map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td class="num">${x.n}</td><td><div class="qp-bar"><i style="width:${x.n / tot * 100}%;background:#f87171"></i><span>${Math.round(x.n / tot * 100)}%</span></div></td><td class="num">${x.q ? fmtN(Math.round(x.q)) : '-'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">ยังไม่มีบันทึกสาเหตุของเสียในช่วงนี้</td></tr>'}</tbody></table>
+      <div class="wr-3">${small('ตามเครื่อง', M)}${small('ตามช่าง / QC (10 อันดับ)', E)}${small('ตามลูกค้า (10 อันดับ)', C)}</div>
+      <h4 class="kp-h" style="margin-top:10px">รายการทั้งหมด</h4><table class="${scr ? 'trk' : ''}"><thead><tr><th>วันเวลา</th><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th><th>ขั้นตอน</th><th>เครื่อง</th><th>ชื่อ</th><th>สาเหตุ</th><th class="num">จำนวนเสีย</th></tr></thead><tbody>
+      ${L.map(l => `<tr><td style="white-space:nowrap">${fmtT(l.logged_at)}</td><td>${scr ? `<a href="#" class="jl" data-open="${esc(l.job_ticket)}">${esc(l.job_ticket)}</a>` : esc(l.job_ticket)}</td><td class="cu">${esc(l.customer_name || '')}</td><td class="pn">${esc(l.product_name || '')}</td><td>${esc(l.step)}</td><td>${esc(l.mach)}</td><td>${esc(l.employee_name || '')}</td><td>${esc(l.reasons.join(', '))}</td><td class="num">${l.qty ? fmtN(l.qty) : ''}</td></tr>`).join('')}</tbody></table>`; },
+  draw(){ $('#wrBody').innerHTML = `<div class="card" style="padding:12px">${this.html(true)}</div>`;
+    $('#wrBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); }); },
+  print(){ RptPrint.go({title: 'สาเหตุของเสีย', orient: 'landscape', fs: 9, font: 'Tahoma'}, `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>สาเหตุของเสีย</h2></div><div class="rpt-meta">ข้อมูล ณ ${fmtT(new Date().toISOString())}</div></div>${this.html(false)}</div>`); }
 };
 
 /* ================== งานจ้างภายนอก (ซับคอน): อยู่ที่ไหน เลยนัดรับหรือยัง ================== */
@@ -5335,13 +5413,14 @@ const JobSum = {
 const Reports = {
   view: store.get('vp_rview', 'machine'),
   page(){
-    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="jobsum">📄 สรุปงาน</button><button data-v="subcon">🏭 งานซับคอน</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
+    $('#page').innerHTML = `<div class="toolbar"><div class="seg" id="rvSeg"><button data-v="machine">🖨️ สถานะเครื่องพิมพ์</button><button data-v="history">📑 ประวัติการเปิดใบสั่งผลิต</button><button data-v="waste">♻️ ของเสีย</button><button data-v="mat">🧻 การใช้กระดาษ</button><button data-v="ontime">✅ ส่งตรงเวลา</button><button data-v="backlog">⏰ งานค้างตามกำหนดส่ง</button><button data-v="aging">📦 สต็อกค้างนาน</button><button data-v="daily">📅 ผลผลิตรายวัน</button><button data-v="lead">⏱ Lead time</button><button data-v="jobsum">📄 สรุปงาน</button><button data-v="subcon">🏭 งานซับคอน</button><button data-v="wreason">⚠️ สาเหตุของเสีย</button><button data-v="queue">🗓 คิวเครื่อง</button><button data-v="speed">⚡ ความเร็วเครื่อง</button><button data-v="shipbl">📦 สินค้าค้างส่ง</button><button data-v="shipr">🚚 การจัดส่ง</button></div></div><div id="rpBody"></div>`;
     document.querySelectorAll('#rvSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_rview', this.view); this.page(); }; });
     if (this.view === 'waste' || this.view === 'mat') return PivotRpt.page(this.view);
     if (this.view === 'queue') return QueuePlan.page();
     if (this.view === 'speed') return SpeedRpt.page();
     if (this.view === 'jobsum') return JobSum.page();
     if (this.view === 'subcon') return SubconRpt.page();
+    if (this.view === 'wreason') return WasteRpt.page();
     if (Kpi.VIEWS[this.view]) return Kpi.page(this.view);
     (this.view === 'history' ? HistoryRpt : MachineDash).page();
   }
