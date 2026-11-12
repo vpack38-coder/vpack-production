@@ -4726,7 +4726,9 @@ const PaperPage = {
 const ShipPage = {
   ST: {nojob: ['ยังไม่เปิดใบสั่งผลิต', '#64748b', '📝'], prod: ['กำลังผลิต', '#7c3aed', '🖨️'], ready: ['พร้อมส่ง', '#0f766e', '📦'], partial: ['ส่งบางส่วน', '#d97706', '🚚'],
        toclose: ['ส่งครบ รอปิดงาน', '#2563eb', '✅'], closed: ['ปิดงานแล้ว', '#16a34a', '🔒']},
-  view: store.get('vp_sh_view', 'open'), q: '',
+  view: store.get('vp_sh_view', 'open'), q: '', sortBy: store.get('vp_sh_sort', {}),
+  SORTS: [['due', 'กำหนดส่ง ใกล้สุดก่อน'], ['dueD', 'กำหนดส่ง ล่าสุดก่อน'], ['last', 'วันส่งของ ล่าสุดก่อน'], ['lastA', 'วันส่งของ เก่าสุดก่อน'], ['job', 'เลข JOB ใหม่ → เก่า'], ['cust', 'ลูกค้า ก → ฮ'], ['po', 'เลข PO']],
+  sortKey(){ return this.sortBy[this.view] || (this.view === 'closed' ? 'last' : 'due'); },
   n: s => String(s || '').toLowerCase().replace(/[\s ​]+/g, ''),
   key(po, code){ return this.n(po) + '|' + this.n(code); },
   wkey(w){ return this.key(NO_REF(w.po_no) ? 'JOB ' + w.job_ticket : w.po_no.trim(), w.product_code); },
@@ -4821,13 +4823,15 @@ const ShipPage = {
     const V = [['open', 'ค้างส่งทั้งหมด'], ['prod', '🖨️ กำลังผลิต'], ['ready', '📦 พร้อมส่ง'], ['partial', '🚚 ส่งบางส่วน'], ['toclose', '✅ รอปิดงาน'], ['closed', '🔒 ปิดแล้ว'], ['stock', '📦 เช็กสต็อก'], ['orphan', '⚠ ส่งแล้วไม่พบ PO']];
     $('#page').innerHTML = `<div class="toolbar sh-bar"><div class="seg sh-seg" id="shSeg">${V.map(([k, l]) => `<button data-v="${k}">${l} <b class="sh-n" data-n="${k}"></b></button>`).join('')}</div></div>
       <div class="toolbar"><input id="shQ" class="field" style="max-width:300px;padding:7px 11px" placeholder="🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB / เลขใบส่งของ" value="${esc(this.q)}">
-        <button class="btn ghost sm" id="shRe">↻</button><span class="sp"></span>
+        <button class="btn ghost sm" id="shRe">↻</button>
+        <label class="hint" id="shSortW" style="display:flex;align-items:center;gap:4px">เรียงตาม <select id="shSort" class="field" style="width:auto;padding:5px 8px">${this.SORTS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label><span class="sp"></span>
         <button class="btn ghost sm" id="shImp">📥 นำเข้า PREFLI02.CSV</button><input type="file" id="shFile" accept=".csv,.CSV" class="hidden">
         <button class="btn ghost sm" id="shBl">📦 รายงานค้างส่ง</button><button class="btn ghost sm" id="shRpt">📊 รายงานการจัดส่ง</button><button class="btn sm" id="shAdd">+ บันทึกส่งของ</button>${Office.shipping || Office.viewer ? '' : '<button class="btn ghost sm" id="shCfg" title="ตั้งค่า">⚙</button>'}</div>
       <div id="shBody"><div class="empty">กำลังโหลด…</div></div>`;
     document.querySelectorAll('#shSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === this.view); b.onclick = () => { this.view = b.dataset.v; store.set('vp_sh_view', this.view); document.querySelectorAll('#shSeg button').forEach(x => x.classList.toggle('on', x === b)); this.draw(); }; });
     let t; $('#shQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { this.q = e.target.value.trim(); this.draw(); const i = $('#shQ'); i.focus(); }, 300); };
     $('#shRe').onclick = () => this.page(true);
+    $('#shSort').onchange = e => { this.sortBy[this.view] = e.target.value; store.set('vp_sh_sort', this.sortBy); this.draw(); };
     $('#shAdd').onclick = () => this.editDl(null, null);
     $('#shRpt').onclick = () => { Reports.view = 'shipr'; store.set('vp_rview', 'shipr'); Office.go('reports'); };
     $('#shBl').onclick = () => { Reports.view = 'shipbl'; store.set('vp_rview', 'shipbl'); Office.go('reports'); };
@@ -4838,22 +4842,30 @@ const ShipPage = {
     try { await this.load(force); } catch (e) { $('#shBody').innerHTML = `<div class="err">${esc(e.message)}${/ship_close/.test(e.message) ? '<br>ต้องรันไฟล์ 19_shipping.sql ใน Supabase ก่อน' : ''}</div>`; return; }
     this.draw();
   },
+  cmp(k){ const cu = (a, b) => String(a.customer_name || '').localeCompare(String(b.customer_name || ''), 'th'), due = (a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')),
+      jb = L => L.jobs.map(j => j.job_ticket).sort().at(-1) || '';
+    return ({due: (a, b) => due(a, b) || cu(a, b), dueD: (a, b) => String(b.due || '').localeCompare(String(a.due || '')) || cu(a, b),
+      last: (a, b) => this.lastDl(b).localeCompare(this.lastDl(a)) || cu(a, b), lastA: (a, b) => (this.lastDl(a) || '9999').localeCompare(this.lastDl(b) || '9999') || cu(a, b),
+      job: (a, b) => jb(b).localeCompare(jb(a), 'th', {numeric: true}) || cu(a, b), cust: (a, b) => cu(a, b) || due(a, b),
+      po: (a, b) => String(a.po_no || '').localeCompare(String(b.po_no || ''), 'th', {numeric: true}) || cu(a, b)})[k] || ((a, b) => due(a, b) || cu(a, b)); },
+  lastDl(L){ return (L.dl || []).map(d => String(d.delivery_date || '')).sort().at(-1) || ''; },
   match(L, q){ return !q || [L.customer_name, L.po_no, L.product_code, L.product_name, ...L.jobs.map(j => j.job_ticket), ...L.docs, ...L.so_nos].join(' ').toLowerCase().includes(q); },
   draw(){
     const D = this.D; if (!D) return; const q = this.q.toLowerCase(), t = todayISO();
     const openSt = ['nojob', 'prod', 'ready', 'partial'], cnt = s => D.lines.filter(L => s === 'open' ? openSt.includes(L.status) : s === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === s).length;
     document.querySelectorAll('.sh-n').forEach(b => { const k = b.dataset.n; b.textContent = k === 'stock' ? '' : k === 'orphan' ? (D.orphan.length || '') : (cnt(k) || ''); });
+    const sw = $('#shSortW'); if (sw) { sw.style.display = ['stock', 'orphan'].includes(this.view) ? 'none' : 'flex'; $('#shSort').value = this.sortKey(); }
     if (this.view === 'stock') return this.drawStock(q);
     if (this.view === 'orphan') return this.drawOrphan(q);
     const R = D.lines.filter(L => (this.view === 'open' ? openSt.includes(L.status) : this.view === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === this.view) && this.match(L, q))
-      .sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.customer_name).localeCompare(String(b.customer_name), 'th'));
+      .sort(this.cmp(this.sortKey()));
     const tc = this.view === 'toclose' ? R.filter(L => !L.missingDoc).length : 0;
     const FC = !Office.ro; this.sel ||= new Set(); [...this.sel].forEach(k => { if (!R.some(L => L.key === k)) this.sel.delete(k); });
     $('#shBody').innerHTML = (FC && R.some(L => L.status !== 'closed') ? `<div class="sh-selbar"><label><input type="checkbox" id="shAll"> เลือกทั้งหมดในหน้านี้</label><span id="shSelN"></span><button class="btn sm ghost" id="shForce" disabled>🔒 ปิดงานที่เลือก (ไม่ต้องคีย์ส่ง)</button></div>` : '')
       + (tc && !Office.viewer ? `<div class="pf-bar">มี ${tc} รายการที่ส่งครบและมีเลขเอกสารครบแล้ว <button class="btn sm" id="shCloseAll">🔒 ปิดงานทั้งหมด ${tc} รายการ</button></div>` : '')
       + (R.length ? `<div class="sh-list">${R.map((L, i) => { const late = L.due && L.due < t && !['toclose', 'closed'].includes(L.status);
         return `<div class="card sh-row ${late ? 'late' : ''}" data-i="${i}">
-          <div class="sh-top">${FC && L.status !== 'closed' ? `<input type="checkbox" class="sh-c" data-k="${esc(L.key)}" ${this.sel.has(L.key) ? 'checked' : ''}>` : ''}${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">ส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}${L.so_due && L.so_due < L.due ? ` <small title="กำหนดส่งตาม SO ${fmtD(L.so_due)} — เลื่อนตามใบสั่งผลิต">(เลื่อนจาก ${fmtD(L.so_due)})</small>` : ''}</span>` : ''}</div>
+          <div class="sh-top">${FC && L.status !== 'closed' ? `<input type="checkbox" class="sh-c" data-k="${esc(L.key)}" ${this.sel.has(L.key) ? 'checked' : ''}>` : ''}${this.badge(L.status)}<b class="sh-cu">${esc(L.customer_name || '-')}</b><span class="sh-po">PO <b>${esc(L.po_no)}</b></span>${L.due ? `<span class="bp-due ${late ? 'late' : ''}">กำหนดส่ง ${fmtD(L.due)}${late ? ' · เลย ' + Kpi.diff(L.due, t) + ' วัน' : ''}${L.so_due && L.so_due < L.due ? ` <small title="กำหนดส่งตาม SO ${fmtD(L.so_due)} — เลื่อนตามใบสั่งผลิต">(เลื่อนจาก ${fmtD(L.so_due)})</small>` : ''}</span>` : ''}${this.lastDl(L) ? `<span class="hint" style="margin-left:6px">🚚 ส่งของล่าสุด ${fmtD(this.lastDl(L))}</span>` : ''}</div>
           <div class="sh-pn"><b>${esc(L.product_code)}</b> ${esc(L.product_name || '')}</div>
           <div class="sh-nums"><span>สั่ง <b>${fmtN(L.qty)}</b></span><span>ส่งแล้ว <b>${fmtN(L.shipped)}</b></span><span class="${L.remain ? 'rem' : ''}">ค้างส่ง <b>${fmtN(L.remain)}</b></span><span>สต็อก <b>${fmtN(L.stock)}</b></span><span class="u">${esc(L.unit || '')}</span></div>
           <div class="sh-prod">${L.jobs.length ? L.jobs.map(j => `<span class="sh-job ${Kpi.done(j) ? 'd' : ''}">${esc(j.job_ticket)} · ${Kpi.done(j) ? 'ผลิตเสร็จ' : esc(j.qc_status && j.qc_status !== '-' ? 'QC ' + j.qc_status : j.print_status || 'ยังไม่เริ่ม')} · พร้อมส่ง ${fmtN(j.ready_qty || 0)}</span>`).join('') : '<span class="hint">ยังไม่มีใบสั่งผลิต</span>'}
