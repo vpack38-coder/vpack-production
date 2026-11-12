@@ -222,6 +222,8 @@ table.trk tr:hover td{background:#eef4ff}
 .dwrap{display:flex;gap:4px;position:relative}
 .dwrap .field{flex:1;min-width:0}
 .dbtn{border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:14px}
+input.field.bad{border-color:#dc2626;background:#fef2f2}
+.tdw{display:flex;gap:3px;align-items:stretch;position:relative}.tdw>input.field{flex:1;min-width:0}.tdw>.dbtn{flex:0 0 auto}
 .dhidden{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}
 .span2{grid-column:span 2}
 .wc-row{display:flex;gap:6px;flex-wrap:wrap}
@@ -799,6 +801,24 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmtN = n => (n === null || n === undefined || n === '') ? '–' : Number(n).toLocaleString('th-TH');
 const pad2 = n => String(n).padStart(2, '0');
 function isoToTh(iso){ const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : ''; }
+// ช่องวันที่ไทยทั้งระบบ: พิมพ์ตัวเลขล้วน (01012569) ใส่ / ให้อัตโนมัติ + ปุ่ม 📅 เลือกจากปฏิทิน
+const THD_SEL = 'input[placeholder^="วว/ดด/ปปปป"]:not([data-d]), input.thd:not([data-d])';
+function thdMask(el){ const d = el.value.replace(/\D/g, '').slice(0, 8); const v = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  if (v !== el.value) el.value = v; el.classList.toggle('bad', v.length === 10 && !thToIso(v)); }
+function thdEnhance(root){ (root.querySelectorAll ? root : document).querySelectorAll(THD_SEL).forEach(el => { if (el.dataset.thd || el.readOnly || el.disabled) return; el.dataset.thd = 1;
+  el.setAttribute('inputmode', 'numeric'); el.setAttribute('maxlength', '10'); el.setAttribute('autocomplete', 'off');
+  const w = document.createElement('span'); w.className = 'tdw';
+  if (el.style.width) { w.style.display = 'inline-flex'; w.style.width = `calc(${el.style.width} + 34px)`; el.style.width = ''; }
+  if (el.style.maxWidth) { w.style.maxWidth = `calc(${el.style.maxWidth} + 34px)`; el.style.maxWidth = ''; }
+  el.parentNode.insertBefore(w, el); w.appendChild(el);
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'dbtn'; b.title = 'เลือกจากปฏิทิน'; b.tabIndex = -1; b.textContent = '📅';
+  const h = document.createElement('input'); h.type = 'date'; h.className = 'dhidden'; h.tabIndex = -1; w.append(b, h);
+  b.onclick = () => { h.value = thToIso(el.value) || todayISO(); try { h.showPicker(); } catch { h.click(); } };
+  h.onchange = () => { if (!h.value) return; el.value = isoToTh(h.value); el.classList.remove('bad'); el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true})); el.focus(); };
+}); }
+document.addEventListener('input', e => { const el = e.target; if (el && el.matches && el.matches(THD_SEL) && e.isTrusted) thdMask(el); }, true);
+new MutationObserver(M => { for (const m of M) for (const n of m.addedNodes) if (n.nodeType === 1) thdEnhance(n.matches?.(THD_SEL) ? n.parentNode : n); }).observe(document.documentElement, {childList: true, subtree: true});
+document.addEventListener('DOMContentLoaded', () => thdEnhance(document));
 function thToIso(s){ const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) return null;
   let [_, d, mo, y] = m.map(Number); if (y > 2400) y -= 543; const dt = new Date(Date.UTC(y, mo - 1, d));
   return (dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && y > 1900) ? `${y}-${pad2(mo)}-${pad2(d)}` : null; }
@@ -3093,7 +3113,7 @@ const QSPage = {
     $('#dlgBody').innerHTML = `<h3>${title}</h3><datalist id="qf_pl">${L.products.map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('')}</datalist>
       <div class="so-mf">${fields.map(([k, l, t, ph]) => `<label>${l}</label>${t === 'sel' ? `<select class="field qf" data-k="${k}">${ph.map(o => `<option ${row[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`
         : t === 'chk' ? `<label class="wc"><input type="checkbox" class="qf" data-k="${k}" ${row[k] ? 'checked' : ''}> ${ph || ''}</label>`
-        : `<input class="field qf" data-k="${k}" ${k === 'product_code' ? 'list="qf_pl"' : ''} placeholder="${esc(ph || '')}" value="${esc(t === 'date' ? isoToTh(row[k]) : t === 'num' ? (row[k] ?? '') === '' ? '' : fmtIn(row[k]) : row[k] ?? '')}">`}`).join('')}</div>
+        : `<input class="field qf ${t === 'date' ? 'thd' : ''}" data-k="${k}" ${k === 'product_code' ? 'list="qf_pl"' : ''} placeholder="${esc(ph || '')}" value="${esc(t === 'date' ? isoToTh(row[k]) : t === 'num' ? (row[k] ?? '') === '' ? '' : fmtIn(row[k]) : row[k] ?? '')}">`}`).join('')}</div>
       <div id="qf_e" class="err hidden" style="margin:8px 0 0"></div><div class="acts"><button class="btn ghost" id="qf_x">ยกเลิก</button><button class="btn" id="qf_ok">บันทึก</button></div>`;
     const d = $('#dlg'); d.showModal(); $('#qf_x').onclick = () => d.close();
     const pc = $('#dlgBody').querySelector('[data-k=product_code]');
@@ -5038,7 +5058,7 @@ const ShipPage = {
   },
   settings(){
     const C = this.cfg();
-    $('#dlgBody').innerHTML = `<h3>⚙ ตั้งค่าระบบจัดส่ง</h3><label>เริ่มติดตาม PO ตั้งแต่วันที่</label><input id="sc_s" class="field" value="${isoToTh(C.start)}" style="max-width:200px">
+    $('#dlgBody').innerHTML = `<h3>⚙ ตั้งค่าระบบจัดส่ง</h3><label>เริ่มติดตาม PO ตั้งแต่วันที่</label><input id="sc_s" class="field thd" value="${isoToTh(C.start)}" style="max-width:200px">
       <div class="hint">ใบสั่งผลิต/SO ก่อนวันนี้ที่ไม่มีการเคลื่อนไหว จะไม่แสดง (กันงานเก่าก่อนใช้ระบบขึ้นเป็นค้างส่ง)</div>
       <div class="acts"><button class="btn ghost" id="sc_x">ยกเลิก</button><button class="btn" id="sc_ok">บันทึก</button></div>`;
     const d = $('#dlg'); d.showModal(); $('#sc_x').onclick = () => d.close();
@@ -5227,7 +5247,7 @@ const SpeedRpt = {
 const WasteRpt = {
   f: store.get('vp_wr_f', {from: '', to: '', step: ''}), L: [],
   async page(){ const t = todayISO(); if (!this.f.from) { this.f.from = t.slice(0, 8) + '01'; this.f.to = t; }
-    $('#rpBody').innerHTML = `<div class="toolbar"><span class="hint">ช่วงวันที่</span><input id="wrF" class="field" style="width:120px" value="${isoToTh(this.f.from)}"><span>–</span><input id="wrT" class="field" style="width:120px" value="${isoToTh(this.f.to)}">
+    $('#rpBody').innerHTML = `<div class="toolbar"><span class="hint">ช่วงวันที่</span><input id="wrF" class="field thd" style="width:120px" value="${isoToTh(this.f.from)}"><span>–</span><input id="wrT" class="field thd" style="width:120px" value="${isoToTh(this.f.to)}">
       <button class="btn sm" id="wrGo">แสดง</button><div class="seg" id="wrSeg">${[['', 'ทั้งหมด'], ['พิมพ์', 'พิมพ์'], ['ไดคัท', 'ไดคัท'], ['QC', 'QC']].map(([k, l]) => `<button data-v="${k}" class="${this.f.step === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <span class="sp"></span><button class="btn ghost sm" id="wrImg">🖼 รูปภาพ</button><button class="btn ghost sm" id="wrPrint">🖨 พิมพ์</button></div><div id="wrBody"><div class="empty">กำลังโหลด…</div></div>`;
     $('#wrGo').onclick = () => { const a = thToIso($('#wrF').value), b = thToIso($('#wrT').value); if (!a || !b) return toast('ใส่วันที่ วว/ดด/ปปปป'); this.f.from = a; this.f.to = b; store.set('vp_wr_f', this.f); this.load(); };
