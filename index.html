@@ -958,7 +958,7 @@ const Demo = {
       const sum = a => a.reduce((s,l) => s + N(l.qty), 0);
       const qlS = ql.filter(l => l.status === 'ส่งจากสต็อก'); ql = ql.filter(l => l.status !== 'ส่งจากสต็อก');
       const qcs = last(ql)?.status, shipS = sum(qlS);
-      const prod = sum(pl), qc = sum(ql), carry = N(w.carry_forward_qty);
+      const prod = sum(pr) > 0 ? sum(pr) : sum(dc), qc = sum(ql), carry = N(w.carry_forward_qty);
       const effP = N(w.adj_prod_qty) > 0 ? N(w.adj_prod_qty) : prod, effQ = N(w.adj_qc_qty) > 0 ? N(w.adj_qc_qty) : qc;
       const ready = effQ + carry;
       return {...w, prod_qty: prod, print_qty: sum(pr), diecut_qty: sum(dc), qc_qty: qc,
@@ -5378,6 +5378,10 @@ const JobSum = {
       if (d.getUTCDay() === 0) { if (!e) continue; ds = e[0]; de = e[1]; } else if (e) { ds = Math.min(ds, e[0]); de = Math.max(de, e[1]); }
       const s0 = Math.max(A.getTime(), ds), e0 = Math.min(B.getTime(), de); if (e0 > s0) m += (e0 - s0) / 60000; }
     return m; },
+  // ของเสียระหว่างทาง: พิมพ์ → ไดคัท → QC (คิดเฉพาะขั้นที่มีใส่ยอด)
+  lossRow(Q){ const L = (a, b) => a > 0 && b > 0 ? `<b style="color:${a - b > 0 ? '#dc2626' : '#15803d'}">${a - b > 0 ? '−' : '+'}${fmtN(Math.abs(a - b))}</b><br><small>${((a - b) / a * 100).toFixed(1)}%</small>` : '';
+    const dl = L(Q.print, Q.die), ql = L(Q.die > 0 ? Q.die : Q.print, Q.qc), tl = Q.die > 0 && Q.print > 0 && Q.qc > 0 ? L(Q.print, Q.qc) : '';
+    return dl || ql ? `<tr style="background:#fff7ed"><td><small>เสียระหว่างขั้นตอน</small></td><td></td><td class="num">${dl}</td><td class="num">${ql}${ql && Q.die > 0 ? '' : ''}</td><td colspan="2">${tl ? `<small>รวมพิมพ์ → QC</small> ${tl.replace('<br>', ' ')}` : ''}</td></tr>` : ''; },
   hm(m, hrs){ m = Math.round(m || 0); if (m < 60) return `${m} นาที`; if (hrs) { const h = Math.floor(m / 60), r = m % 60; return `${h.toLocaleString()} ชม.${r ? ' ' + r + ' นาที' : ''}`; } const h = Math.floor(m / 60), r = m % 60; if (h < 24) return `${h} ชม.${r ? ' ' + r + ' นาที' : ''}`; const d = Math.floor(h / 24); return `${d} วัน ${h % 24} ชม.`; },
   durHTML(x){ if (!x.DUR.length) return '';
     const C = QueuePlan.cfg || QueuePlan.DEF, sh = +C.startH || 8, eh = +C.endH || 17, qd = x.DUR.find(d => /QC/.test(d.t)),
@@ -5411,7 +5415,7 @@ const JobSum = {
       <h4>3. ไทม์ไลน์</h4><div class="js-tl">${step('เปิดใบสั่งผลิต', T.open)}${step('พิมพ์', T.p0, T.p1)}${step('ไดคัท', T.d0, T.d1)}${w.subcon ? step('🏭 ซับคอน', w.subcon_sent, w.subcon_back) : ''}${step('QC', T.q0, T.q1)}${step('ส่งของ', T.s0, T.s1)}</div>
       ${x.pauses ? `<div class="js-note">⏸ ถูกพักงาน (งานแทรก) ${x.pauses} ครั้ง</div>` : ''}
       <h4>4. ยอดแต่ละขั้นตอน</h4><table><thead><tr><th>ยอดสั่ง</th><th class="num">พิมพ์</th><th class="num">ไดคัท</th><th class="num">QC ผ่าน</th><th class="num">ส่งแล้ว</th><th class="num">ความเร็วเครื่อง (ครั้ง/นาที)</th></tr></thead>
-        <tbody><tr><td class="num">${N(Q.order)}</td><td class="num">${N(Q.print)}</td><td class="num">${N(Q.die)}</td><td class="num">${N(Q.qc)}</td><td class="num">${N(Q.ship)}</td><td class="num">${x.spd.length ? Math.min(...x.spd) === Math.max(...x.spd) ? N(x.spd[0]) : N(Math.min(...x.spd)) + '–' + N(Math.max(...x.spd)) : '-'}</td></tr></tbody></table>
+        <tbody><tr><td class="num">${N(Q.order)}</td><td class="num">${N(Q.print)}</td><td class="num">${N(Q.die)}</td><td class="num">${N(Q.qc)}</td><td class="num">${N(Q.ship)}</td><td class="num">${x.spd.length ? Math.min(...x.spd) === Math.max(...x.spd) ? N(x.spd[0]) : N(Math.min(...x.spd)) + '–' + N(Math.max(...x.spd)) : '-'}</td></tr>${this.lossRow(Q)}</tbody></table>
       <h4>5. บันทึกการผลิต / QC</h4>${this.durHTML(x)}${[...x.pl.map(l => ({...l, _d: 'ผลิต · ' + (l.step || '')})), ...x.ql.map(l => ({...l, _d: 'QC'}))].sort((a, b) => String(a.logged_at).localeCompare(String(b.logged_at))).map(l => `<tr><td>${fmtT(l.logged_at)}</td><td>${esc(l._d)}</td><td>${esc(l.employee_name || '')}</td><td>${esc(l.status || '')}</td><td class="num">${l.qty ? N(l.qty) : ''}</td><td class="num">${+l.speed ? N(l.speed) : ''}</td></tr>`).join('').replace(/^/, '<table><thead><tr><th>วันเวลา</th><th>ขั้นตอน</th><th>ชื่อ</th><th>สถานะ</th><th class="num">จำนวน</th><th class="num">ครั้ง/นาที</th></tr></thead><tbody>') + '</tbody></table>'}
       <h4>6. การจัดส่ง</h4>${x.dl.length ? `<table><thead><tr><th>วันที่ส่ง</th><th>เลขที่เอกสาร</th><th>PO</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">ราคา/หน่วย</th><th class="num">มูลค่า</th></tr></thead><tbody>
         ${x.dl.map((d, i) => `<tr><td>${this.d(d.delivery_date)}</td><td>${esc(d.si_no ? 'SI01/' + d.si_no : d.do_no || '-')}</td><td>${esc(d.po_no || '')}</td><td class="num">${N(d.qty)}</td><td>${esc(d.unit || '')}</td><td class="num">${d.price != null && d.price !== '' ? this.unitP(d.price) : x.P ? this.unitP(x.P.price) + ' <small>(SO)</small>' : '-'}</td><td class="num">${this.money(x.amtL[i])}</td></tr>`).join('')}
@@ -6126,7 +6130,7 @@ const Office = {
   PCOLS: [ // [key, หัวคอลัมน์, ชนิด, แถบสี]
     ['job_ticket','JOB','job','b-job'], ['customer_name','ลูกค้า','cu','b-info'], ['product_name','สินค้า','pn','b-info'],
     ['order_qty','ยอดสั่งผลิต','num','b-ord'], ['print_status','สถานะผลิต','st','b-st'], ['diecut_status','สถานะไดคัท','st','b-st'], ['qc_status','ผลตรวจ QC','st','b-st'],
-    ['prod_qty','จำนวนผลิต','num','b-qty'], ['qc_qty','ผ่าน QC','num','b-qty'], ['adj_prod_qty','ยอดผลิตปรับปรุง','ed','b-inp'], ['adj_qc_qty','ยอด QC ปรับปรุง','ed','b-inp'],
+    ['prod_qty','จำนวนผลิต','num','b-qty'], ['diecut_qty','หลังไดคัท','num','b-qty'], ['qc_qty','ผ่าน QC','num','b-qty'], ['adj_prod_qty','ยอดผลิตปรับปรุง','ed','b-inp'], ['adj_qc_qty','ยอด QC ปรับปรุง','ed','b-inp'],
     ['waste_qty','ของเสีย','num','b-waste'], ['waste_pct','%เสีย','pct','b-waste'], ['carry_forward_qty','ยอดยกมา','ed','b-carry'], ['ready_qty','พร้อมส่ง','num','b-ready'],
     ['backlog_qty','ค้างส่ง','num','b-back'], ['reduce_qty','ปรับลด/ปิดยอด','ed','b-inp'], ['closed','ปิดจ๊อบ','chk','b-close'], ['stock_cut_qty','ตัดสต็อก','ed','b-cut'], ['stock_ship_qty','ส่งจากสต็อก (JOB ยังไม่ปิด)','num','b-cut'],
     ['stock_qty','คงคลัง','num','b-stock'], ['stock_total','สต็อกรวม','num','b-stock2'], ['machine','เครื่องพิมพ์','txt','b-man'], ['printer','ช่างพิมพ์','txt','b-man'],
@@ -6135,6 +6139,7 @@ const Office = {
   pdisp(r, k, t){ const v = r[k];
     if (t === 'chk') return v ? 'ปิดแล้ว' : 'ยังไม่ปิด';
     if (t === 'pct') return ((+v || 0) * 100).toFixed(2) + '%';
+    if (k === 'diecut_qty' && !+v) return '';
     if (t === 'num' || (t === 'ed' && k !== 'track_note')) return v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('en-US', {maximumFractionDigits: 3});
     return v === null || v === undefined ? '' : String(v); },
   pFiltered(skip){
