@@ -3940,7 +3940,7 @@ const Kpi = {
     aging:   {t: 'รายงานสต็อกค้างนาน', range: false, dims: [['product','ลูกค้า + สินค้า'], ['customer_name','ลูกค้า']]},
     daily:   {t: 'รายงานการผลิต/QC ประจำวัน', range: true, dims: [['prod','🖨️ ฝ่ายผลิต'], ['qc','✅ QC'], ['machine','📊 สรุปรายวัน × เครื่อง'], ['employee','👷 สรุปรายวัน × พนักงาน']]},
     shipr:   {t: 'รายงานการจัดส่ง', range: true, dims: [['list','📋 รายการส่งของ'], ['po','🧾 ตาม PO'], ['day','📅 รายวัน'], ['week','🗓 รายสัปดาห์'], ['month','📆 รายเดือน'], ['customer','🏢 ตามลูกค้า'], ['product','🏷 ตามสินค้า']]},
-    shipbl:  {t: 'รายงานสินค้าค้างส่ง', range: false, dims: [['job','📋 ตาม JOB'], ['po','🧾 ตาม PO'], ['customer','👤 ตามลูกค้า'], ['product','📦 ตามสินค้า']]},
+    shipbl:  {t: 'รายงานสินค้าค้างส่ง', range: false, dims: [['job','📋 ตาม JOB'], ['po','🧾 ตาม PO'], ['customer','👤 ตามลูกค้า'], ['product','📦 ตามสินค้า'], ['cust','📤 ส่งให้ลูกค้า']]},
     lead:    {t: 'รายงานระยะเวลาผลิต (Lead time)', range: true, dims: [['ym','เดือน (ที่เสร็จ)'], ['machine','เครื่องพิมพ์'], ['customer_name','ลูกค้า']]}
   },
   preset(k){ const t = todayISO(), y = +t.slice(0, 4), m = +t.slice(5, 7), iso = (Y, M, D) => `${Y}-${pad2(M)}-${pad2(D)}`, last = (Y, M) => new Date(Date.UTC(Y, M, 0)).getUTCDate();
@@ -3966,6 +3966,7 @@ const Kpi = {
           <input id="kpFrom" class="field kp-d" value="${isoToTh(o.from)}" placeholder="วว/ดด/ปปปป"> ถึง <input id="kpTo" class="field kp-d" value="${isoToTh(o.to)}" placeholder="วว/ดด/ปปปป">` : `<span class="hint">ข้อมูล ณ วันนี้ ${isoToTh(todayISO())}</span>`}
         ${['daily', 'shipr', 'shipbl'].includes(v) ? `<input type="hidden" id="kpDim" value="${o.dim}">` : `<select id="kpDim" class="field kp-s">${V.dims.map(([k, l]) => `<option value="${k}" ${k === o.dim ? 'selected' : ''}>แยกตาม ${l}</option>`).join('')}</select>`}
         ${['daily', 'shipr', 'shipbl'].includes(v) ? `<input id="kpQ" class="field kp-d kp-q ${['prod', 'qc', 'list', 'po'].includes(o.dim) || v === 'shipbl' ? '' : 'hidden'}" style="width:${v === 'daily' ? 300 : 230}px" placeholder="${v === 'shipr' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ' : v === 'shipbl' ? '🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB' : '🔍 ค้นหา JOB / ชื่อ / สถานะ / ลูกค้า / สินค้า / หมายเหตุ'}" value="${esc(this.q || '')}">` : ''}
+ ${v === 'shipbl' ? `<select id="kpCust" class="field kp-s ${o.dim === 'cust' ? '' : 'hidden'}" style="max-width:340px"><option value="${esc(o.cust || '')}">${esc(o.cust || '— เลือกลูกค้า —')}</option></select>` : ''}
         ${v === 'daily' ? `<select id="kpStep" class="field kp-s ${['prod', 'qc'].includes(o.dim) ? 'hidden' : ''}">${['พิมพ์', 'ไดคัท', 'QC'].map(s => `<option ${s === o.step ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
         ${v === 'aging' ? `<select id="kpAge" class="field kp-s">${[[0,'ทุกอายุ'], [30,'ค้างเกิน 30 วัน'], [90,'ค้างเกิน 90 วัน'], [180,'ค้างเกิน 180 วัน'], [365,'ค้างเกิน 1 ปี']].map(([n, l]) => `<option value="${n}" ${+o.minAge === n ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         <button class="btn ghost sm" id="kpRe" title="โหลดข้อมูลใหม่">↻</button>
@@ -3982,15 +3983,15 @@ const Kpi = {
       if (V.range) { n.pre = $('#kpPre').value; const a = thToIso($('#kpFrom').value.trim()), b = thToIso($('#kpTo').value.trim());
         if (!a || !b) { toast('วันที่ไม่ถูกต้อง ใช้รูปแบบ วว/ดด/ปปปป เช่น 01/10/2569'); return null; }
         n.from = a <= b ? a : b; n.to = a <= b ? b : a; }
-      if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value;
+      if ($('#kpStep')) n.step = $('#kpStep').value; if ($('#kpAge')) n.minAge = +$('#kpAge').value; if ($('#kpCust')) n.cust = $('#kpCust').value;
       Object.assign(o, n); store.set('vp_kpi_' + v, n); return n; };
-    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim) || v === 'shipbl'; $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L);
+    const redraw = async force => { const n = read(); if (!n) return; const L = ['prod', 'qc', 'list', 'po'].includes(n.dim) || v === 'shipbl'; $('#kpStep')?.classList.toggle('hidden', L); $('#kpQ')?.classList.toggle('hidden', !L); $('#kpCust')?.classList.toggle('hidden', n.dim !== 'cust');
       if ($('#kpQ') && v === 'shipr') $('#kpQ').placeholder = n.dim === 'po' ? '🔍 พิมพ์เลข PO (ค้นทุกช่วงวันที่)' : '🔍 ค้นหา ลูกค้า / PO / สินค้า / เลขใบ'; await this.run(n, force); };
     if (this._fv !== v) { this.flt = {}; this.fsort = null; this._fv = v; }
     if (V.range) {
       $('#kpPre').onchange = () => { const p = this.preset($('#kpPre').value); if (p) { $('#kpFrom').value = isoToTh(p[0]); $('#kpTo').value = isoToTh(p[1]); redraw(); } };
       ['kpFrom', 'kpTo'].forEach(id => { $('#' + id).onchange = () => { $('#kpPre').value = 'c'; redraw(); }; $('#' + id).onkeydown = e => { if (e.key === 'Enter') e.target.blur(); }; }); }
-    ['kpDim', 'kpStep', 'kpAge'].forEach(id => { if ($('#' + id)) $('#' + id).onchange = () => redraw(); });
+    ['kpDim', 'kpStep', 'kpAge', 'kpCust'].forEach(id => { if ($('#' + id)) $('#' + id).onchange = () => redraw(); });
     $('#kpOr').onchange = $('#kpFont').onchange = $('#kpFs').onchange = $('#kpBand').onchange = read;
     $('#kpRe').onclick = () => redraw(true);
     $('#kpPrint').onclick = () => { if (read() && this.R) this.print(o); };
@@ -4070,17 +4071,17 @@ const Kpi = {
   print(o){
     const R = this.R, V = this.VIEWS[this.v];
     const cards = R.cards ? `<table style="margin-bottom:3mm"><tr>${R.cards.map(([l, v, s]) => `<td style="border:.5px solid #cbd5e1;padding:1.5mm 2mm;vertical-align:top"><div style="font-size:.85em;color:#475569">${esc(l)}</div><div style="font-size:1.35em;font-weight:700;color:#1f3a68">${String(v).replace(/<em>/g, '<span style="font-size:.7em;font-weight:400;color:#475569">').replace(/<\/em>/g, '</span>')}</div><div style="font-size:.8em;color:#64748b">${esc(s || '')}</div></td>`).join('')}</tr></table>` : '';
-    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(V.t)}</h2></div><div class="rpt-meta">${esc(this.rangeTxt(o))}<br>${esc(R.sub || '')}<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>${esc(R.custView ? 'รายการสินค้าค้างส่ง' : V.t)}</h2></div><div class="rpt-meta">${R.custView ? `ข้อมูล ณ วันที่ ${isoToTh(todayISO())}` : esc(this.rangeTxt(o))}<br>${esc(R.sub || '')}<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
       ${cards}${R.main ? (R.main.title ? `<div style="font-weight:700;color:#1f3a68;margin:2mm 0 1mm">${esc(R.main.title)}</div>` : '') + this.tbl(R.main, false, o.band === 'off') : ''}
       ${(R.extra || []).map(T => `<div style="font-weight:700;color:#1f3a68;margin:4mm 0 1mm">${esc(T.title)}</div>${this.tbl(T, false, o.band === 'off')}`).join('')}
       ${R.note ? `<div class="rpt-note" style="color:#64748b">${R.note.replace(/<[^>]+>/g, '')}</div>` : ''}</div>`;
-    RptPrint.go({title: V.t, orient: o.orient, fs: o.fs, font: o.font}, html);
+    RptPrint.go({title: R.fname || V.t, orient: o.orient, fs: o.fs, font: o.font}, html);
   },
   csv(){
     const R = this.R, V = this.VIEWS[this.v], rows = [], Ts = [R.main, ...(R.extra || [])].filter(Boolean);
     Ts.forEach((T, i) => { if (i) rows.push([], [T.title], T.head.map(h => h.l));
       T.rows.forEach(r => rows.push(r.map(c => this.craw(c)))); if (T.total) rows.push(T.total.map(c => this.craw(c))); });
-    QSPage.csv(`${V.t}_${isoToTh(todayISO()).replace(/\//g, '-')}`, Ts[0].head.map(h => h.l), rows);
+    QSPage.csv(`${R.fname || V.t}_${isoToTh(todayISO()).replace(/\//g, '-')}`, Ts[0].head.map(h => h.l), rows);
   },
 
   /* ---------- 1) ส่งงานตรงเวลา ---------- */
@@ -4293,6 +4294,7 @@ const Kpi = {
     const note = 'ค้างส่ง = ยอดตาม PO/SO − ส่งแล้ว (จากหน้าจัดส่ง ไม่รวมรายการที่ปิดงานจัดส่งแล้ว) · กำหนดส่งใช้ตามใบสั่งผลิต (ถ้ามี) · สต็อก = สต็อกสินค้ารหัสนั้นทั้งหมด';
     const lineCols = [['po_no','PO'], ['customer_name','ลูกค้า'], ['product_code','รหัสสินค้า'], ['product_name','สินค้า'], ['jobs','JOB', 0, L => jobsOf(L).join(', ')],
       ['due','กำหนดส่ง', 0, L => L.due ? fmtD(L.due) : ''], ['qty','ยอดสั่ง', 1, L => fmtN(L.qty)], ['shipped','ส่งแล้ว', 1, L => fmtN(L.shipped)], ['remain','ค้างส่ง', 1, L => fmtN(L.remain) + (pcs(L) ? '' : ' ' + unitOf(L))], ['status','สถานะ', 0, L => ST[L.status][0]]];
+    if (o.dim === 'cust') return this.shipblCust(o, A, unitOf, pcs);
     if (o.dim === 'job' || o.dim === 'po') {
       const sk = o.dim === 'job' ? L => jobsOf(L)[0] || 'ฮฮฮ' : L => ShipPage.n(L.po_no);
       A.sort((a, b) => String(sk(a)).localeCompare(String(sk(b)), 'th', {numeric: true}) || String(a.product_code).localeCompare(String(b.product_code)));
@@ -4318,6 +4320,25 @@ const Kpi = {
     return {sub: `${fmtN(A.length)} รายการค้างส่ง · ${fmtN(keys.length)} ${o.dim === 'customer' ? 'ลูกค้า' : 'สินค้า'}`, cards, note, qRun: true, detailCols: lineCols,
       main: {head, rows, lists: keys.map(k => g.get(k).sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')))),
         total: ['รวมทั้งหมด', A.length, new Set(A.map(L => L.po_no)).size, late.length || '', '', sum(A, x => x.qty), sum(A, x => x.shipped), sum(A, x => x.remain), ...(o.dim === 'product' ? [''] : []), '']}};
+  },
+
+  // ฉบับส่งลูกค้า: เฉพาะลูกค้าที่เลือก · ไม่มีเลข JOB / รหัสสินค้า / กำหนดส่ง / สถานะ / สต็อก
+  shipblCust(o, A, unitOf, pcs){
+    const names = [...new Set(A.map(L => (L.customer_name || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+    const sel = $('#kpCust'); if (sel) { const cur = o.cust || ''; sel.innerHTML = `<option value="">— เลือกลูกค้า —</option>` + names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join(''); }
+    const head = [{l: 'เลขที่ PO'}, {l: 'รายการสินค้า', cls: 'pn'}, {l: 'ยอดสั่ง', num: 1}, {l: 'ส่งแล้ว', num: 1}, {l: 'ค้างส่ง', num: 1}, {l: 'หน่วย'}];
+    if (!o.cust || !names.includes(o.cust)) return {sub: 'เลือกลูกค้าก่อน', note: 'เลือกชื่อลูกค้าจากช่อง "— เลือกลูกค้า —" ด้านบน แล้วกด 🖼 รูปภาพ / 🖨 พิมพ์ / ⬇ Excel เพื่อส่งให้ลูกค้า (ไม่มีเลข JOB รหัสสินค้า กำหนดส่ง และสถานะ)', custView: 1,
+      main: {head, rows: [], title: names.length ? `มีลูกค้าค้างส่ง ${names.length} ราย — เลือกลูกค้าด้านบน` : 'ไม่มีรายการค้างส่ง'}};
+    const B = A.filter(L => (L.customer_name || '').trim() === o.cust)
+      .sort((a, b) => String(ShipPage.n(a.po_no)).localeCompare(String(ShipPage.n(b.po_no)), 'th', {numeric: true}) || String(a.product_name || '').localeCompare(String(b.product_name || ''), 'th'));
+    const poTxt = L => /^(SO|JOB) /.test(L.po_no || '') ? '-' : L.po_no;
+    const rows = B.map((L, i) => { const same = i && ShipPage.n(B[i - 1].po_no) === ShipPage.n(L.po_no);
+      return [same ? '' : poTxt(L), L.product_name || '', L.qty, L.shipped, {t: fmtN(L.remain), n: L.remain, c: 'kp-b'}, unitOf(L)]; });
+    const tot = f => B.filter(pcs).reduce((a, L) => a + (+f(L) || 0), 0), oth = B.filter(L => !pcs(L));
+    return {sub: `ลูกค้า: ${o.cust}`, custView: 1, fname: `สินค้าค้างส่ง_${o.cust.replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}`,
+      note: `ยอดค้างส่ง = ยอดสั่งตาม PO − ยอดที่ส่งแล้ว ณ วันที่ ${isoToTh(todayISO())}${oth.length ? ' · ยอดรวมนับเฉพาะหน่วยดวง' : ''}`,
+      main: {title: `ลูกค้า: ${o.cust} · ค้างส่ง ${fmtN(B.length)} รายการ ${fmtN(new Set(B.map(L => ShipPage.n(L.po_no))).size)} PO`, head, rows,
+        total: [`รวม ${fmtN(B.length)} รายการ`, oth.length ? 'เฉพาะหน่วยดวง' : '', tot(L => L.qty), tot(L => L.shipped), tot(L => L.remain), 'ดวง']}};
   },
 
   /* ---------- 5) Lead time ---------- */
