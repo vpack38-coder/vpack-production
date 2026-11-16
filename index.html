@@ -4753,6 +4753,9 @@ const ShipPage = {
   SORTS: [['due', 'กำหนดส่ง ใกล้สุดก่อน'], ['dueD', 'กำหนดส่ง ล่าสุดก่อน'], ['last', 'วันส่งของ ล่าสุดก่อน'], ['lastA', 'วันส่งของ เก่าสุดก่อน'], ['job', 'เลข JOB ใหม่ → เก่า'], ['cust', 'ลูกค้า ก → ฮ'], ['po', 'เลข PO']],
   sortKey(){ return this.sortBy[this.view] || (this.view === 'closed' ? 'last' : 'due'); },
   n: s => String(s || '').toLowerCase().replace(/[\s ​]+/g, ''),
+  // ชื่อลูกค้าเทียบกันได้: ตัด บริษัท / จำกัด / (มหาชน) / หจก. / (สำนักงานใหญ่) / สาขา และช่องว่าง (SO จาก Autoflight ใช้ชื่อเต็ม ใบสั่งผลิตใช้ชื่อย่อ)
+  cn: s => String(s || '').toLowerCase().replace(/\(?\s*(สำนักงานใหญ่|สนญ\.?|head\s*office)\s*\)?/g, '').replace(/\(?\s*สาขา[^)]*\)?/g, '')
+    .replace(/^\s*(บริษัท|บจก\.?|ห้างหุ้นส่วนจำกัด|หจก\.?)\s*/, '').replace(/(จำกัด|\(?มหาชน\)?|co\.?,?\s*ltd\.?|company\s*limited|limited)/g, '').replace(/[\s\u200b.,()]+/g, ''),
   key(po, code){ return this.n(po) + '|' + this.n(code); },
   wkey(w){ return this.key(NO_REF(w.po_no) ? 'JOB ' + w.job_ticket : w.po_no.trim(), w.product_code); },
   // จำนวนที่ใช้ตัดยอด PO: ship_qty (เทียบเป็นหน่วยในใบสั่ง เช่น ม้วน → ดวง) ถ้าไม่ได้ระบุ ใช้จำนวนในใบกำกับ
@@ -4827,7 +4830,13 @@ const ShipPage = {
     // สต็อกตามรหัสสินค้า
     const stock = new Map(); D.prog.forEach(r => { const w = D.wo.find(x => x.job_ticket === r.job_ticket); if (!w?.product_code || w.cancelled) return; const k = this.n(w.product_code); stock.set(k, (stock.get(k) || 0) + N(r.stock_qty)); });
     const closed = new Map((D.close || []).map(c => [c.key, c]));
+    // ชื่อลูกค้าให้เป็นแบบเดียวกันทั้งระบบ: ใช้ชื่อในฐานข้อมูลลูกค้า (ตามรหัสลูกค้า หรือชื่อที่ตรงกันเมื่อตัดคำว่า บริษัท/จำกัด) ไม่งั้นใช้ชื่อในใบสั่งผลิต
+    const byCode = new Map(D.cust.filter(c => c.code && c.short_name).map(c => [this.n(c.code), c.short_name.trim()])), byName = new Map();
+    W.forEach(w => { const k = this.cn(w.customer_name); if (k && !byName.has(k)) byName.set(k, w.customer_name.trim()); });
+    D.cust.forEach(c => { const k = this.cn(c.short_name); if (k && c.short_name) byName.set(k, c.short_name.trim()); });
+    const canon = L => (L.customer_code && byCode.get(this.n(L.customer_code))) || byName.get(this.cn(L.customer_name)) || L.customer_name;
     lines.forEach(L => {
+      if (!L.customer_name) L.customer_name = L.jobs[0]?.customer_name; L.customer_name = canon(L);
       L.shipped = Math.max(L.dl.reduce((a, d) => a + this.eq(d), 0), L.af_shipped); L.remain = Math.max(0, L.qty - L.shipped);
       L.stock = Math.max(0, stock.get(this.n(L.product_code)) || 0); L.close = closed.get(L.key) || null;
       L.docs = L.dl.map(d => d.si_no ? 'SI01/' + d.si_no : d.do_no).filter(Boolean);
