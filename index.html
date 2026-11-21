@@ -987,6 +987,24 @@ const Demo = {
       if (r.stock_qty) x.jobs.push(`${r.job_ticket}:${r.stock_qty}`); });
     return Object.values(g).map(x => ({...x, stock_jobs: x.jobs.sort().join(', ')}));
   },
+  async stockCounts(){ return [...(this.db().stock_counts || [])].reverse(); },
+  async stockCountApply(rows, date, by, note){ const d = this.db(), res = [];
+    rows.forEach(e => { const code = String(e.product_code || '').trim().toLowerCase(), cu = String(e.customer_name || '').trim(), pn = String(e.product_name || '').trim(), cnt = +e.counted;
+      const J = this.calc().filter(r => !r.cancelled && (code ? String(r.product_code || '').trim().toLowerCase() === code : !String(r.product_code || '').trim() && (r.customer_name || '').trim() === cu && (r.product_name || '').trim() === pn))
+        .map(r => ({job: r.job_ticket, cur: +r.stock_qty || 0, adj: 0, dd: r.doc_date || ''})).sort((a, b) => a.dd.localeCompare(b.dd) || a.job.localeCompare(b.job));
+      if (!J.length) return; const sys = J.reduce((a, x) => a + x.cur, 0), last = [...J].sort((a, b) => b.dd.localeCompare(a.dd) || b.job.localeCompare(a.job))[0];
+      const mv = (x, q) => { x.cur -= q; x.adj += q; };
+      let rem = -J.filter(x => x.cur < 0).reduce((a, x) => a + x.cur, 0), moved = 0;
+      J.filter(x => x.cur > 0).forEach(x => { if (rem <= 0) return; const t = Math.min(rem, x.cur); mv(x, t); rem -= t; moved += t; });
+      J.filter(x => x.cur < 0).forEach(x => { if (moved <= 0) return; const t = Math.min(moved, -x.cur); mv(x, -t); moved -= t; });
+      const diff = cnt - sys;
+      if (diff < 0) { rem = -diff; J.filter(x => x.cur > 0).forEach(x => { if (rem <= 0) return; const t = Math.min(rem, x.cur); mv(x, t); rem -= t; }); if (rem > 0) mv(last, rem); }
+      else if (diff > 0) { rem = diff; J.filter(x => x.cur < 0).forEach(x => { if (rem <= 0) return; const t = Math.min(rem, -x.cur); mv(x, -t); rem -= t; }); if (rem > 0) mv(last, -rem); }
+      const al = J.filter(x => x.adj).map(x => ({job: x.job, qty: x.adj, left: x.cur}));
+      al.forEach(a => { const w = d.wo.find(x => x.job_ticket === a.job); w.reduce_qty = (+w.reduce_qty || 0) + a.qty; });
+      const row = {id: ++d.seq, count_date: date, product_code: e.product_code || null, customer_name: cu || null, product_name: pn || null, system_qty: sys, counted_qty: cnt, diff_qty: diff, alloc: al, counted_by: by || null, note: note || null, created_at: new Date().toISOString()};
+      (d.stock_counts ||= []).push(row); res.push({product_code: e.product_code, product_name: pn, system: sys, counted: cnt, diff, alloc: al}); });
+    this.save(); return res; },
   async stockFor(cust, prod, code){ const c = String(code || '').trim().toLowerCase();
     return this.calc().filter(r => r.stock_qty > 0 && ((c && String(r.product_code || '').trim().toLowerCase() === c) || ((r.customer_name||'').trim() === (cust||'').trim() && (r.product_name||'').trim() === (prod||'').trim())))
       .map(r => ({job_ticket: r.job_ticket, stock_qty: r.stock_qty, customer_name: r.customer_name})); },
@@ -1244,7 +1262,7 @@ const Live = {
       safe(() => this.pageAll(() => this.sb.from('fc_po').select('*').order('id'))),
       safe(() => this.pageAll(() => this.sb.from('deliveries').select('*').order('id'))),
       this.pageAll(() => this.sb.from('work_orders').select('job_ticket,customer_name,product_name,product_code,po_no,so_no,order_qty,due_date,doc_date,cancelled,closed').order('job_ticket')),
-      this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,ready_qty,eff_qc,print_status,diecut_status,qc_status,stock_qty,last_qc_at,last_prod_at').order('job_ticket')),
+      this.pageAll(() => this.sb.from('v_job_progress').select('job_ticket,ready_qty,eff_qc,print_status,diecut_status,qc_status,stock_qty,last_qc_at,last_prod_at,pending_scans').order('job_ticket')),
       this.pageAll(() => this.sb.from('ship_close').select('*').order('key')),
       safe(() => this.pageAll(() => this.sb.from('customers').select('code,short_name').order('code')))]);
     return {so_h, so_i, fc, dl, wo, prog, close, cust}; },
@@ -1266,6 +1284,8 @@ const Live = {
     if (s) q = q.or(`customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
     return this.chk(await q);
   },
+  async stockCountApply(rows, date, by, note){ return this.chk(await this.sb.rpc('apply_stock_count', {p_rows: rows, p_date: date, p_by: by || null, p_note: note || null})); },
+  async stockCounts(){ try { return this.chk(await this.sb.from('stock_counts').select('*').order('count_date', {ascending: false}).order('id', {ascending: false}).limit(500)); } catch { return null; } },
   async stockFor(cust, prod, code){ const C = 'job_ticket,stock_qty,customer_name,product_code', c = String(code || '').trim();
     const A = cust && prod ? this.chk(await this.sb.from('v_job_progress').select(C).eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0)) : [];
     const B = c ? this.chk(await this.sb.from('v_job_progress').select(C).ilike('product_code', c.replace(/[%_\\]/g, m => '\\' + m)).gt('stock_qty', 0)) : [];
@@ -4775,6 +4795,82 @@ const PaperPage = {
 
 
 /* ================== ระบบจัดส่ง (ตาม PO + สินค้า) — ลิงก์ ?ship / บัญชีฝ่ายจัดส่ง ================== */
+// ===== ตรวจนับสต็อก: กรอกยอดนับได้ → ระบบหักลบกับยอดในระบบ (ปรับลด/ปิดยอด ของ JOB ให้เอง) =====
+const StockCount = {
+  cnt: store.get('vp_cnt_draft', {}), all: false, date: '', by: store.get('vp_cnt_by', ''), note: '',
+  groups(D){ const W = new Map(D.wo.map(w => [w.job_ticket, w])), g = new Map();
+    D.prog.forEach(r => { const w = W.get(r.job_ticket); if (!w || w.cancelled) return; const k = stockKey(w), s = +r.stock_qty || 0;
+      const x = g.get(k) || {k, code: (w.product_code || '').trim(), cu0: (w.customer_name || '').trim(), names: [], p: w.product_name || '', pj: '', q: 0, jobs: [], pend: 0, qc: 0};
+      x.q += s; x.qc += +r.eff_qc || 0; x.pend += +r.pending_scans || 0; if (s) x.jobs.push(`${w.job_ticket} (${fmtN(s)})`);
+      if (w.customer_name && !x.names.includes(w.customer_name.trim())) x.names.push(w.customer_name.trim());
+      if (w.job_ticket > x.pj) { x.pj = w.job_ticket; if (w.product_name) x.p = w.product_name; } g.set(k, x); });
+    return [...g.values()]; },
+  val(k){ const r = qtyExpr(this.cnt[k]); return r.err || r.v === null || Number.isNaN(r.v) ? null : r.v; },
+  save(){ store.set('vp_cnt_draft', this.cnt); },
+  async draw(S, q){ const D = S.D, ro = Office.viewer || Office.shipping; if (!this.date) this.date = todayISO();
+    const G = this.groups(D), show = G.filter(x => (this.all ? x.qc > 0 || x.q !== 0 : x.q > 0) || this.cnt[x.k] != null && this.cnt[x.k] !== '')
+      .filter(x => qHit([x.code, x.p, x.names.join(' '), x.jobs.join(' ')].join(' '), q))
+      .sort((a, b) => String(a.code || 'ฮ').localeCompare(String(b.code || 'ฮ'), 'th', {numeric: true}) || String(a.p).localeCompare(String(b.p), 'th'));
+    this._G = G; this._show = show;
+    const pend = G.reduce((a, x) => a + x.pend, 0);
+    $('#shBody').innerHTML = `<div class="toolbar" style="flex-wrap:wrap;gap:6px;margin:0 0 6px">
+        วันที่นับ <input id="scD" class="field thd" style="width:120px" value="${isoToTh(this.date)}" placeholder="วว/ดด/ปปปป">
+        ผู้นับ <input id="scBy" class="field" style="width:150px" value="${esc(this.by)}" placeholder="ชื่อคนนับ">
+        หมายเหตุ <input id="scNote" class="field" style="width:220px" value="${esc(this.note)}" placeholder="เช่น ตรวจนับประจำเดือน">
+        <label class="hint" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="scAll" ${this.all ? 'checked' : ''}> แสดงรายการที่ระบบเป็น 0 / ติดลบด้วย</label>
+        <span class="sp"></span><button class="btn ghost sm" id="scPrint">🖨 ใบตรวจนับ</button><button class="btn ghost sm" id="scClr">ล้างที่กรอก</button>
+        ${ro ? '' : `<button class="btn sm" id="scSave">✅ บันทึกผลตรวจนับ <b id="scN"></b></button>`}</div>
+      ${pend ? `<div class="wt-info" style="background:#fff7ed;border-color:#fdba74;margin-bottom:6px">⚠ มีสแกนรอตรวจ ${fmtN(pend)} รายการ — ควรอนุมัติที่หน้า "ตรวจสแกน" ก่อน ไม่งั้นยอดในระบบยังไม่อัปเดต ส่วนต่างจะคลาดเคลื่อน</div>` : ''}
+      <div class="hint" style="margin:0 0 6px">กรอกเฉพาะรายการที่นับ (พิมพ์สูตรได้ เช่น 8*500) · รายการที่ไม่กรอก ระบบไม่แตะ · ของขาด → หักจาก JOB เก่าสุดก่อน · ของเกิน → เพิ่มเข้า JOB ล่าสุด · สินค้ารหัสเดียวกันรวมทุกลูกค้า/สาขา</div>
+      <div class="card tbl-wrap trk-wrap"><table class="trk"><thead><tr><th>รหัสสินค้า</th><th>สินค้า</th><th>ลูกค้า</th><th class="num">ยอดในระบบ</th><th class="num" style="width:130px">นับได้</th><th class="num">ส่วนต่าง</th><th>อยู่ที่ JOB</th></tr></thead><tbody>
+      ${show.map((x, i) => `<tr><td>${esc(x.code || '-')}</td><td class="pn">${esc(x.p)}</td><td class="cu" style="font-size:12px">${esc(x.names.join(', '))}</td>
+        <td class="num ${x.q < 0 ? 'stock-neg' : ''}">${fmtN(x.q)}</td>
+        <td class="num"><input class="field sc-in" data-i="${i}" inputmode="decimal" style="width:120px;text-align:right;padding:4px 6px" value="${esc(this.cnt[x.k] ?? '')}" ${ro ? 'disabled' : ''}></td>
+        <td class="num" data-d="${i}"></td><td style="font-size:12px">${esc(x.jobs.join(', '))}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">ไม่พบรายการ</td></tr>'}</tbody></table></div>
+      <h4 style="margin:14px 0 6px">📜 ประวัติการตรวจนับ <button class="btn ghost sm" id="scCsv">⬇ Excel (CSV)</button></h4><div id="scHist" class="hint">กำลังโหลด…</div>`;
+    const upd = i => { const x = show[i], v = this.val(x.k), c = $(`[data-d="${i}"]`), inp = $(`.sc-in[data-i="${i}"]`), raw = this.cnt[x.k];
+      inp.classList.toggle('bad', raw != null && raw !== '' && v === null);
+      c.innerHTML = v === null ? '' : v - x.q === 0 ? '<span style="color:#15803d">ตรง ✓</span>' : `<b style="color:${v - x.q < 0 ? '#dc2626' : '#15803d'}">${v - x.q > 0 ? '+' : ''}${fmtN(v - x.q)}</b>`; };
+    const cntN = () => { const n = G.filter(x => this.val(x.k) !== null).length; if ($('#scN')) $('#scN').textContent = n ? `(${n})` : ''; };
+    show.forEach((x, i) => upd(i)); cntN();
+    document.querySelectorAll('.sc-in').forEach(el => { el.oninput = () => { const i = +el.dataset.i; this.cnt[show[i].k] = el.value; if (el.value === '') delete this.cnt[show[i].k]; this.save(); upd(i); cntN(); };
+      el.onkeydown = e => { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); document.querySelector(`.sc-in[data-i="${+el.dataset.i + 1}"]`)?.focus(); } if (e.key === 'ArrowUp') { e.preventDefault(); document.querySelector(`.sc-in[data-i="${+el.dataset.i - 1}"]`)?.focus(); } }; });
+    $('#scD').onchange = () => { const d = thToIso($('#scD').value.trim()); if (d) this.date = d; };
+    $('#scBy').oninput = e => { this.by = e.target.value; store.set('vp_cnt_by', this.by); }; $('#scNote').oninput = e => this.note = e.target.value;
+    $('#scAll').onchange = e => { this.all = e.target.checked; this.draw(S, q); };
+    $('#scClr').onclick = () => { if (!Object.keys(this.cnt).length || confirm('ล้างตัวเลขที่กรอกไว้ทั้งหมด?')) { this.cnt = {}; this.save(); this.draw(S, q); } };
+    $('#scPrint').onclick = () => this.sheet(show);
+    if ($('#scSave')) $('#scSave').onclick = () => this.apply(S, q);
+    this.hist();
+  },
+  sheet(show){ const R = show.filter(x => x.q > 0 || this.all);
+    const html = `<div class="rpt"><div class="rpt-h"><div><b>V-Packaging</b><h2>ใบตรวจนับสต็อกสินค้า</h2></div><div class="rpt-meta">วันที่นับ ${isoToTh(this.date || todayISO())}<br>ผู้นับ ........................................<br>พิมพ์เมื่อ ${fmtT(new Date().toISOString())}</div></div>
+      <table><thead><tr><th style="width:8mm">#</th><th>รหัสสินค้า</th><th>สินค้า</th><th>ลูกค้า</th><th style="width:30mm">นับได้ (ดวง)</th><th style="width:35mm">หมายเหตุ</th></tr></thead><tbody>
+      ${R.map((x, i) => `<tr style="height:9mm"><td>${i + 1}</td><td>${esc(x.code || '-')}</td><td>${esc(x.p)}</td><td style="font-size:.85em">${esc(x.names.join(', '))}</td><td></td><td></td></tr>`).join('')}</tbody></table>
+      <div class="rpt-note" style="color:#64748b">${fmtN(R.length)} รายการ · นับเป็นดวง (ม้วน × ดวงต่อม้วน) · ของจาก JOB ที่ยังผลิตไม่เสร็จ ไม่ต้องนับรวม</div></div>`;
+    RptPrint.go({title: 'ใบตรวจนับสต็อก_' + isoToTh(this.date || todayISO()).replace(/\//g, '-'), orient: 'portrait', fs: 10}, html); },
+  async apply(S, q){
+    const d = thToIso($('#scD').value.trim()); if (!d) return toast('วันที่นับไม่ถูกต้อง'); this.date = d;
+    const L = this._G.filter(x => this.val(x.k) !== null);
+    if (!L.length) return toast('ยังไม่ได้กรอกยอดที่นับได้');
+    const bad = Object.keys(this.cnt).filter(k => this.cnt[k] !== '' && this.val(k) === null).length; if (bad) return toast(`มีช่องที่กรอกไม่ถูกต้อง ${bad} ช่อง`);
+    const dn = L.filter(x => this.val(x.k) < x.q), up = L.filter(x => this.val(x.k) > x.q), sum = A => A.reduce((a, x) => a + this.val(x.k) - x.q, 0);
+    if (!confirm(`บันทึกผลตรวจนับ ${L.length} รายการ วันที่ ${isoToTh(d)}?\n\n• ตรงกับระบบ ${L.length - dn.length - up.length} รายการ\n• ของขาด ${dn.length} รายการ (${fmtN(sum(dn))}) → หักจาก JOB เก่าสุดก่อน\n• ของเกิน ${up.length} รายการ (+${fmtN(sum(up))}) → เพิ่มเข้า JOB ล่าสุด\n\nระบบจะปรับช่อง "ปรับลด/ปิดยอด" ของ JOB ให้อัตโนมัติ`)) return;
+    try { const res = await API.stockCountApply(L.map(x => ({product_code: x.code || null, customer_name: x.code ? null : x.cu0, product_name: x.code ? x.p : x.p.trim(), counted: this.val(x.k)})), d, this.by.trim(), this.note.trim());
+      L.forEach(x => delete this.cnt[x.k]); this.save(); this.note = '';
+      toast(`บันทึกผลตรวจนับ ${fmtN((res || []).length)} รายการแล้ว`); await S.load(true); S.draw();
+    } catch (e) { toast(/apply_stock_count|stock_counts|does not exist|schema cache/.test(e.message) ? 'ยังไม่ได้รัน SQL 37_stock_count.sql' : e.message, 5000); } },
+  async hist(){ const H = await API.stockCounts(), el = $('#scHist'); if (!el) return;
+    if (H === null) { el.innerHTML = 'ยังไม่ได้รัน SQL 37_stock_count.sql'; return; } this._H = H;
+    if (!H.length) { el.innerHTML = 'ยังไม่มีประวัติการตรวจนับ'; return; }
+    const al = h => (h.alloc || []).map(a => `${a.job} ${a.qty > 0 ? '−' : '+'}${fmtN(Math.abs(a.qty))}`).join(', ');
+    el.innerHTML = `<div class="card tbl-wrap trk-wrap"><table class="trk"><thead><tr><th>วันที่นับ</th><th>รหัสสินค้า</th><th>สินค้า</th><th class="num">ยอดระบบ</th><th class="num">นับได้</th><th class="num">ส่วนต่าง</th><th>ปรับที่ JOB</th><th>ผู้นับ</th><th>หมายเหตุ</th></tr></thead><tbody>
+      ${H.slice(0, 300).map(h => `<tr><td>${fmtD(h.count_date)}</td><td>${esc(h.product_code || '-')}</td><td class="pn">${esc(h.product_name || '')}${h.product_code ? '' : `<br><small class="hint">${esc(h.customer_name || '')}</small>`}</td><td class="num">${fmtN(h.system_qty)}</td><td class="num">${fmtN(h.counted_qty)}</td>
+        <td class="num">${+h.diff_qty ? `<b style="color:${h.diff_qty < 0 ? '#dc2626' : '#15803d'}">${h.diff_qty > 0 ? '+' : ''}${fmtN(h.diff_qty)}</b>` : '<span style="color:#15803d">ตรง</span>'}</td><td style="font-size:12px">${esc(al(h))}</td><td>${esc(h.counted_by || '')}</td><td>${esc(h.note || '')}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#scCsv').onclick = () => QSPage.csv('ประวัติตรวจนับสต็อก_' + isoToTh(todayISO()).replace(/\//g, '-'), ['วันที่นับ', 'รหัสสินค้า', 'สินค้า', 'ลูกค้า', 'ยอดระบบ', 'นับได้', 'ส่วนต่าง', 'ปรับที่ JOB', 'ผู้นับ', 'หมายเหตุ'],
+      H.map(h => [isoToTh(h.count_date), h.product_code || '', h.product_name || '', h.customer_name || '', h.system_qty, h.counted_qty, h.diff_qty, al(h), h.counted_by || '', h.note || ''])); }
+};
+
 const ShipPage = {
   ST: {nojob: ['ยังไม่เปิดใบสั่งผลิต', '#64748b', '📝'], prod: ['กำลังผลิต', '#7c3aed', '🖨️'], ready: ['พร้อมส่ง', '#0f766e', '📦'], partial: ['ส่งบางส่วน', '#d97706', '🚚'],
        toclose: ['ส่งครบ รอปิดงาน', '#2563eb', '✅'], closed: ['ปิดงานแล้ว', '#16a34a', '🔒']},
@@ -4881,7 +4977,7 @@ const ShipPage = {
     this.D = {...D, lines: all, orphan, hidden, stockMap: stock}; return this.D;
   },
   async page(force){
-    const V = [['open', 'ค้างส่งทั้งหมด'], ['prod', '🖨️ กำลังผลิต'], ['ready', '📦 พร้อมส่ง'], ['partial', '🚚 ส่งบางส่วน'], ['toclose', '✅ รอปิดงาน'], ['closed', '🔒 ปิดแล้ว'], ['stock', '📦 เช็กสต็อก'], ['orphan', '⚠ ส่งแล้วไม่พบ PO']];
+    const V = [['open', 'ค้างส่งทั้งหมด'], ['prod', '🖨️ กำลังผลิต'], ['ready', '📦 พร้อมส่ง'], ['partial', '🚚 ส่งบางส่วน'], ['toclose', '✅ รอปิดงาน'], ['closed', '🔒 ปิดแล้ว'], ['stock', '📦 เช็กสต็อก'], ['count', '📋 ตรวจนับสต็อก'], ['orphan', '⚠ ส่งแล้วไม่พบ PO']];
     $('#page').innerHTML = `<div class="toolbar sh-bar"><div class="seg sh-seg" id="shSeg">${V.map(([k, l]) => `<button data-v="${k}">${l} <b class="sh-n" data-n="${k}"></b></button>`).join('')}</div></div>
       <div class="toolbar"><input id="shQ" class="field" style="max-width:300px;padding:7px 11px" placeholder="🔍 ค้นหา ลูกค้า / PO / สินค้า / JOB / เลขใบส่งของ" value="${esc(this.q)}">
         <button class="btn ghost sm" id="shRe">↻</button>
@@ -4915,9 +5011,10 @@ const ShipPage = {
     const D = this.D; if (!D) return; const q = this.q.toLowerCase(), t = todayISO();
     const openSt = ['nojob', 'prod', 'ready', 'partial'], cnt = s => D.lines.filter(L => s === 'open' ? openSt.includes(L.status) : s === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === s).length;
     document.querySelectorAll('.sh-n').forEach(b => { const k = b.dataset.n; b.textContent = k === 'stock' ? '' : k === 'orphan' ? (D.orphan.length || '') : (cnt(k) || ''); });
-    const sw = $('#shSortW'); if (sw) { sw.style.display = ['stock', 'orphan'].includes(this.view) ? 'none' : 'flex'; $('#shSort').value = this.sortKey(); }
+    const sw = $('#shSortW'); if (sw) { sw.style.display = ['stock', 'orphan', 'count'].includes(this.view) ? 'none' : 'flex'; $('#shSort').value = this.sortKey(); }
     if (this.view === 'stock') return this.drawStock(q);
     if (this.view === 'orphan') return this.drawOrphan(q);
+    if (this.view === 'count') return StockCount.draw(this, q);
     const R = D.lines.filter(L => (this.view === 'open' ? openSt.includes(L.status) : this.view === 'prod' ? ['prod', 'nojob'].includes(L.status) : L.status === this.view) && this.match(L, q))
       .sort(this.cmp(this.sortKey()));
     const tc = this.view === 'toclose' ? R.filter(L => !L.missingDoc).length : 0;
@@ -4943,7 +5040,8 @@ const ShipPage = {
   drawStock(q){
     const D = this.D, g = new Map(); this.sf ||= {};
     D.prog.forEach(r => { const w = D.wo.find(x => x.job_ticket === r.job_ticket); if (!w || w.cancelled || !(+r.stock_qty)) return;
-      const k = (w.customer_name || '').trim() + '|' + (w.product_name || '').trim(), x = g.get(k) || {c: w.customer_name, p: w.product_name, code: w.product_code, q: 0, jobs: []}; x.q += +r.stock_qty; x.jobs.push(`${w.job_ticket} (${fmtN(r.stock_qty)})`); g.set(k, x); });
+      const k = stockKey(w), x = g.get(k) || {c: w.customer_name, p: w.product_name, code: w.product_code, q: 0, jobs: []}; x.q += +r.stock_qty;
+      if (w.customer_name && !String(x.c || '').split(', ').includes(w.customer_name)) x.c = x.c ? x.c + ', ' + w.customer_name : w.customer_name; x.jobs.push(`${w.job_ticket} (${fmtN(r.stock_qty)})`); g.set(k, x); });
     const C = [['ลูกค้า', x => x.c || '', 'text'], ['รหัส', x => x.code || '', 'text'], ['สินค้า', x => x.p || '', 'text'], ['คงเหลือ', x => x.q, 'numeric'], ['อยู่ที่ JOB', x => x.jobs.join(', '), 'text']];
     const base = [...g.values()].filter(x => x.q > 0 && qHit([x.c, x.p, x.code, x.jobs.join(' ')].join(' '), q)), F = this.sf;
     const pass = (x, skip) => Object.entries(F).every(([k, set]) => +k === skip || set.has(String(C[k][1](x))));
