@@ -803,6 +803,8 @@ const pad2 = n => String(n).padStart(2, '0');
 function isoToTh(iso){ const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : ''; }
 // ช่องวันที่ไทยทั้งระบบ: พิมพ์ตัวเลขล้วน (01012569) ใส่ / ให้อัตโนมัติ + ปุ่ม 📅 เลือกจากปฏิทิน
 const THD_SEL = 'input[placeholder^="วว/ดด/ปปปป"]:not([data-d]), input.thd:not([data-d])';
+// กุญแจสต็อก: รหัสสินค้าเดียวกัน = สต็อกเดียวกัน (ไม่แยกลูกค้า/สาขา) · ไม่มีรหัส → ลูกค้า + ชื่อสินค้า
+function stockKey(r){ const c = String(r.product_code || '').trim().toLowerCase(); return c ? 'C:' + c : 'N:' + String(r.customer_name || '').trim() + '|' + String(r.product_name || '').trim(); }
 function thdMask(el){ const d = el.value.replace(/\D/g, '').slice(0, 8); const v = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
   if (v !== el.value) el.value = v; el.classList.toggle('bad', v.length === 10 && !thToIso(v)); }
 function thdEnhance(root){ (root.querySelectorAll ? root : document).querySelectorAll(THD_SEL).forEach(el => { if (el.dataset.thd || el.readOnly || el.disabled) return; el.dataset.thd = 1;
@@ -971,20 +973,23 @@ const Demo = {
         cancelled: !!w.cancelled, ready_qty: ready, backlog_qty: w.cancelled ? 0 : Math.max(0, N(w.order_qty) - ready),
         stock_ship_qty: shipS, stock_qty: ready - (w.closed ? N(w.order_qty) : shipS) - N(w.reduce_qty) - N(w.stock_cut_qty) };
     });
-    const tot = {}; rows.forEach(r => { const k = r.customer_name + '|' + r.product_name; tot[k] = (tot[k] || 0) + r.stock_qty; });
-    rows.forEach(r => r.stock_total = tot[r.customer_name + '|' + r.product_name]);
+    const tot = {}; rows.forEach(r => { const k = stockKey(r); tot[k] = (tot[k] || 0) + r.stock_qty; });
+    rows.forEach(r => r.stock_total = tot[stockKey(r)]);
     return rows.sort((a,b) => b.job_ticket.localeCompare(a.job_ticket));
   },
   async progress(){ return this.calc(); },
   async stockView(){
-    const g = {}; this.calc().forEach(r => { const k = r.customer_name + '|' + r.product_name;
-      const x = g[k] ||= {customer_name: r.customer_name, product_name: r.product_name, prod_total:0, qc_total:0, waste_total:0, order_total:0, open_order_qty:0, stock_qty:0, jobs:[], job_count:0, last_status: r.qc_status};
+    const g = {}; this.calc().forEach(r => { const k = stockKey(r);
+      if (g[k] && r.customer_name && !g[k].customer_name.split(', ').includes(r.customer_name)) g[k].customer_name += ', ' + r.customer_name;
+      const x = g[k] ||= {customer_name: r.customer_name || '', product_code: r.product_code, product_name: r.product_name, prod_total:0, qc_total:0, waste_total:0, order_total:0, open_order_qty:0, stock_qty:0, jobs:[], job_count:0, last_status: r.qc_status};
       x.prod_total += r.eff_prod; x.qc_total += r.eff_qc; x.waste_total += r.waste_qty; if (!r.cancelled) x.order_total += +r.order_qty || 0;
       if (!r.closed && !r.cancelled) x.open_order_qty += +r.order_qty || 0; x.stock_qty += r.stock_qty; x.job_count++;
       if (r.stock_qty) x.jobs.push(`${r.job_ticket}:${r.stock_qty}`); });
     return Object.values(g).map(x => ({...x, stock_jobs: x.jobs.sort().join(', ')}));
   },
-  async stockFor(cust, prod){ return this.calc().filter(r => (r.customer_name||'').trim() === (cust||'').trim() && (r.product_name||'').trim() === (prod||'').trim() && r.stock_qty > 0).map(r => ({job_ticket: r.job_ticket, stock_qty: r.stock_qty})); },
+  async stockFor(cust, prod, code){ const c = String(code || '').trim().toLowerCase();
+    return this.calc().filter(r => r.stock_qty > 0 && ((c && String(r.product_code || '').trim().toLowerCase() === c) || ((r.customer_name||'').trim() === (cust||'').trim() && (r.product_name||'').trim() === (prod||'').trim())))
+      .map(r => ({job_ticket: r.job_ticket, stock_qty: r.stock_qty, customer_name: r.customer_name})); },
   async nextJobTicket(){
     const d = new Date(Date.now()+7*3600e3), pfx = String((d.getUTCFullYear()+543)%100).padStart(2,'0') + String(d.getUTCMonth()+1).padStart(2,'0') + '/';
     const n = Math.max(0, ...this.db().wo.map(w => w.job_ticket).filter(j => new RegExp('^' + pfx.replace('/','\\/') + '\\d+$').test(j)).map(j => +j.split('/')[1])) + 1;
@@ -997,7 +1002,7 @@ const Demo = {
     d.wo.push({...p, job_ticket:j, closed:false, created_at:new Date().toISOString(), stock_cut_qty:null, adj_prod_qty:null, adj_qc_qty:null, reduce_qty:null});
     let carry = {total:0, from:[]};
     if (pull && mode !== 'revise') { const w = d.wo.find(x => x.job_ticket === j);
-      (await this.stockFor(w.customer_name, w.product_name)).filter(r => r.job_ticket !== j).forEach(r => {
+      (await this.stockFor(w.customer_name, w.product_name, w.product_code)).filter(r => r.job_ticket !== j).forEach(r => {
         const src = d.wo.find(x => x.job_ticket === r.job_ticket); src.stock_cut_qty = (+src.stock_cut_qty || 0) + r.stock_qty; (d.carry_links ||= []).push({to_job:j, from_job:r.job_ticket, qty:r.stock_qty});
         carry.total += r.stock_qty; carry.from.push(`${r.job_ticket} (${fmtN(r.stock_qty)})`); });
       if (carry.total) w.carry_forward_qty = (+w.carry_forward_qty || 0) + carry.total; }
@@ -1261,8 +1266,10 @@ const Live = {
     if (s) q = q.or(`customer_name.ilike.%${s}%,product_name.ilike.%${s}%`);
     return this.chk(await q);
   },
-  async stockFor(cust, prod){
-    return this.chk(await this.sb.from('v_job_progress').select('job_ticket,stock_qty').eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0));
+  async stockFor(cust, prod, code){ const C = 'job_ticket,stock_qty,customer_name,product_code', c = String(code || '').trim();
+    const A = cust && prod ? this.chk(await this.sb.from('v_job_progress').select(C).eq('customer_name', cust).eq('product_name', prod).gt('stock_qty', 0)) : [];
+    const B = c ? this.chk(await this.sb.from('v_job_progress').select(C).ilike('product_code', c.replace(/[%_\\]/g, m => '\\' + m)).gt('stock_qty', 0)) : [];
+    const m = new Map(); [...A, ...B].forEach(r => m.set(r.job_ticket, r)); return [...m.values()].sort((a, b) => a.job_ticket.localeCompare(b.job_ticket));
   },
   // ช่องใหม่ที่ยังไม่ได้รัน SQL (column ... does not exist) → ตัดช่องนั้นออกแล้วบันทึกส่วนที่เหลือ พร้อมเตือน
   async updateWorkOrder(job, p){ let q = {...p}, r, miss = [];
@@ -2172,13 +2179,14 @@ const WOForm = {
   setVal(c, v){ this.wo[c] = v; const el = $(`#woForm [data-c="${c}"]`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = isNumF(c) ? fmtIn(v) : (v ?? ''); } },
   async checkStock(){
     const box = $('#carryBox'), badge = $('#stockBadge');
-    const cu = (this.wo.customer_name||'').trim(), pr = (this.wo.product_name||'').trim();
-    if (!cu || !pr) { this.carry = null; if (badge) badge.innerHTML = ''; if (box) box.innerHTML = 'เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้'; return; }
-    let rows = []; try { rows = await API.stockFor(cu, pr); } catch {}
+    const cu = (this.wo.customer_name||'').trim(), pr = (this.wo.product_name||'').trim(), pc = (this.wo.product_code||'').trim();
+    if (!pc && (!cu || !pr)) { this.carry = null; if (badge) badge.innerHTML = ''; if (box) box.innerHTML = 'เลือกลูกค้าและสินค้าก่อน ระบบจะเช็กสต็อกให้'; return; }
+    let rows = []; try { rows = await API.stockFor(cu, pr, pc); } catch {}
+    const other = r => r.customer_name && r.customer_name.trim() !== cu, lbl = r => `${esc(r.job_ticket)}${other(r) ? ` <span class="hint">· ${esc(r.customer_name)}</span>` : ''}`;
     if (this.mode === 'edit') rows = rows.filter(r => r.job_ticket !== this.wo.job_ticket);
     const total = rows.reduce((s,r) => s + (+r.stock_qty||0), 0); this.carry = {total, rows};
     if (badge) badge.innerHTML = total > 0
-      ? `<span class="sb-yes">📦 มีสต็อก ${fmtN(total)} ดวง</span> <small>(${rows.map(r => `${esc(r.job_ticket)}: ${fmtN(r.stock_qty)}`).join(', ')})</small>`
+      ? `<span class="sb-yes">📦 มีสต็อก ${fmtN(total)} ดวง</span> <small>(${rows.map(r => `${lbl(r)}: ${fmtN(r.stock_qty)}`).join(', ')})</small>`
       : `<span class="sb-no">ไม่มีสต็อก — ผลิตใหม่</span>`;
     if (!box) return;
     if (this.pull === undefined) this.pull = true;
@@ -2190,7 +2198,7 @@ const WOForm = {
       return;
     }
     box.innerHTML = (total > 0
-      ? `<b class="ok-t">มีสต็อก ${fmtN(total)} ดวง</b> <small>จาก ${rows.map(r => `${esc(r.job_ticket)} (${fmtN(r.stock_qty)})`).join(', ')}</small>
+      ? `<b class="ok-t">มีสต็อก ${fmtN(total)} ดวง</b> <small>จาก ${rows.map(r => `${lbl(r)} (${fmtN(r.stock_qty)})`).join(', ')}</small>${rows.some(other) ? '<br><small class="hint">รวมสต็อกของลูกค้าสาขาอื่นที่ใช้รหัสสินค้าเดียวกัน</small>' : ''}
          <label class="wc ${this.pull ? 'on' : ''}"><input type="checkbox" id="pullChk" ${this.pull ? 'checked' : ''}> ดึงเป็นยอดยกมาเมื่อบันทึก</label>`
       : `<span class="muted-t">ไม่มีสต็อก</span>`) + ` <button type="button" class="btn ghost sm" id="carryEdit">✏️ แก้เอง</button>`;
     $('#pullChk')?.addEventListener('change', e => { this.pull = e.target.checked; e.target.parentElement.classList.toggle('on', this.pull); });
@@ -4141,8 +4149,8 @@ const Kpi = {
   AG: [[30,'≤ 30 วัน',['#effbf3','#4ade80']], [90,'31–90 วัน',['#f6fbe9','#a3e635']], [180,'91–180 วัน',['#fffbea','#facc15']], [365,'181–365 วัน',['#fff4ec','#fb923c']], [1e9,'เกิน 1 ปี',['#fef1f1','#f87171']]],
   async aging(o, force){
     const t = todayISO(), all = (await this.jobs(force)).filter(r => !r.cancelled);
-    const net = new Map(); all.forEach(r => { const k = (r.customer_name || '').trim() + '|' + (r.product_name || '').trim(); net.set(k, (net.get(k) || 0) + (+r.stock_qty || 0)); });
-    const lots = all.filter(r => +r.stock_qty > 0 && net.get((r.customer_name || '').trim() + '|' + (r.product_name || '').trim()) > 0)
+    const net = new Map(); all.forEach(r => { const k = stockKey(r); net.set(k, (net.get(k) || 0) + (+r.stock_qty || 0)); });
+    const lots = all.filter(r => +r.stock_qty > 0 && net.get(stockKey(r)) > 0)
       .map(r => { const since = this.dayOf(r.last_qc_at) || r.doc_date || this.dayOf(r.created_at); return {...r, _since: since, _age: since ? this.diff(since, t) : 0}; });
     const key = r => o.dim === 'product' ? `${(r.customer_name || '').trim()} · ${(r.product_name || '').trim()}` : (r.customer_name || '').trim() || '(ไม่ระบุ)';
     const g = new Map(); lots.forEach(r => (g.get(key(r)) || g.set(key(r), []).get(key(r))).push(r));
@@ -4394,8 +4402,8 @@ const BossPage = {
     const pr = P.filter(x => x.step === 'พิมพ์'), prToday = sum(pr.filter(x => x._d === t), x => x.qty), prMonth = sum(pr, x => x.qty), qcMonth = sum(Q, x => x.qty);
     const F = J.filter(r => !Kpi.old(r)).map(r => ({...r, _fin: Kpi.finish(r)})).filter(r => r._fin && r._fin >= m0 && r._fin <= t && r.due_date);
     const onT = F.filter(r => r._fin <= r.due_date).length, pct = F.length ? onT / F.length * 100 : null;
-    const net = new Map(); J.filter(r => !r.cancelled).forEach(r => { const k = (r.customer_name || '').trim() + '|' + (r.product_name || '').trim(); net.set(k, (net.get(k) || 0) + N(r.stock_qty)); });
-    const lots = J.filter(r => !r.cancelled && N(r.stock_qty) > 0 && net.get((r.customer_name || '').trim() + '|' + (r.product_name || '').trim()) > 0)
+    const net = new Map(); J.filter(r => !r.cancelled).forEach(r => { const k = stockKey(r); net.set(k, (net.get(k) || 0) + N(r.stock_qty)); });
+    const lots = J.filter(r => !r.cancelled && N(r.stock_qty) > 0 && net.get(stockKey(r)) > 0)
       .map(r => ({...r, _age: Kpi.diff(Kpi.dayOf(r.last_qc_at) || r.doc_date || t, t)}));
     const stock = sum(lots, r => r.stock_qty), old = sum(lots.filter(r => r._age > 180), r => r.stock_qty);
     const prod = new Map(); lots.forEach(r => { const k = (r.customer_name || '').trim() + '|' + (r.product_name || '').trim(), x = prod.get(k) || {c: r.customer_name, p: r.product_name, q: 0, age: 0}; x.q += N(r.stock_qty); x.age = Math.max(x.age, r._age); prod.set(k, x); });
