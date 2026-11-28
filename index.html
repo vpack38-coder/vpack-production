@@ -146,6 +146,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .bar.qcb i{background:var(--qc)}
 dialog{border:0;border-radius:16px;padding:0;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 60px #0004}
 dialog::backdrop{background:#1b233366}
+dialog.wide{max-width:min(1500px,96vw);width:96vw}dialog.wide .tbl-wrap{max-height:74vh!important}dialog.wide td.pn{min-width:300px}dialog.wide td.cu{min-width:220px}
 .dlg{padding:20px}
 .dlg h3{margin:0 0 14px}
 .dlg label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
@@ -3843,12 +3844,12 @@ const PivotRpt = {
   },
   detail(r, dimL){
     const W = this.mode === 'waste';
-    $('#dlgBody').innerHTML = `<h3>${esc(dimL)}: ${esc(r.key)} · ${r.jobs} JOB</h3><div class="tbl-wrap" style="max-height:60vh"><table class="trk"><thead><tr><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th>${W ? '<th>เครื่อง</th><th class="num">ผลิต</th><th class="num">QC</th><th class="num">เสีย</th><th class="num">%</th>' : '<th>กระดาษ</th><th class="num">เมตร</th><th class="num">ตร.ม.</th>'}</tr></thead><tbody>
+    $('#dlgBody').innerHTML = `<h3>${esc(dimL)}: ${esc(r.key)} · ${r.jobs} JOB</h3><div class="tbl-wrap" style="max-height:74vh"><table class="trk"><thead><tr><th>JOB</th><th>ลูกค้า</th><th>สินค้า</th>${W ? '<th>เครื่อง</th><th class="num">ผลิต</th><th class="num">QC</th><th class="num">เสีย</th><th class="num">%</th>' : '<th>กระดาษ</th><th class="num">เมตร</th><th class="num">ตร.ม.</th>'}</tr></thead><tbody>
       ${r.list.sort((a, b) => W ? (+b.waste_qty || 0) - (+a.waste_qty || 0) : (+b.total_m || 0) - (+a.total_m || 0)).map(x => `<tr><td><a href="#" class="jl" data-open="${esc(x.job_ticket)}">${esc(x.job_ticket)}</a></td><td class="cu">${esc(x.customer_name || '')}</td><td class="pn">${esc(x.product_name || '')}</td>
         ${W ? `<td>${esc(x.machine || '')}</td><td class="num">${fmtN(x.eff_prod)}</td><td class="num">${fmtN(x.eff_qc)}</td><td class="num">${fmtN(x.waste_qty)}</td><td class="num">${(+x.eff_prod ? x.waste_qty / x.eff_prod * 100 : 0).toFixed(2)}%</td>`
         : `<td>${esc(x.paper_code || '')}<div class="so-rm">${esc(x.paper_type || '')}</div></td><td class="num">${fmtN(Math.round(x.total_m))}</td><td class="num">${fmtN(Math.round((+x.total_m || 0) * (+x.web_width_mm || 0) / 1000))}</td>`}</tr>`).join('')}</tbody></table></div>
       <div class="acts"><button class="btn" id="pd_x">ปิด</button></div>`;
-    const d = $('#dlg'); d.showModal(); $('#pd_x').onclick = () => d.close();
+    const d = $('#dlg'); d.classList.add('wide'); d.addEventListener('close', () => d.classList.remove('wide'), {once: true}); d.showModal(); $('#pd_x').onclick = () => d.close();
     $('#dlgBody').querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); d.close(); store.set('vp_open_job', a.dataset.open); Office.go('wo'); });
   },
   print(o){
