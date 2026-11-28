@@ -961,7 +961,7 @@ const Demo = {
       const sum = a => a.reduce((s,l) => s + N(l.qty), 0);
       const qlS = ql.filter(l => l.status === 'ส่งจากสต็อก'); ql = ql.filter(l => l.status !== 'ส่งจากสต็อก');
       const qcs = last(ql)?.status, shipS = sum(qlS);
-      const prod = sum(pr) > 0 ? sum(pr) : sum(dc), qc = sum(ql), carry = N(w.carry_forward_qty);
+      const prod = Math.max(sum(pr), sum(dc)), qc = sum(ql), carry = N(w.carry_forward_qty);
       const effP = N(w.adj_prod_qty) > 0 ? N(w.adj_prod_qty) : prod, effQ = N(w.adj_qc_qty) > 0 ? N(w.adj_qc_qty) : qc;
       const ready = effQ + carry;
       return {...w, prod_qty: prod, print_qty: sum(pr), diecut_qty: sum(dc), qc_qty: qc,
