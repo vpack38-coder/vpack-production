@@ -146,6 +146,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .bar.qcb i{background:var(--qc)}
 dialog{border:0;border-radius:16px;padding:0;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 60px #0004}
 dialog::backdrop{background:#1b233366}
+td.lg-c{cursor:pointer;text-decoration:underline dotted #94a3b8;text-underline-offset:3px}td.lg-c:hover{background:#e0ecff!important}td.lg-chg{color:#7c3aed;font-weight:700}td.lg-odd{background:#ffedd5!important;color:#c2410c;font-weight:700}
 dialog.wide{max-width:min(1500px,96vw);width:96vw}dialog.wide .tbl-wrap{max-height:74vh!important}dialog.wide td.pn{min-width:300px}dialog.wide td.cu{min-width:220px}
 .dlg{padding:20px}
 .dlg h3{margin:0 0 14px}
@@ -4796,6 +4797,28 @@ const PaperPage = {
 
 
 /* ================== ระบบจัดส่ง (ตาม PO + สินค้า) — ลิงก์ ?ship / บัญชีฝ่ายจัดส่ง ================== */
+// ===== ป๊อปอัปยอดที่ช่างส่ง (ติดตามงาน → คลิกช่องจำนวนผลิต / หลังไดคัท / ผ่าน QC) =====
+const ScanPop = {
+  async open(job, after){ let L; try { L = await API.jobLogs(job); } catch (e) { return toast(e.message); }
+    const ro = Office.ro || Office.viewer, d = $('#dlg'), sumQ = A => A.reduce((a, x) => a + (+x.qty || 0), 0);
+    const pr = L.prod.filter(x => x.step !== 'ไดคัท'), dc = L.prod.filter(x => x.step === 'ไดคัท');
+    const tbl = (A, t, step) => A.length ? `<table class="trk"><thead><tr><th>วันเวลา</th><th>ช่าง</th>${step ? '<th>ขั้นตอน</th>' : ''}<th>สถานะ</th><th class="num">ยอด</th><th>หมายเหตุ</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
+      ${A.map(x => `<tr><td style="white-space:nowrap">${fmtT(x.logged_at)}</td><td>${esc(x.employee_name || '')}</td>${step ? `<td>${esc(x.step || '')}</td>` : ''}<td>${esc(x.status || '')}</td><td class="num"><b>${x.qty === null || x.qty === undefined ? '-' : fmtN(x.qty)}</b></td><td style="font-size:12px">${esc(x.note || '')}</td>${ro ? '' : `<td><button class="btn ghost sm" data-le="${t}:${x.id}">✏️</button></td>`}</tr>`).join('')}
+      <tr style="background:#f1f5f9"><td colspan="${step ? 4 : 3}"><b>รวม</b></td><td class="num"><b>${fmtN(sumQ(A))}</b></td><td colspan="${ro ? 1 : 2}"></td></tr></tbody></table>` : '<div class="hint">ยังไม่มีสแกน</div>';
+    const P = sumQ(pr), D = sumQ(dc), Q = sumQ(L.qc.filter(x => x.status !== 'ส่งจากสต็อก'));
+    const flow = [['🖨 พิมพ์', P], ['✂️ ไดคัท', D], ['✅ QC', Q]].filter(([, v]) => v > 0).map(([t, v]) => `${t} <b>${fmtN(v)}</b>`).join(' → ');
+    $('#dlgBody').innerHTML = `<h3>ยอดที่ช่างส่ง · JOB ${esc(job)}</h3><div class="hint" style="margin-bottom:6px">${flow || 'ยังไม่มียอด'}${P > 0 && D > P * 1.1 ? ' <b style="color:#c2410c">· ⚠ ยอดไดคัทมากกว่ายอดพิมพ์เกิน 10% ควรตรวจว่าสแกนซ้ำหรือคีย์ผิดไหม</b>' : ''}</div>
+      <div class="tbl-wrap" style="max-height:72vh">
+      <h4 style="margin:8px 0 4px;color:#1f3a68">🖨 พิมพ์ — ${pr.length} ครั้ง</h4>${tbl(pr, 'production_logs', false)}
+      <h4 style="margin:12px 0 4px;color:#1f3a68">✂️ ไดคัท — ${dc.length} ครั้ง</h4>${tbl(dc, 'production_logs', false)}
+      <h4 style="margin:12px 0 4px;color:#1f3a68">✅ QC / สลิท / แพ็ค — ${L.qc.length} ครั้ง</h4>${tbl(L.qc, 'qc_logs', false)}</div>
+      ${L.pending ? `<div class="hint" style="margin-top:6px;color:#b45309">⚠ มีสแกนรอตรวจอีก ${L.pending} รายการ (ยังไม่รวมในยอด)</div>` : ''}
+      <div class="acts"><button class="btn" id="sp_x">ปิด</button></div>`;
+    d.classList.add('wide'); d.addEventListener('close', () => d.classList.remove('wide'), {once: true}); if (!d.open) d.showModal(); $('#sp_x').onclick = () => d.close();
+    $('#dlgBody').querySelectorAll('[data-le]').forEach(b => b.onclick = () => { const [t, id] = b.dataset.le.split(':'), x = (t === 'qc_logs' ? L.qc : L.prod).find(l => String(l.id) === id);
+      if (!x) return; d.close(); LogEdit.open({...x, table: t}, () => { after && after(); this.open(job, after); }); }); }
+};
+
 // ===== ตรวจนับสต็อก: กรอกยอดนับได้ → ระบบหักลบกับยอดในระบบ (ปรับลด/ปิดยอด ของ JOB ให้เอง) =====
 const StockCount = {
   cnt: store.get('vp_cnt_draft', {}), all: false, date: '', by: store.get('vp_cnt_by', ''), note: '',
@@ -6306,6 +6329,9 @@ const Office = {
       if (k === 'backlog_qty') return `<td class="${band} num ${+r[k] > 0 ? 'back-on' : ''}">${fmtN(r[k])}</td>`;
       if (k === 'waste_qty') return `<td class="${band} num ${+r[k] < 0 ? 'stock-neg' : ''}">${fmtN(r[k])}</td>`;
       if (t === 'pct') return `<td class="${band} num">${this.pdisp(r, k, t)}</td>`;
+      if (['prod_qty', 'diecut_qty', 'qc_qty'].includes(k)) { const odd = k === 'diecut_qty' && +r.print_qty > 0 && +r.diecut_qty > +r.print_qty * 1.1,
+          chg = k === 'prod_qty' && +r.print_qty > 0 && +r.prod_qty !== +r.print_qty;   // จำนวนผลิตไม่ใช่ยอดที่ช่างพิมพ์ส่ง (ใช้ยอดหลังไดคัทที่มากกว่า)
+        return `<td class="${band} num lg-c${odd ? ' lg-odd' : ''}${chg ? ' lg-chg' : ''}" data-lg="${esc(r.job_ticket)}" title="${odd ? `ยอดหลังไดคัทมากกว่ายอดพิมพ์ (${fmtN(r.print_qty)}) เกิน 10% — คลิกดูยอดที่ช่างส่ง` : chg ? `ไม่ตรงกับยอดที่ช่างพิมพ์ส่ง (${fmtN(r.print_qty)}) — ใช้ยอดหลังไดคัทที่มากกว่า · คลิกดูยอดที่ช่างส่ง` : 'คลิกดูยอดที่ช่างส่งแต่ละครั้ง'}">${odd ? '⚠ ' : ''}${k === 'diecut_qty' && !+r[k] ? '' : fmtN(r[k])}</td>`; }
       if (t === 'num') return `<td class="${band} num">${fmtN(r[k])}</td>`;
       return `<td class="${band}">${esc(r[k] || (['machine','printer','diecutter'].includes(k) ? '-' : ''))}</td>`; };
     const nf = Object.keys(this.pfil).length;
@@ -6314,6 +6340,7 @@ const Office = {
       <tbody>${rows.map(r => `<tr class="${r.closed ? 'is-closed' : ''} ${r.cancelled ? 'is-cancel' : ''}">${C.map(c => cell(r, c)).join('')}</tr>`).join('')}</tbody></table>
       ${rows.length ? '' : '<div class="empty">ไม่พบงาน</div>'}`;
     $('#pfClr')?.addEventListener('click', () => { this.pfil = {}; this.psort = null; this.drawProgress(); });
+    $('#pg').querySelectorAll('[data-lg]').forEach(td => td.onclick = () => ScanPop.open(td.dataset.lg, () => this.loadProgress ? this.loadProgress() : null));
     $('#pg').querySelectorAll('[data-pf]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.pf, col = C.find(c => c[0] === k);
       ColFilter.pop({btn: b, label: col[1], type: ['num','ed','pct'].includes(col[2]) && k !== 'track_note' ? 'numeric' : 'text',
         values: this.pFiltered(k).map(r => this.pdisp(r, k, col[2])), current: this.pfil[k],
